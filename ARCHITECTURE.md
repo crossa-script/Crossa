@@ -8,42 +8,43 @@ This is not a roadmap, product pitch, API reference, tutorial, or list of specul
 
 ## 2. Architecture Overview
 
-Crossa is a compiler-powered native runtime platform. It converts backend contracts into generated, high-performance Android and iOS SDKs:
+Crossa is a compiler-powered native runtime and scripting/code-generation platform. It accepts backend contracts and intentionally small `.cra` sources, then produces native runtime artifacts and generated Android/iOS APIs. Crossa is not a general-purpose programming language.
 
 ```text
-Backend Contract
-        |
-        v
-Backend Adapter
-        |
-        v
-Normalized Crossa Contract
-        |
-        v
-Compiler and Semantic Model
-        |
-        v
-Crossa IR
-        |
-        v
-Optimization and Linking
-        |
-        v
-Generated Native C++
-        |
-        v
-Crossa C++ Runtime
-        |
-        v
-Stable Native ABI
-      /             \
-     v               v
-Android             iOS
-Kotlin API          Swift API
-AAR                 XCFramework
+                         Crossa Inputs
+
+       Backend Contracts                 .cra Sources
+              |                               |
+              v                               v
+       Backend Adapters              C++ Language Frontend
+              |                    Loader / Lexer / Parser
+              v                               |
+       Crossa Contract                        v
+              |                     Typed Semantic Model
+              +---------------+---------------+
+                              |
+                              v
+                         Shared Crossa IR
+                              |
+                              v
+                    Optimization and Linking
+                              |
+                  +-----------+-----------+
+                  |           |           |
+                  v           v           v
+          Generated C++    Kotlin       Swift
+                  |           |           |
+                  v           +-----+-----+
+          Crossa C++ Runtime        |
+                  |                 |
+                  v                 |
+          Stable Native ABI --------+
+                  |
+             Android / iOS
+          AAR / XCFramework APIs
 ```
 
-Networking is the first production use of this architecture, not the architecture itself. The same runtime core and compiler pipeline must remain capable of supporting Database, WebSocket, raw and binary sockets, Streaming, Cache, Compression, Cryptography, File Transport, Telemetry, and other native modules without turning Networking into their foundation.
+Different frontends converge on shared typed semantics and platform-neutral IR. They do not create separate compiler, runtime, or platform implementations. Networking is the first production use of this architecture, not the architecture itself. The same runtime core and compiler pipeline must remain capable of supporting Database, WebSocket, raw and binary sockets, Streaming, Cache, Compression, Cryptography, File Transport, Telemetry, and other native modules without turning Networking into their foundation.
 
 ## 3. Architectural Goals
 
@@ -70,6 +71,8 @@ Given identical inputs, configuration, toolchain, and dependency versions, compi
 ## 4. C++ Owns the Hot Path
 
 The performance-critical execution path is a non-negotiable C++ responsibility. Android and iOS consume Crossa; they are not secondary implementations.
+
+Adding `.cra` does not transfer runtime responsibility into generated platform code. C++ continues to own performance-critical networking, request construction and encoding, response buffering and parsing, model storage, memory, scheduling, async state, errors, and future database, WebSocket, and binary-protocol execution.
 
 For Networking, native code owns request validation and planning, URL/path/query/header construction, authentication metadata, serialization, transport, connection reuse, cancellation, timeouts, response buffering, parsing, typed model construction, errors, retries, cleanup, scheduling, memory, buffers, and object lifetimes.
 
@@ -98,7 +101,99 @@ Native buffer
 
 Materialization is allowed only when explicit application ownership or platform ergonomics requires it. It must not be the default for large results.
 
-## 5. Subsystems and Compiler/Runtime Boundary
+## 5. Crossa Language Frontend
+
+Crossa uses `.cra` source files for its small scripting and code-generation language. This section defines where that language fits architecturally. Exact current syntax and semantics belong in `docs/language/language-foundation.md`; implementation order and future milestones belong in `docs/language/language-roadmap.md`.
+
+### Canonical Frontend
+
+`.cra` is parsed exactly once by the C++ compiler frontend:
+
+```text
+.cra Source
+    -> C++ Source Loader
+    -> C++ Lexer
+    -> C++ Parser
+    -> AST
+    -> Semantic Analysis
+    -> Typed Crossa Representation
+    -> Crossa IR
+```
+
+The lexer and parser own syntax processing. The AST represents source syntax only. Semantic analysis owns validated types, symbols, functions, models, variables, annotations, string interpolation, and request meaning. Crossa IR represents platform-neutral executable and generatable behavior. Runtime code and generators consume typed semantic/IR data rather than rediscovering meaning from raw parser syntax.
+
+Never create a Kotlin, Swift, Android-runtime, or iOS-runtime `.cra` parser. Kotlin and Swift consume compiler output and must not define competing language semantics.
+
+### Initial Language Surface
+
+The current foundation includes `fun`, `re`, `var`, `print`, `model`, `config`, `Int`, `String`, `Bool`, `List<T>`, `@Sync`, `@Async`, `@AsyncAfter`, `#identifier` interpolation, and `CrossaRequest`. This list establishes integration points only; the language foundation remains authoritative for exact grammar and behavior.
+
+### Interpolation and Collections
+
+The compiler parses and semantically resolves `#identifier` interpolation before execution. Normal runtime paths must not rescan raw `.cra` strings:
+
+```cra
+var name: String = "ahmad"
+print("Name is : #name")
+```
+
+```text
+"Name is : #name"
+    -> Static("Name is : ")
+    -> Symbol(name)
+
+"/v1/users/#id"
+    -> StaticSegment("/v1/users/")
+    -> ParameterSegment(id)
+```
+
+The latter becomes a precompiled plan for the native request encoder. A second interpolation syntax must not be introduced outside the language specification.
+
+`List<T>` is a built-in typed collection; it does not imply general user-defined generics. Its exact native layout remains an ownership and benchmark decision. Large native results should prefer native-backed collection access over eager Kotlin/Swift object duplication.
+
+### Native Requests and Async State
+
+`CrossaRequest` is a compiler/runtime builtin:
+
+```cra
+@AsyncAfter
+fun getUsers(id: Int): List<User> {
+    re CrossaRequest {
+        path: "/v1/users",
+        method: GET
+    }
+}
+```
+
+```text
+CrossaRequest expression
+    -> semantic validation
+    -> typed native request IR
+    -> generated native request plan
+    -> Crossa Network runtime
+```
+
+It must not lower to independent Retrofit, Ktor, OkHttp, or URLSession implementations. Networking remains on the C++ hot path.
+
+For an `@AsyncAfter` function returning `List<User>`, `List<User>` is the logical success type and the expected schema for native response decoding:
+
+```text
+HTTP response bytes
+    -> native buffer
+    -> generated/schema-aware C++ parser
+    -> native List<User>
+    -> Success(data) or Failed(error)
+```
+
+The Android/Swift generator does not rediscover or parse the response type. Generated APIs deliver terminal `Success(data)` or `Failed(error)` semantics through an idiomatic callback/closure representation without fixing target-specific class names here.
+
+`@Async` and `@AsyncAfter` use the shared bounded Crossa scheduler, never one OS thread per invocation. `@AsyncAfter` completion is exactly once at the semantic level. Platform code bridges completion and must not execute the function body again.
+
+### Translation and Native Binding
+
+An explicitly selected pure-translation build may translate simple pure `.cra` logic such as `fun add(a: Int, b: Int): Int { re a + b }` into semantically equivalent Kotlin or Swift. Runtime-backed behavior—including `CrossaRequest`, networking, response parsing, native models, scheduler-backed execution, and future database or WebSocket operations—generates thin wrappers over the C++ runtime. Generators must not silently choose a different semantic implementation.
+
+## 6. Subsystems and Compiler/Runtime Boundary
 
 ### Backend Adapters
 
@@ -106,53 +201,51 @@ Adapters inspect an external contract source and emit the neutral Crossa Contrac
 
 ### Contract, Semantic Model, and IR
 
-The Contract represents backend behavior without framework or platform assumptions. Semantic analysis validates and resolves it. Crossa IR represents types, operations, constraints, serialization plans, errors, ownership hints, and module references. The IR must not be designed around REST-only assumptions because future modules require database operations, streams, and socket messages.
+The Contract represents backend behavior without framework or platform assumptions. The `.cra` semantic model represents validated language meaning without platform assumptions. Both paths lower into shared Crossa IR, which represents types, operations, executable behavior, constraints, serialization plans, errors, ownership hints, and module references. The IR must not be designed around REST-only or raw-parser assumptions because future modules require database operations, streams, and socket messages.
 
 ### Compiler, Optimizer, and Linker
 
-The compiler normalizes and validates input, builds the semantic model and IR, applies behavior-preserving optimization, links only required capabilities, and emits generated native code, bindings, and manifests. It must be deterministic, version-aware, cacheable, reproducible, and independent of platform toolchains until generation and packaging stages.
+The compiler coordinates distinct contract and `.cra` frontends, validates their typed meaning, builds shared IR, applies behavior-preserving optimization, links only required capabilities, and emits generated native code, target code or bindings, and manifests. It must be deterministic, version-aware, cacheable, reproducible, and independent of platform toolchains until generation and packaging stages.
 
-### Generated Native Modules
+### Generated Outputs
 
-Generated code specializes runtime behavior for known contracts. It may have machine-oriented structure, but must remain deterministic, valid, debuggable, understandable, efficient to compile, and efficient to execute.
+Generated native code specializes runtime behavior for known contracts and typed `.cra` operations. Kotlin and Swift generators consume typed IR for pure translation or thin runtime wrappers according to the selected backend strategy. Generated output may have machine-oriented structure, but must remain deterministic, valid, debuggable, understandable, efficient to compile, and efficient to execute.
 
 ### Runtime and Bindings
 
 The runtime owns execution, memory, scheduling, objects, errors, and shared services. The stable ABI exposes a controlled boundary. Kotlin/JNI and Swift wrappers provide platform-native APIs, lifecycle integration, completion delivery, and cancellation bridging without duplicating native work.
 
-## 6. Dependency Architecture
+## 7. Dependency Architecture
 
-Allowed dependency direction is one-way:
+Both input paths flow inward toward shared IR and backends:
 
 ```text
-Backend Adapters
-        |
-        v
-Contract
-        |
-        v
-Compiler and Semantic Model
-        |
-        v
-IR
-        |
-        v
-Optimizer / Linker
-        |
-        v
-Generators
-        |
-        v
-Generated Native Module
-        |
-        v
-Runtime
-        |
-        v
-Stable ABI
-        |
-        v
-Platform Bindings
+Backend Source                 .cra Source
+      |                             |
+      v                             v
+Backend Adapter              Language Frontend
+      |                             |
+      v                             v
+Contract                    Typed Semantic Model
+      +-------------+---------------+
+                    |
+                    v
+               Shared Crossa IR
+                    |
+                    v
+          Optimizer / Linker / Generators
+                    |
+                    v
+        Generated Native Module / Target Code
+                    |
+                    v
+                 Runtime
+                    |
+                    v
+                Stable ABI
+                    |
+                    v
+             Platform Bindings
 ```
 
 Runtime modules depend inward:
@@ -169,6 +262,8 @@ Forbidden dependencies include:
 
 - `runtime -> Android` or `runtime -> Swift`
 - `compiler -> JNI` or `compiler -> Swift`
+- `language frontend -> Android` or `language frontend -> Swift`
+- `parser -> JNI` or `parser -> Networking transport`
 - `network -> NestJS`
 - `database -> network`
 - `adapter -> Android` or `adapter -> iOS`
@@ -176,7 +271,7 @@ Forbidden dependencies include:
 
 Modules do not depend on one another unless a reviewed shared runtime abstraction makes that dependency explicit. Shared code must not be hidden in generic utility packages.
 
-## 7. Runtime and Module Model
+## 8. Runtime and Module Model
 
 A runtime instance explicitly owns configuration, allocators, bounded buffer resources, scheduler resources, module instances, native objects, logging and metrics bridges, platform callbacks, and shutdown coordination. Initialization and shutdown must be explicit, observable, and safe with in-flight operations.
 
@@ -190,7 +285,7 @@ Every module defines:
 
 A module must not mutate unrelated runtime state or create a private runtime inside the shared runtime.
 
-## 8. C++ Engineering Model
+## 9. C++ Engineering Model
 
 Use C++20 unless the checked-in toolchain establishes another version. Prefer a conservative production subset:
 
@@ -208,7 +303,7 @@ Choose the simplest design that is correct, explicit, efficient, and maintainabl
 
 Use object-oriented design when an object represents meaningful state, ownership, lifecycle, or behavior. Keep classes focused and prefer composition. Use inheritance only for a genuine polymorphic relationship. Avoid manager classes that combine encoding, parsing, transport, retry, scheduling, authentication, memory, and logging.
 
-## 9. Source and File Organization
+## 10. Source and File Organization
 
 Directories and namespaces communicate ownership. Organize by subsystem and responsibility rather than placing all types in one package:
 
@@ -223,8 +318,12 @@ runtime/
     observability/
 
 compiler/
-    frontend/
+    source/
+    lexer/
+    parser/
+    ast/
     semantic/
+    types/
     ir/
     optimizer/
     linker/
@@ -272,7 +371,7 @@ modules/network/
 
 This communicates responsibility; it is not a template to reproduce with empty abstractions.
 
-## 10. Functions, Utilities, Comments, and Namespaces
+## 11. Functions, Utilities, Comments, and Namespaces
 
 Functions perform one logical operation and have names that expose intent. Always decompose workflows into small, meaningful functions so the result remains human-readable. Do not split code only to reduce line counts. Use early returns when they reduce nesting.
 
@@ -322,7 +421,7 @@ private:
 
 The example demonstrates focused responsibility, small functions, file separation, concise function comments, and namespace isolation. It is not a required concrete API.
 
-## 11. Memory, Allocation, and Buffers
+## 12. Memory, Allocation, and Buffers
 
 Memory is designed around explicit lifetimes:
 
@@ -344,7 +443,7 @@ Before copying data, identify the current owner, required next owner, view safet
 
 Exact object layouts, string/list representations, arena sizes, and pool policies remain benchmark-driven decisions rather than architectural constants.
 
-## 12. Compile-Time Specialization and Generated Code
+## 13. Compile-Time Specialization and Generated Code
 
 Prefer generated serializers and parsers, static operation identifiers, generated request/response plans, precomputed metadata, dead-code elimination, constant pooling, capability pruning, and link-time removal over runtime reflection or discovery.
 
@@ -352,7 +451,9 @@ Avoid dynamic field maps, runtime annotation scanning, repeated string-based ope
 
 Generated output must be stable for identical builds and must not add runtime work merely because code generation makes that work easy to emit.
 
-## 13. Stable ABI and Errors
+Pure target translation and native runtime binding are explicit backend strategies over typed IR. A generator must not bypass semantic analysis, parse raw `.cra` source, or replace native runtime-backed behavior with a platform-specific implementation.
+
+## 14. Stable ABI and Errors
 
 The public native boundary is deliberately small and may use a narrow C-compatible ABI even when internals use modern C++. Prefer opaque handles, explicit create/release operations, versioned structures, stable integer error codes, safe buffer access, bulk operations, and capability/version negotiation.
 
@@ -362,7 +463,7 @@ Use one structured error model across modules. Errors carry a stable domain and 
 
 ABI, Contract schema, IR, runtime implementation, module, compiler, adapter, and generated SDK versions are separate axes. Do not collapse them into one version.
 
-## 14. Android and iOS Boundaries
+## 15. Android and iOS Boundaries
 
 ### Android
 
@@ -372,11 +473,13 @@ The AAR contains the Kotlin API, concentrated JNI bridge, native libraries, and 
 
 The XCFramework exposes a safe Swift-facing API over the controlled native boundary. Do not expose the entire internal C++ model or blindly convert large STL collections. Prefer native-backed access and explicit materialization. Direct Swift/C++ interoperability is acceptable only with stable ownership and a measured benefit; the exact C ABI versus direct interop split remains open.
 
-Both platforms must respect lifecycle transitions, background constraints, and main-thread safety without taking ownership of native execution.
+Both platforms must respect lifecycle transitions, background constraints, and main-thread safety without taking ownership of native execution or redefining `.cra` semantics. Pure translated code is allowed only when the selected compiler backend explicitly chooses it; runtime-backed operations remain thin native bindings.
 
-## 15. Scheduler, Concurrency, and Global State
+## 16. Scheduler, Concurrency, and Global State
 
 Crossa uses one coordinated scheduling architecture for network events, parsing, database work, compression, cryptography, streaming, and platform delivery. Modules do not create independent thread pools.
+
+`.cra` execution annotations describe policy over this scheduler. `@Async` and `@AsyncAfter` do not create threads directly, and platform bindings do not implement a second scheduler. Terminal `@AsyncAfter` completion must be delivered exactly once.
 
 Avoid one thread per operation, unlimited workers, unbounded queues, blocking event loops, and large parsing work on a UI thread. Mutable runtime state has an explicit owner and synchronization policy. Prefer immutable generated metadata. Use atomics only with clear semantics and keep locks and observability off hot contention paths.
 
@@ -384,7 +487,7 @@ Every long-running operation has explicit state and supports race-safe, idempote
 
 Process-global mutable application state and expensive hidden global initialization are forbidden. State belongs to a Runtime, Module, Operation, Request, Response, Arena, or Connection. Immutable generated static metadata is acceptable only as a member of a clear parent class.
 
-## 16. Performance Engineering
+## 17. Performance Engineering
 
 Performance work follows this order:
 
@@ -400,25 +503,25 @@ Measure end-to-end release behavior: latency, CPU, memory, allocations, copies, 
 
 No performance assumption justifies unreadable or unsafe code. Exact worker counts, buffer sizes, parser pools, native model layout, LTO configuration, TLS backend, and protocol-stack choices remain open until benchmarks and production requirements decide them.
 
-## 17. Third-Party Dependencies
+## 18. Third-Party Dependencies
 
 Dependencies remain behind Crossa-owned abstractions and never define the public architecture. Evaluate performance, memory, binary size, mobile support, security history, maintenance, license, toolchain compatibility, ABI behavior, and upgrade cost.
 
 Use the standard library for small, safe functionality, but do not reimplement mature TLS, protocol, cryptographic, or compression infrastructure merely to avoid a dependency. libcurl and simdjson are current candidates, not public APIs or irrevocable choices.
 
-## 18. Accepted and Forbidden Patterns
+## 19. Accepted and Forbidden Patterns
 
 Accepted patterns include focused domain objects, explicit runtime instances, native-backed views, schema-specific generated code, bounded resource ownership, composition, narrow interfaces backed by real variation, and measurable optimization.
 
-Forbidden patterns include platform-side parsing or transport, reflection in generated hot paths, generic intermediate object graphs, eager duplication of large results, unbounded resources, independent module schedulers, mutable globals, cross-module coupling, ABI leakage, universal utility classes, unrelated type collections, manager classes with broad responsibility, and speculative abstraction systems.
+Forbidden patterns include platform-side `.cra` parsing, response parsing or transport, reflection in generated hot paths, generic intermediate object graphs, eager duplication of large results, unbounded resources, independent module schedulers, mutable globals, cross-module coupling, ABI leakage, universal utility classes, unrelated type collections, manager classes with broad responsibility, and speculative abstraction systems.
 
-## 19. Architecture Change Process
+## 20. Architecture Change Process
 
 Do not introduce a new architectural pattern silently. Create or update an ADR under `docs/decisions/` for changes to ABI, IR, ownership, scheduler, transport, parser, native object or memory layout, allocation strategy, platform interoperability, module boundaries, or major dependencies.
 
 An ADR states context, decision, alternatives, consequences, compatibility and migration impact, and supporting measurements where applicable. Decisions explicitly reserved for benchmarking must not be locked by documentation or incidental implementation.
 
-## 20. Architectural Non-Negotiables
+## 21. Architectural Non-Negotiables
 
 1. C++ owns the performance-critical path.
 2. Android and iOS bindings remain thin.
@@ -438,7 +541,7 @@ An ADR states context, decision, alternatives, consequences, compatibility and m
 16. Performance decisions require measurements.
 17. Generated output is deterministic.
 18. Crossa remains extensible beyond Networking.
-19. Crossa IR precedes Crossa source-language syntax.
+19. Crossa syntax passes through semantic analysis and lowers into platform-neutral IR before native execution or target generation.
 20. Material architecture changes require an ADR.
 
 Crossa performs as much useful work as possible inside the C++ runtime while exposing the smallest safe and ergonomic surface required by Android and iOS. Its performance comes primarily from architecture, ownership, generated specialization, bounded resources, fewer allocations, fewer copies, and fewer boundary crossings—not unnecessary complexity.

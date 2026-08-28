@@ -1,0 +1,36 @@
+var developerName: String = "ahmad"
+var age: Int = 28
+var isActive: Bool = true
+
+model User(
+    id: Int,
+    name: String,
+    isActivated: Bool
+)
+
+fun add(a: Int, b: Int): Int {
+    re a + b
+}
+
+fun multiply(a: Int, b: Int): Int {
+    re a * b
+}
+
+fun printUserName(name: String) {
+    print("User name is: #name")
+}
+
+@Sync
+fun printDeveloper(name: String) {
+    print("Developer is: #name")
+}
+
+@Async
+fun runBackgroundTask() {
+    print("Background task started")
+}
+
+@AsyncAfter
+fun calculateTotal(a: Int, b: Int): Int {
+    re a + b
+}

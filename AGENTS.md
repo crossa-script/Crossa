@@ -19,10 +19,47 @@ Read only the documents relevant to the task, starting with the nearest nested `
 - Runtime: `docs/architecture/runtime.md`, `docs/runtime/memory-ownership.md`, `docs/runtime/scheduling.md`
 - ABI: `docs/architecture/abi.md`
 - Networking: `docs/features/networking.md`
+- Language: `docs/language/language-foundation.md` for current `.cra` syntax and semantics; `docs/language/language-roadmap.md` for implementation order and future milestones
 - Platforms: `docs/platform/android.md`, `docs/platform/ios.md`
 - Decisions: `docs/decisions/`
 
 Some subsystem documents may not exist during the foundation phase. Use `ARCHITECTURE.md`, the blueprint, and existing code as evidence; do not invent missing policy.
+
+## Crossa Language
+
+Crossa uses `.cra` source files. `docs/language/language-foundation.md` is the authoritative specification for supported syntax and semantics. `docs/language/language-roadmap.md` defines implementation order and future compiler/language milestones; planned roadmap items are not supported language features.
+
+Read the language foundation completely and the relevant roadmap sections before modifying:
+
+- `.cra` source loading, tokens, lexer/tokenizer, parser, AST, semantic analysis, symbols, types, diagnostics, compatibility, reserved keywords, or grammar.
+- Variables, functions, models, `List<T>`, `print`, `re`, `#identifier` interpolation, execution annotations, `@Sync`, `@Async`, `@AsyncAfter`, or `config.cra`.
+- `CrossaRequest`, request-path interpolation, native request lowering, response decoding, language-to-IR lowering, or native `.cra` execution.
+- Kotlin/Swift generation, generated async-state APIs, or language-backed Networking behavior.
+
+There is exactly one canonical frontend:
+
+```text
+C++ Source Loader
+    -> C++ Lexer
+    -> C++ Parser
+    -> AST
+    -> Semantic Analysis
+    -> Typed Crossa Representation
+    -> Crossa IR
+```
+
+Never create Kotlin or Swift `.cra` parsers. C++ owns lexing, parsing, semantic analysis, IR lowering, native execution, scheduler semantics, `CrossaRequest` execution, request construction, networking, response buffering/parsing, and native result state. Kotlin and Swift generators expose platform APIs without redefining language or runtime semantics.
+
+Preserve these current invariants:
+
+- `#identifier` is the only defined interpolation syntax.
+- `List<T>` is a built-in collection and does not imply user-defined generics.
+- `CrossaRequest` is a compiler/runtime builtin that lowers to native IR; it must not generate separate Kotlin or Swift networking implementations.
+- For `@AsyncAfter`, the declared return type is the logical success type and generated APIs preserve `Success(data)` or `Failed(error)` semantics.
+
+Do not invent syntax or semantics while implementing unrelated work. Anything absent from the language foundation is unsupported. This includes nullable syntax, enums, maps, control flow (`if`, `else`, or loops), imports, packages, visibility modifiers, exceptions, extra annotations, user-defined generics, additional HTTP methods or `CrossaRequest` properties, and arbitrary interpolation expressions unless the task intentionally updates the specification.
+
+When a task intentionally changes `.cra` syntax or semantics, update the existing documents under `docs/language/` in the same change. Do not create duplicate language documentation or place it beside compiler source.
 
 ## Documentation Location and Maintenance
 
@@ -53,7 +90,7 @@ Keep responsibilities distinct: `AGENTS.md` explains how agents work, `ARCHITECT
 4. Check whether the change requires an ADR.
 5. Select the smallest complete change that satisfies the task without speculative infrastructure.
 
-Do not implement unrelated cleanup or future features. Crossa source-language syntax remains out of scope unless explicitly requested.
+Do not implement unrelated cleanup or future features. Implement only `.cra` behavior defined by the language foundation and required by the task.
 
 ## While Editing
 
