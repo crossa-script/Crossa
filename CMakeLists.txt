@@ -8,11 +8,17 @@ add_executable(
     include/crossa/utils/PrintUtils.h
     include/crossa/compiler/source/SourceFile.h
     include/crossa/compiler/source/SourceLoader.h
+    include/crossa/compiler/lexer/TokenType.h
+    include/crossa/compiler/lexer/Token.h
+    include/crossa/compiler/lexer/Lexer.h
     include/crossa/compiler/ir/Program.h
     include/crossa/runtime/ExecutionEngine.h
     src/main.cpp
     src/compiler/source/SourceFile.cpp
     src/compiler/source/SourceLoader.cpp
+    src/compiler/lexer/TokenType.cpp
+    src/compiler/lexer/Token.cpp
+    src/compiler/lexer/Lexer.cpp
     src/compiler/ir/Program.cpp
     src/runtime/ExecutionEngine.cpp
     src/utils/Log.cpp

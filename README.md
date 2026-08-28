@@ -6,7 +6,7 @@ Crossa is not a general-purpose programming language or another platform network
 
 ## Project Status
 
-> **Foundation phase:** Crossa currently contains its architecture and language specifications plus a minimal C++20 executable foundation. The compiler, runtime, AAR, and XCFramework pipelines are not yet implemented.
+> **Foundation phase:** Crossa currently contains its architecture and language specifications, source loading, and the initial CRA Language V0 lexer. The parser, semantic compiler stages, production runtime, AAR, and XCFramework pipelines are not yet implemented.
 
 The first production runtime module will be Networking. Future modules may include WebSockets, raw and binary sockets, Database, Streaming, Cache, Compression, Cryptography, File Transport, and Telemetry.
 
@@ -89,13 +89,13 @@ cmake --build build
 ./build/crossa test.cra
 ```
 
-The current executable accepts one `.cra` source file, validates its extension, loads its content into the initial IR, and passes it to the execution engine. Normal execution only displays errors:
+The current executable accepts one `.cra` source file, validates its extension, tokenizes its content, loads it into the initial IR, and passes it to the execution engine. Normal execution only displays errors:
 
 ```sh
 ./build/crossa test.cra
 ```
 
-Use `--debug` to display every current Crossa execution step:
+Use `--debug` to display every current Crossa execution step and each emitted token with its source location:
 
 ```sh
 ./build/crossa --debug test.cra
@@ -106,6 +106,8 @@ To configure, build, and run the debug test in one command:
 ```sh
 ./test.sh
 ```
+
+The script uses CMake when available and falls back to the installed C++ compiler.
 
 Compiler implementation should follow the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, deterministic generators, then native Networking.
 
