@@ -6,7 +6,7 @@ Crossa is not a general-purpose programming language or another platform network
 
 ## Project Status
 
-> **Foundation phase:** Crossa currently contains its architecture and language specifications. The compiler, runtime, build system, AAR, and XCFramework pipelines are not yet implemented in this repository.
+> **Foundation phase:** Crossa currently contains its architecture and language specifications plus a minimal C++20 executable foundation. The compiler, runtime, AAR, and XCFramework pipelines are not yet implemented.
 
 The first production runtime module will be Networking. Future modules may include WebSockets, raw and binary sockets, Database, Streaming, Cache, Compression, Cryptography, File Transport, and Telemetry.
 
@@ -81,7 +81,15 @@ Crossa does not generate separate Retrofit, Ktor, OkHttp, or URLSession implemen
 
 ## Development
 
-No executable build configuration is committed yet. Do not rely on speculative build commands. Initial implementation should follow the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, deterministic generators, then native Networking.
+Configure, build, and run the current executable with CMake and Ninja:
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+./build/crossa
+```
+
+The current executable validates the initial utility and logging foundation. Compiler implementation should follow the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, deterministic generators, then native Networking.
 
 Architecture, ABI, IR, ownership, scheduler, transport, parser, memory-layout, module-boundary, and major dependency changes require an ADR under `docs/decisions/`.
 
