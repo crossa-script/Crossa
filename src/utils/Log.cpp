@@ -6,16 +6,38 @@ using namespace std;
 
 namespace crossa::utils {
 
-void Log::info(const string& message) {
-    PrintUtils::println("[INFO] " + message);
-}
+    // Creates a logger configured with the requested minimum visibility.
+    Log::Log(Level level) noexcept : level_(level) {}
 
-void Log::warning(const string& message) {
-    PrintUtils::println("[WARNING] " + message, WarningColor);
-}
+    // Prints an informational message when info logging is enabled.
+    void Log::info(const string& message) const {
+        if (shouldLog(Level::Info)) {
+            PrintUtils::println("[INFO] " + message);
+        }
+    }
 
-void Log::error(const string& message) {
-    PrintUtils::println("[ERROR] " + message, ErrorColor);
-}
+    // Prints a detailed execution message in debug mode.
+    void Log::debug(const string& message) const {
+        if (shouldLog(Level::Debug)) {
+            PrintUtils::println("[DEBUG] " + message);
+        }
+    }
+
+    // Prints a warning message when warning logging is enabled.
+    void Log::warning(const string& message) const {
+        if (shouldLog(Level::Warning)) {
+            PrintUtils::println("[WARNING] " + message, WarningColor);
+        }
+    }
+
+    // Prints an error message at every logging level.
+    void Log::error(const string& message) const {
+        PrintUtils::println("[ERROR] " + message, ErrorColor);
+    }
+
+    // Returns whether a message should be emitted at the current level.
+    bool Log::shouldLog(Level level) const noexcept {
+        return static_cast<int>(level) <= static_cast<int>(level_);
+    }
 
 }

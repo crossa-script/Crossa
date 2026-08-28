@@ -102,7 +102,10 @@ Do not implement unrelated cleanup or future features. Implement only `.cra` beh
 
 ## Strict Development Rules
 
-- Put function comments immediately above the declaration or definition, never inside the function body.
+- Put a concise class summary immediately above every class declaration. The summary must explain the class responsibility and name its most important functions.
+- Put a concise one- or two-line function comment immediately above every function declaration and definition, never inside the function body.
+- Keep comments factual, short, and focused on responsibility or constraints. Do not add implementation-narration comments inside function bodies.
+- Use four spaces for every indentation level in C++ source files. Never use tabs, and indent nested blocks, continued parameters, and initializer lists consistently.
 - Separate workflows into focused, human-readable functions, each performing one logical operation.
 - Use lower camel case for variables and Pascal case for static variables.
 - Keep shared stateless functions as static members of a focused utility class such as `UrlUtils` or `BufferUtils`.

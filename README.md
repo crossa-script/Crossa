@@ -86,10 +86,28 @@ Configure, build, and run the current executable with CMake and Ninja:
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
-./build/crossa
+./build/crossa test.cra
 ```
 
-The current executable validates the initial utility and logging foundation. Compiler implementation should follow the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, deterministic generators, then native Networking.
+The current executable accepts one `.cra` source file, validates its extension, loads its content into the initial IR, and passes it to the execution engine. Normal execution only displays errors:
+
+```sh
+./build/crossa test.cra
+```
+
+Use `--debug` to display every current Crossa execution step:
+
+```sh
+./build/crossa --debug test.cra
+```
+
+To configure, build, and run the debug test in one command:
+
+```sh
+./test.sh
+```
+
+Compiler implementation should follow the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, deterministic generators, then native Networking.
 
 Architecture, ABI, IR, ownership, scheduler, transport, parser, memory-layout, module-boundary, and major dependency changes require an ADR under `docs/decisions/`.
 

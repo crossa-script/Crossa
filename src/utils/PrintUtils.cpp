@@ -6,12 +6,14 @@ using namespace std;
 
 namespace crossa::utils {
 
-void PrintUtils::println(const string& message) {
-    std::cout << message << '\n';
-}
+    // Prints a message followed by a line terminator.
+    void PrintUtils::println(const string& message) {
+        std::cout << message << '\n';
+    }
 
-void PrintUtils::println(const string& message, string_view color) {
-    std::cout << color << message << ResetColor << '\n';
-}
+    // Prints a colored message followed by a line terminator.
+    void PrintUtils::println(const string& message, string_view color) {
+        std::cout << color << message << ResetColor << '\n';
+    }
 
 }

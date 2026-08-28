@@ -5,18 +5,37 @@
 
 namespace crossa::utils {
 
+// Emits filtered Crossa diagnostics at error, warning, info, or debug level.
+// info(), debug(), warning(), and error() provide level-aware output.
 class Log final {
 public:
-    // Prints an informational log message.
-    static void info(const std::string& message);
+    enum class Level {
+        Error,
+        Warning,
+        Info,
+        Debug
+    };
 
-    // Prints a warning log message.
-    static void warning(const std::string& message);
+    // Creates a logger configured with the requested minimum visibility.
+    explicit Log(Level level = Level::Error) noexcept;
 
-    // Prints an error log message.
-    static void error(const std::string& message);
+    // Prints an informational message when info logging is enabled.
+    void info(const std::string& message) const;
+
+    // Prints a detailed execution message in debug mode.
+    void debug(const std::string& message) const;
+
+    // Prints a warning message when warning logging is enabled.
+    void warning(const std::string& message) const;
+
+    // Prints an error message at every logging level.
+    void error(const std::string& message) const;
 
 private:
+    // Returns whether a message should be emitted at the current level.
+    [[nodiscard]] bool shouldLog(Level level) const noexcept;
+
+    Level level_;
     inline static constexpr std::string_view WarningColor = "\033[33m";
     inline static constexpr std::string_view ErrorColor = "\033[31m";
 };
