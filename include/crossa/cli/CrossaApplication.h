@@ -1,0 +1,64 @@
+#pragma once
+
+#include <filesystem>
+#include <optional>
+#include <vector>
+
+#include "crossa/compiler/ast/SourceUnit.h"
+#include "crossa/compiler/lexer/Token.h"
+#include "crossa/compiler/source/SourceFile.h"
+#include "crossa/utils/Log.h"
+
+namespace crossa::cli {
+
+// Coordinates the Crossa command-line workflow from arguments to execution.
+// run() is the entry point while focused helpers own each compiler stage.
+class CrossaApplication final {
+public:
+    // Runs the Crossa command-line application and returns its process status.
+    static int run(int argc, char* argv[]);
+
+private:
+    // Stores validated command-line options for one Crossa execution.
+    struct Arguments final {
+        bool debugEnabled;
+        std::filesystem::path sourcePath;
+    };
+
+    // Parses supported command-line arguments into execution options.
+    [[nodiscard]] static std::optional<Arguments> parseArguments(
+        int argc,
+        char* argv[]
+    );
+
+    // Loads, tokenizes, and executes one Crossa source file.
+    static void executeSource(const Arguments& arguments, const utils::Log& log);
+
+    // Tokenizes one source file and reports the lexer lifecycle.
+    [[nodiscard]] static std::vector<compiler::lexer::Token> tokenizeSource(
+        const compiler::source::SourceFile& sourceFile,
+        const utils::Log& log
+    );
+
+    // Parses one token stream and reports the parser lifecycle.
+    [[nodiscard]] static compiler::ast::SourceUnit parseSource(
+        const std::vector<compiler::lexer::Token>& tokens,
+        const compiler::source::SourceFile& sourceFile,
+        const utils::Log& log
+    );
+
+    // Writes every emitted token when debug logging is enabled.
+    static void logTokens(
+        const std::vector<compiler::lexer::Token>& tokens,
+        const compiler::source::SourceFile& sourceFile,
+        const utils::Log& log
+    );
+
+    // Writes a concise summary for every parsed AST declaration.
+    static void logAst(
+        const compiler::ast::SourceUnit& sourceUnit,
+        const utils::Log& log
+    );
+};
+
+}
