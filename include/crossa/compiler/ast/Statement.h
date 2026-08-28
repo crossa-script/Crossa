@@ -25,12 +25,19 @@ public:
     // Returns the concrete statement category.
     [[nodiscard]] StatementKind getKind() const noexcept;
 
+    // Returns the source location where this statement begins.
+    [[nodiscard]] const source::SourceLocation& getLocation() const noexcept;
+
 protected:
     // Creates a statement with its concrete category.
-    explicit Statement(StatementKind kind) noexcept;
+    Statement(
+        StatementKind kind,
+        source::SourceLocation location
+    ) noexcept;
 
 private:
     StatementKind kind_;
+    source::SourceLocation location_;
 };
 
 // Represents a re statement and its required value expression.
@@ -38,7 +45,10 @@ private:
 class ReturnStatement final : public Statement {
 public:
     // Creates a return statement that owns one expression.
-    explicit ReturnStatement(std::unique_ptr<Expression> expression);
+    ReturnStatement(
+        std::unique_ptr<Expression> expression,
+        source::SourceLocation location
+    );
 
     // Returns the owned return expression.
     [[nodiscard]] const Expression& getExpression() const noexcept;
@@ -52,7 +62,10 @@ private:
 class ExpressionStatement final : public Statement {
 public:
     // Creates an expression statement that owns one expression.
-    explicit ExpressionStatement(std::unique_ptr<Expression> expression);
+    ExpressionStatement(
+        std::unique_ptr<Expression> expression,
+        source::SourceLocation location
+    );
 
     // Returns the owned statement expression.
     [[nodiscard]] const Expression& getExpression() const noexcept;
@@ -69,7 +82,8 @@ public:
     VariableStatement(
         std::string name,
         TypeReference type,
-        std::unique_ptr<Expression> initializer
+        std::unique_ptr<Expression> initializer,
+        source::SourceLocation location
     );
 
     // Returns the local variable name.

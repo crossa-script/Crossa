@@ -8,6 +8,7 @@ add_executable(
     include/crossa/utils/PrintUtils.h
     include/crossa/cli/CrossaApplication.h
     include/crossa/compiler/source/SourceFile.h
+    include/crossa/compiler/source/SourceLocation.h
     include/crossa/compiler/source/SourceLoader.h
     include/crossa/compiler/lexer/TokenType.h
     include/crossa/compiler/lexer/Token.h
@@ -19,11 +20,25 @@ add_executable(
     include/crossa/compiler/ast/SourceUnit.h
     include/crossa/compiler/ast/AstPrinter.h
     include/crossa/compiler/parser/Parser.h
+    include/crossa/compiler/ir/IrExpression.h
+    include/crossa/compiler/ir/IrStatement.h
+    include/crossa/compiler/ir/IrDeclaration.h
+    include/crossa/compiler/ir/IrLowerer.h
+    include/crossa/compiler/ir/IrPrinter.h
+    include/crossa/compiler/types/SemanticType.h
+    include/crossa/compiler/semantic/SemanticScope.h
+    include/crossa/compiler/semantic/TypedExpression.h
+    include/crossa/compiler/semantic/TypedStatement.h
+    include/crossa/compiler/semantic/TypedDeclaration.h
+    include/crossa/compiler/semantic/TypedSourceUnit.h
+    include/crossa/compiler/semantic/SemanticAnalyzer.h
+    include/crossa/compiler/semantic/SemanticModelPrinter.h
     include/crossa/compiler/ir/Program.h
     include/crossa/runtime/ExecutionEngine.h
     src/main.cpp
     src/cli/CrossaApplication.cpp
     src/compiler/source/SourceFile.cpp
+    src/compiler/source/SourceLocation.cpp
     src/compiler/source/SourceLoader.cpp
     src/compiler/lexer/TokenType.cpp
     src/compiler/lexer/Token.cpp
@@ -35,6 +50,19 @@ add_executable(
     src/compiler/ast/SourceUnit.cpp
     src/compiler/ast/AstPrinter.cpp
     src/compiler/parser/Parser.cpp
+    src/compiler/ir/IrExpression.cpp
+    src/compiler/ir/IrStatement.cpp
+    src/compiler/ir/IrDeclaration.cpp
+    src/compiler/ir/IrLowerer.cpp
+    src/compiler/ir/IrPrinter.cpp
+    src/compiler/types/SemanticType.cpp
+    src/compiler/semantic/SemanticScope.cpp
+    src/compiler/semantic/TypedExpression.cpp
+    src/compiler/semantic/TypedStatement.cpp
+    src/compiler/semantic/TypedDeclaration.cpp
+    src/compiler/semantic/TypedSourceUnit.cpp
+    src/compiler/semantic/SemanticAnalyzer.cpp
+    src/compiler/semantic/SemanticModelPrinter.cpp
     src/compiler/ir/Program.cpp
     src/runtime/ExecutionEngine.cpp
     src/utils/Log.cpp

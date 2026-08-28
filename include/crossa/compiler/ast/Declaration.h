@@ -37,12 +37,19 @@ public:
     // Returns the concrete declaration category.
     [[nodiscard]] DeclarationKind getKind() const noexcept;
 
+    // Returns the source location where this declaration begins.
+    [[nodiscard]] const source::SourceLocation& getLocation() const noexcept;
+
 protected:
     // Creates a declaration with its concrete category.
-    explicit Declaration(DeclarationKind kind) noexcept;
+    Declaration(
+        DeclarationKind kind,
+        source::SourceLocation location
+    ) noexcept;
 
 private:
     DeclarationKind kind_;
+    source::SourceLocation location_;
 };
 
 // Represents one typed top-level variable and its initializer.
@@ -53,7 +60,8 @@ public:
     VariableDeclaration(
         std::string name,
         TypeReference type,
-        std::unique_ptr<Expression> initializer
+        std::unique_ptr<Expression> initializer,
+        source::SourceLocation location
     );
 
     // Returns the variable name.
@@ -76,7 +84,11 @@ private:
 class Parameter final {
 public:
     // Creates a function parameter with its declared type.
-    Parameter(std::string name, TypeReference type);
+    Parameter(
+        std::string name,
+        TypeReference type,
+        source::SourceLocation location
+    );
 
     // Returns the parameter name.
     [[nodiscard]] const std::string& getName() const noexcept;
@@ -84,9 +96,13 @@ public:
     // Returns the declared parameter type.
     [[nodiscard]] const TypeReference& getType() const noexcept;
 
+    // Returns the source location where this parameter begins.
+    [[nodiscard]] const source::SourceLocation& getLocation() const noexcept;
+
 private:
     std::string name_;
     TypeReference type_;
+    source::SourceLocation location_;
 };
 
 // Represents one function, its annotation, signature, and body statements.
@@ -99,7 +115,8 @@ public:
         ExecutionPolicy executionPolicy,
         std::vector<Parameter> parameters,
         std::optional<TypeReference> returnType,
-        std::vector<std::unique_ptr<Statement>> statements
+        std::vector<std::unique_ptr<Statement>> statements,
+        source::SourceLocation location
     );
 
     // Returns the function name.
@@ -131,7 +148,11 @@ private:
 class ModelField final {
 public:
     // Creates a model field with its declared type.
-    ModelField(std::string name, TypeReference type);
+    ModelField(
+        std::string name,
+        TypeReference type,
+        source::SourceLocation location
+    );
 
     // Returns the model field name.
     [[nodiscard]] const std::string& getName() const noexcept;
@@ -139,9 +160,13 @@ public:
     // Returns the declared field type.
     [[nodiscard]] const TypeReference& getType() const noexcept;
 
+    // Returns the source location where this field begins.
+    [[nodiscard]] const source::SourceLocation& getLocation() const noexcept;
+
 private:
     std::string name_;
     TypeReference type_;
+    source::SourceLocation location_;
 };
 
 // Represents a named model and its ordered typed fields.
@@ -149,7 +174,11 @@ private:
 class ModelDeclaration final : public Declaration {
 public:
     // Creates a model declaration with its ordered fields.
-    ModelDeclaration(std::string name, std::vector<ModelField> fields);
+    ModelDeclaration(
+        std::string name,
+        std::vector<ModelField> fields,
+        source::SourceLocation location
+    );
 
     // Returns the model name.
     [[nodiscard]] const std::string& getName() const noexcept;
@@ -167,7 +196,11 @@ private:
 class ConfigEntry final {
 public:
     // Creates a configuration entry from its key and value expression.
-    ConfigEntry(std::string name, std::unique_ptr<Expression> value);
+    ConfigEntry(
+        std::string name,
+        std::unique_ptr<Expression> value,
+        source::SourceLocation location
+    );
 
     // Returns the configuration key.
     [[nodiscard]] const std::string& getName() const noexcept;
@@ -175,9 +208,13 @@ public:
     // Returns the configuration value expression.
     [[nodiscard]] const Expression& getValue() const noexcept;
 
+    // Returns the source location where this entry begins.
+    [[nodiscard]] const source::SourceLocation& getLocation() const noexcept;
+
 private:
     std::string name_;
     std::unique_ptr<Expression> value_;
+    source::SourceLocation location_;
 };
 
 // Represents a config block and its ordered entries.
@@ -185,7 +222,10 @@ private:
 class ConfigDeclaration final : public Declaration {
 public:
     // Creates a config declaration with its parsed entries.
-    explicit ConfigDeclaration(std::vector<ConfigEntry> entries);
+    ConfigDeclaration(
+        std::vector<ConfigEntry> entries,
+        source::SourceLocation location
+    );
 
     // Returns the ordered configuration entries.
     [[nodiscard]] const std::vector<ConfigEntry>& getEntries() const noexcept;

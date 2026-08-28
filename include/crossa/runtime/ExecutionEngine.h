@@ -5,8 +5,8 @@
 
 namespace crossa::runtime {
 
-// Runs the current Crossa IR program through the native execution boundary.
-// execute() is the entry point for future runtime instructions.
+// Runs a lowered Crossa IR program through the native execution boundary.
+// execute() reports the current placeholder runtime stage.
 class ExecutionEngine final {
 public:
     // Executes one IR program and reports its runtime progress.

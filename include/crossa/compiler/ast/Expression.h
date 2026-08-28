@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "crossa/compiler/source/SourceLocation.h"
+
 namespace crossa::compiler::ast {
 
 // Identifies the concrete expression shape stored in the AST.
@@ -41,7 +43,11 @@ enum class StringSegmentKind {
 class StringSegment final {
 public:
     // Creates one string segment with its semantic category and text.
-    StringSegment(StringSegmentKind kind, std::string value);
+    StringSegment(
+        StringSegmentKind kind,
+        std::string value,
+        source::SourceLocation location
+    );
 
     // Returns whether this segment is literal text or an identifier.
     [[nodiscard]] StringSegmentKind getKind() const noexcept;
@@ -49,9 +55,13 @@ public:
     // Returns the literal text or interpolated identifier name.
     [[nodiscard]] const std::string& getValue() const noexcept;
 
+    // Returns the source location where this segment begins.
+    [[nodiscard]] const source::SourceLocation& getLocation() const noexcept;
+
 private:
     StringSegmentKind kind_;
     std::string value_;
+    source::SourceLocation location_;
 };
 
 // Provides the polymorphic base for every Crossa AST expression.
@@ -64,12 +74,19 @@ public:
     // Returns the concrete expression category.
     [[nodiscard]] ExpressionKind getKind() const noexcept;
 
+    // Returns the source location where this expression begins.
+    [[nodiscard]] const source::SourceLocation& getLocation() const noexcept;
+
 protected:
     // Creates an expression with its concrete category.
-    explicit Expression(ExpressionKind kind) noexcept;
+    Expression(
+        ExpressionKind kind,
+        source::SourceLocation location
+    ) noexcept;
 
 private:
     ExpressionKind kind_;
+    source::SourceLocation location_;
 };
 
 // Represents a reference to a variable, parameter, or callable name.
@@ -77,7 +94,10 @@ private:
 class IdentifierExpression final : public Expression {
 public:
     // Creates an identifier expression from its source name.
-    explicit IdentifierExpression(std::string name);
+    IdentifierExpression(
+        std::string name,
+        source::SourceLocation location
+    );
 
     // Returns the unresolved identifier name.
     [[nodiscard]] const std::string& getName() const noexcept;
@@ -91,7 +111,10 @@ private:
 class IntegerLiteralExpression final : public Expression {
 public:
     // Creates an integer literal from its source digits.
-    explicit IntegerLiteralExpression(std::string value);
+    IntegerLiteralExpression(
+        std::string value,
+        source::SourceLocation location
+    );
 
     // Returns the source digits of this integer literal.
     [[nodiscard]] const std::string& getValue() const noexcept;
@@ -105,7 +128,10 @@ private:
 class StringLiteralExpression final : public Expression {
 public:
     // Creates a string expression from parsed literal and identifier segments.
-    explicit StringLiteralExpression(std::vector<StringSegment> segments);
+    StringLiteralExpression(
+        std::vector<StringSegment> segments,
+        source::SourceLocation location
+    );
 
     // Returns the ordered string interpolation segments.
     [[nodiscard]] const std::vector<StringSegment>& getSegments() const noexcept;
@@ -119,7 +145,10 @@ private:
 class BooleanLiteralExpression final : public Expression {
 public:
     // Creates a boolean literal with its parsed value.
-    explicit BooleanLiteralExpression(bool value) noexcept;
+    BooleanLiteralExpression(
+        bool value,
+        source::SourceLocation location
+    ) noexcept;
 
     // Returns the parsed boolean value.
     [[nodiscard]] bool getValue() const noexcept;
@@ -135,7 +164,8 @@ public:
     // Creates a call expression from its callee and arguments.
     CallExpression(
         std::string callee,
-        std::vector<std::unique_ptr<Expression>> arguments
+        std::vector<std::unique_ptr<Expression>> arguments,
+        source::SourceLocation location
     );
 
     // Returns the unresolved callable name.
@@ -157,7 +187,8 @@ public:
     // Creates a unary expression from an operator and operand.
     UnaryExpression(
         UnaryOperator operation,
-        std::unique_ptr<Expression> operand
+        std::unique_ptr<Expression> operand,
+        source::SourceLocation location
     );
 
     // Returns the unary operator.
@@ -179,7 +210,8 @@ public:
     BinaryExpression(
         std::unique_ptr<Expression> left,
         BinaryOperator operation,
-        std::unique_ptr<Expression> right
+        std::unique_ptr<Expression> right,
+        source::SourceLocation location
     );
 
     // Returns the left operand.

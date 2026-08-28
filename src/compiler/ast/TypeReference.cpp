@@ -7,16 +7,28 @@ using namespace std;
 namespace crossa::compiler::ast {
 
     // Creates a named scalar or model type reference.
-    TypeReference TypeReference::createNamed(string name) {
-        return TypeReference(TypeReferenceKind::Named, std::move(name), nullptr);
+    TypeReference TypeReference::createNamed(
+        string name,
+        source::SourceLocation location
+    ) {
+        return TypeReference(
+            TypeReferenceKind::Named,
+            std::move(name),
+            nullptr,
+            location
+        );
     }
 
     // Creates a List type containing one element type.
-    TypeReference TypeReference::createList(TypeReference elementType) {
+    TypeReference TypeReference::createList(
+        TypeReference elementType,
+        source::SourceLocation location
+    ) {
         return TypeReference(
             TypeReferenceKind::List,
             "List",
-            make_unique<TypeReference>(std::move(elementType))
+            make_unique<TypeReference>(std::move(elementType)),
+            location
         );
     }
 
@@ -35,14 +47,21 @@ namespace crossa::compiler::ast {
         return elementType_.get();
     }
 
+    // Returns the location where this type reference begins.
+    const source::SourceLocation& TypeReference::getLocation() const noexcept {
+        return location_;
+    }
+
     // Creates the internal representation for one type shape.
     TypeReference::TypeReference(
         TypeReferenceKind kind,
         string name,
-        unique_ptr<TypeReference> elementType
+        unique_ptr<TypeReference> elementType,
+        source::SourceLocation location
     )
         : kind_(kind),
           name_(std::move(name)),
-          elementType_(std::move(elementType)) {}
+          elementType_(std::move(elementType)),
+          location_(location) {}
 
 }

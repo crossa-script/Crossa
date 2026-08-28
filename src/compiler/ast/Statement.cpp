@@ -7,16 +7,28 @@ using namespace std;
 namespace crossa::compiler::ast {
 
     // Creates a statement with its concrete category.
-    Statement::Statement(StatementKind kind) noexcept : kind_(kind) {}
+    Statement::Statement(
+        StatementKind kind,
+        source::SourceLocation location
+    ) noexcept
+        : kind_(kind), location_(location) {}
 
     // Returns the concrete statement category.
     StatementKind Statement::getKind() const noexcept {
         return kind_;
     }
 
+    // Returns the source location where this statement begins.
+    const source::SourceLocation& Statement::getLocation() const noexcept {
+        return location_;
+    }
+
     // Creates a return statement that owns one expression.
-    ReturnStatement::ReturnStatement(unique_ptr<Expression> expression)
-        : Statement(StatementKind::Return),
+    ReturnStatement::ReturnStatement(
+        unique_ptr<Expression> expression,
+        source::SourceLocation location
+    )
+        : Statement(StatementKind::Return, location),
           expression_(std::move(expression)) {}
 
     // Returns the owned return expression.
@@ -25,8 +37,11 @@ namespace crossa::compiler::ast {
     }
 
     // Creates an expression statement that owns one expression.
-    ExpressionStatement::ExpressionStatement(unique_ptr<Expression> expression)
-        : Statement(StatementKind::Expression),
+    ExpressionStatement::ExpressionStatement(
+        unique_ptr<Expression> expression,
+        source::SourceLocation location
+    )
+        : Statement(StatementKind::Expression, location),
           expression_(std::move(expression)) {}
 
     // Returns the owned statement expression.
@@ -38,9 +53,10 @@ namespace crossa::compiler::ast {
     VariableStatement::VariableStatement(
         string name,
         TypeReference type,
-        unique_ptr<Expression> initializer
+        unique_ptr<Expression> initializer,
+        source::SourceLocation location
     )
-        : Statement(StatementKind::Variable),
+        : Statement(StatementKind::Variable, location),
           name_(std::move(name)),
           type_(std::move(type)),
           initializer_(std::move(initializer)) {}

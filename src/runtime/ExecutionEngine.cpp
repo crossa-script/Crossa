@@ -10,10 +10,14 @@ namespace crossa::runtime {
         const utils::Log& log
     ) {
         log.debug("Execution engine started");
-        log.debug("Executing source unit");
+        log.debug(
+            "Executing IR source unit: " + program.getIdentity() +
+            " (" + to_string(program.getDeclarations().size()) +
+            " declarations)"
+        );
         log.info(
             "Executing Crossa source: " +
-                program.getSourceFile().getPath().string()
+                program.getSourcePath().string()
         );
         log.debug("Execution engine completed");
     }

@@ -367,6 +367,8 @@ Crossa resolves scalars, models, and `List<T>` consistently across all targets.
 
 # Phase 5 — Semantic Analysis
 
+> **Implementation status:** Implemented for the current pure-language parser surface, including resolved types, scopes, calls, returns, models, config, execution policies, and interpolation. `CrossaRequest` semantic validation remains deferred with its parser/runtime milestone.
+
 ## Goal
 
 Turn syntax into validated typed meaning.
@@ -410,6 +412,8 @@ Generators and runtime backends receive already validated typed input.
 ---
 
 # Phase 6 — Typed IR Foundation
+
+> **Implementation status:** The first platform-neutral lowering pass is implemented for the current pure-language semantic model. Runtime-backed `CrossaRequest` lowering remains deferred.
 
 ## Goal
 

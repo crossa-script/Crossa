@@ -1,11 +1,15 @@
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "crossa/compiler/ast/SourceUnit.h"
+#include "crossa/compiler/ir/Program.h"
 #include "crossa/compiler/lexer/Token.h"
+#include "crossa/compiler/semantic/TypedSourceUnit.h"
 #include "crossa/compiler/source/SourceFile.h"
 #include "crossa/utils/Log.h"
 
@@ -47,6 +51,13 @@ private:
         const utils::Log& log
     );
 
+    // Validates one AST and produces its typed semantic model.
+    [[nodiscard]] static compiler::semantic::TypedSourceUnit analyzeSource(
+        const compiler::ast::SourceUnit& sourceUnit,
+        const compiler::source::SourceFile& sourceFile,
+        const utils::Log& log
+    );
+
     // Writes every emitted token when debug logging is enabled.
     static void logTokens(
         const std::vector<compiler::lexer::Token>& tokens,
@@ -59,6 +70,34 @@ private:
         const compiler::ast::SourceUnit& sourceUnit,
         const utils::Log& log
     );
+
+    // Writes a concise summary for every typed semantic declaration.
+    static void logSemanticModel(
+        const compiler::semantic::TypedSourceUnit& sourceUnit,
+        const utils::Log& log
+    );
+
+    // Writes a readable summary for every lowered IR instruction.
+    static void logIr(
+        const compiler::ir::Program& program,
+        const utils::Log& log
+    );
+
+    // Reports that one numbered Crossa pipeline step has started.
+    static void logStepStarted(
+        std::size_t step,
+        const std::string& name,
+        const utils::Log& log
+    );
+
+    // Reports that one numbered Crossa pipeline step has completed.
+    static void logStepCompleted(
+        std::size_t step,
+        const std::string& name,
+        const utils::Log& log
+    );
+
+    inline static constexpr std::size_t TotalSteps = 6;
 };
 
 }

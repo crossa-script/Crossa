@@ -105,7 +105,8 @@ namespace crossa::compiler::parser {
                 );
                 parameters.emplace_back(
                     getLexeme(parameterName),
-                    parseTypeReference()
+                    parseTypeReference(),
+                    getLocation(parameterName)
                 );
             } while (match(lexer::TokenType::Comma));
         }
@@ -132,7 +133,8 @@ namespace crossa::compiler::parser {
             executionPolicy,
             std::move(parameters),
             std::move(returnType),
-            std::move(statements)
+            std::move(statements),
+            getLocation(nameToken)
         );
     }
 
@@ -150,7 +152,8 @@ namespace crossa::compiler::parser {
         return make_unique<ast::VariableDeclaration>(
             getLexeme(nameToken),
             std::move(type),
-            std::move(initializer)
+            std::move(initializer),
+            getLocation(nameToken)
         );
     }
 
@@ -173,19 +176,25 @@ namespace crossa::compiler::parser {
                     lexer::TokenType::Colon,
                     "Expected ':' after the model field name."
                 );
-                fields.emplace_back(getLexeme(fieldName), parseTypeReference());
+                fields.emplace_back(
+                    getLexeme(fieldName),
+                    parseTypeReference(),
+                    getLocation(fieldName)
+                );
             } while (match(lexer::TokenType::Comma));
         }
 
         consume(lexer::TokenType::RightParen, "Expected ')' after model fields.");
         return make_unique<ast::ModelDeclaration>(
             getLexeme(nameToken),
-            std::move(fields)
+            std::move(fields),
+            getLocation(nameToken)
         );
     }
 
     // Parses a config declaration after consuming the config keyword.
     unique_ptr<ast::Declaration> Parser::parseConfigDeclaration() {
+        const lexer::Token& configToken = previous();
         consume(lexer::TokenType::LeftBrace, "Expected '{' after 'config'.");
 
         vector<ast::ConfigEntry> entries;
@@ -199,24 +208,40 @@ namespace crossa::compiler::parser {
                     lexer::TokenType::Colon,
                     "Expected ':' after the configuration key."
                 );
-                entries.emplace_back(getLexeme(entryName), parseExpression());
+                entries.emplace_back(
+                    getLexeme(entryName),
+                    parseExpression(),
+                    getLocation(entryName)
+                );
             } while (match(lexer::TokenType::Comma));
         }
 
         consume(lexer::TokenType::RightBrace, "Expected '}' after config entries.");
-        return make_unique<ast::ConfigDeclaration>(std::move(entries));
+        return make_unique<ast::ConfigDeclaration>(
+            std::move(entries),
+            getLocation(configToken)
+        );
     }
 
     // Parses one function-body statement.
     unique_ptr<ast::Statement> Parser::parseStatement() {
         if (match(lexer::TokenType::KeywordRe)) {
-            return make_unique<ast::ReturnStatement>(parseExpression());
+            const source::SourceLocation location = getLocation(previous());
+            return make_unique<ast::ReturnStatement>(
+                parseExpression(),
+                location
+            );
         }
         if (match(lexer::TokenType::KeywordVar)) {
             return parseVariableStatement();
         }
 
-        return make_unique<ast::ExpressionStatement>(parseExpression());
+        unique_ptr<ast::Expression> expression = parseExpression();
+        const source::SourceLocation location = expression->getLocation();
+        return make_unique<ast::ExpressionStatement>(
+            std::move(expression),
+            location
+        );
     }
 
     // Parses a local variable after consuming the var keyword.
@@ -232,24 +257,32 @@ namespace crossa::compiler::parser {
         return make_unique<ast::VariableStatement>(
             getLexeme(nameToken),
             std::move(type),
-            parseExpression()
+            parseExpression(),
+            getLocation(nameToken)
         );
     }
 
     // Parses one type reference including nested List<T> forms.
     ast::TypeReference Parser::parseTypeReference() {
         if (match(lexer::TokenType::KeywordList)) {
+            const source::SourceLocation location = getLocation(previous());
             consume(lexer::TokenType::LeftAngle, "Expected '<' after 'List'.");
             ast::TypeReference elementType = parseTypeReference();
             consume(lexer::TokenType::RightAngle, "Expected '>' after the List type.");
-            return ast::TypeReference::createList(std::move(elementType));
+            return ast::TypeReference::createList(
+                std::move(elementType),
+                location
+            );
         }
 
         if (match(lexer::TokenType::KeywordInt) ||
             match(lexer::TokenType::KeywordString) ||
             match(lexer::TokenType::KeywordBool) ||
             match(lexer::TokenType::Identifier)) {
-            return ast::TypeReference::createNamed(getLexeme(previous()));
+            return ast::TypeReference::createNamed(
+                getLexeme(previous()),
+                getLocation(previous())
+            );
         }
 
         fail(peek(), "Expected a Crossa type reference.");
@@ -266,7 +299,8 @@ namespace crossa::compiler::parser {
 
         while (check(lexer::TokenType::Plus) ||
                check(lexer::TokenType::Minus)) {
-            const lexer::TokenType operation = advance().getType();
+            const lexer::Token& operatorToken = advance();
+            const lexer::TokenType operation = operatorToken.getType();
             const ast::BinaryOperator binaryOperator =
                 operation == lexer::TokenType::Plus
                     ? ast::BinaryOperator::Add
@@ -274,7 +308,8 @@ namespace crossa::compiler::parser {
             expression = make_unique<ast::BinaryExpression>(
                 std::move(expression),
                 binaryOperator,
-                parseMultiplicativeExpression()
+                parseMultiplicativeExpression(),
+                getLocation(operatorToken)
             );
         }
 
@@ -287,7 +322,8 @@ namespace crossa::compiler::parser {
 
         while (check(lexer::TokenType::Star) ||
                check(lexer::TokenType::Slash)) {
-            const lexer::TokenType operation = advance().getType();
+            const lexer::Token& operatorToken = advance();
+            const lexer::TokenType operation = operatorToken.getType();
             const ast::BinaryOperator binaryOperator =
                 operation == lexer::TokenType::Star
                     ? ast::BinaryOperator::Multiply
@@ -295,7 +331,8 @@ namespace crossa::compiler::parser {
             expression = make_unique<ast::BinaryExpression>(
                 std::move(expression),
                 binaryOperator,
-                parseUnaryExpression()
+                parseUnaryExpression(),
+                getLocation(operatorToken)
             );
         }
 
@@ -305,9 +342,11 @@ namespace crossa::compiler::parser {
     // Parses unary negation expressions.
     unique_ptr<ast::Expression> Parser::parseUnaryExpression() {
         if (match(lexer::TokenType::Minus)) {
+            const source::SourceLocation location = getLocation(previous());
             return make_unique<ast::UnaryExpression>(
                 ast::UnaryOperator::Negate,
-                parseUnaryExpression()
+                parseUnaryExpression(),
+                location
             );
         }
 
@@ -317,18 +356,26 @@ namespace crossa::compiler::parser {
     // Parses literals, identifiers, calls, and grouped expressions.
     unique_ptr<ast::Expression> Parser::parsePrimaryExpression() {
         if (match(lexer::TokenType::IntegerLiteral)) {
-            return make_unique<ast::IntegerLiteralExpression>(getLexeme(previous()));
+            const lexer::Token& token = previous();
+            return make_unique<ast::IntegerLiteralExpression>(
+                getLexeme(token),
+                getLocation(token)
+            );
         }
 
         if (match(lexer::TokenType::StringLiteral)) {
+            const lexer::Token& token = previous();
             return make_unique<ast::StringLiteralExpression>(
-                parseStringSegments(previous())
+                parseStringSegments(token),
+                getLocation(token)
             );
         }
 
         if (match(lexer::TokenType::BooleanLiteral)) {
+            const lexer::Token& token = previous();
             return make_unique<ast::BooleanLiteralExpression>(
-                getLexeme(previous()) == "true"
+                getLexeme(token) == "true",
+                getLocation(token)
             );
         }
 
@@ -340,16 +387,21 @@ namespace crossa::compiler::parser {
         }
 
         if (match(lexer::TokenType::KeywordPrint)) {
+            const source::SourceLocation location = getLocation(previous());
             consume(lexer::TokenType::LeftParen, "Expected '(' after 'print'.");
-            return parseCallExpression("print");
+            return parseCallExpression("print", location);
         }
 
         if (match(lexer::TokenType::Identifier)) {
-            const string name = getLexeme(previous());
+            const lexer::Token& identifierToken = previous();
+            const string name = getLexeme(identifierToken);
             if (match(lexer::TokenType::LeftParen)) {
-                return parseCallExpression(name);
+                return parseCallExpression(name, getLocation(identifierToken));
             }
-            return make_unique<ast::IdentifierExpression>(name);
+            return make_unique<ast::IdentifierExpression>(
+                name,
+                getLocation(identifierToken)
+            );
         }
 
         if (match(lexer::TokenType::LeftParen)) {
@@ -362,7 +414,10 @@ namespace crossa::compiler::parser {
     }
 
     // Parses call arguments after consuming the left parenthesis.
-    unique_ptr<ast::Expression> Parser::parseCallExpression(string callee) {
+    unique_ptr<ast::Expression> Parser::parseCallExpression(
+        string callee,
+        source::SourceLocation location
+    ) {
         vector<unique_ptr<ast::Expression>> arguments;
         if (!check(lexer::TokenType::RightParen)) {
             do {
@@ -373,7 +428,8 @@ namespace crossa::compiler::parser {
         consume(lexer::TokenType::RightParen, "Expected ')' after call arguments.");
         return make_unique<ast::CallExpression>(
             std::move(callee),
-            std::move(arguments)
+            std::move(arguments),
+            location
         );
     }
 
@@ -402,7 +458,11 @@ namespace crossa::compiler::parser {
             if (current > literalStart) {
                 segments.emplace_back(
                     ast::StringSegmentKind::Literal,
-                    string(content.substr(literalStart, current - literalStart))
+                    string(content.substr(literalStart, current - literalStart)),
+                    source::SourceLocation(
+                        token.getLine(),
+                        token.getColumn() + 1 + literalStart
+                    )
                 );
             }
 
@@ -413,7 +473,11 @@ namespace crossa::compiler::parser {
             }
             segments.emplace_back(
                 ast::StringSegmentKind::Identifier,
-                string(content.substr(identifierStart, current - identifierStart))
+                string(content.substr(identifierStart, current - identifierStart)),
+                source::SourceLocation(
+                    token.getLine(),
+                    token.getColumn() + 1 + identifierStart
+                )
             );
             literalStart = current;
         }
@@ -421,7 +485,11 @@ namespace crossa::compiler::parser {
         if (literalStart < content.size()) {
             segments.emplace_back(
                 ast::StringSegmentKind::Literal,
-                string(content.substr(literalStart))
+                string(content.substr(literalStart)),
+                source::SourceLocation(
+                    token.getLine(),
+                    token.getColumn() + 1 + literalStart
+                )
             );
         }
 
@@ -431,6 +499,13 @@ namespace crossa::compiler::parser {
     // Returns the source text represented by one token.
     string Parser::getLexeme(const lexer::Token& token) const {
         return string(token.getLexeme(sourceFile_));
+    }
+
+    // Converts a lexer token position into an AST source location.
+    source::SourceLocation Parser::getLocation(
+        const lexer::Token& token
+    ) noexcept {
+        return source::SourceLocation(token.getLine(), token.getColumn());
     }
 
     // Consumes one token when its type matches the expectation.

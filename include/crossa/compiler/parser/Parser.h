@@ -14,6 +14,7 @@
 #include "crossa/compiler/lexer/Token.h"
 #include "crossa/compiler/lexer/TokenType.h"
 #include "crossa/compiler/source/SourceFile.h"
+#include "crossa/compiler/source/SourceLocation.h"
 
 namespace crossa::compiler::parser {
 
@@ -81,7 +82,8 @@ private:
 
     // Parses call arguments after consuming the left parenthesis.
     [[nodiscard]] std::unique_ptr<ast::Expression> parseCallExpression(
-        std::string callee
+        std::string callee,
+        source::SourceLocation location
     );
 
     // Parses literal and identifier segments from one string token.
@@ -91,6 +93,11 @@ private:
 
     // Returns the source text represented by one token.
     [[nodiscard]] std::string getLexeme(const lexer::Token& token) const;
+
+    // Converts a lexer token position into an AST source location.
+    [[nodiscard]] static source::SourceLocation getLocation(
+        const lexer::Token& token
+    ) noexcept;
 
     // Consumes one token when its type matches the expectation.
     const lexer::Token& consume(
