@@ -1,0 +1,11 @@
+model Post(
+    userId: Int,
+    id: Int,
+    title: String,
+    body: String
+)
+
+model PostAuthor(
+    id: Int,
+    name: String
+)

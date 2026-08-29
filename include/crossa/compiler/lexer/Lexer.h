@@ -37,6 +37,9 @@ private:
     // Scans one double-quoted string literal.
     void scanString();
 
+    // Scans one hash-delimited import filename.
+    void scanImportPath();
+
     // Scans and validates one execution annotation.
     void scanAnnotation();
 

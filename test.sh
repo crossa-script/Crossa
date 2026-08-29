@@ -5,6 +5,23 @@ set -euo pipefail
 projectRoot="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$projectRoot"
 
+# Verifies that one CLI execution fails with the expected diagnostic text.
+assertExecutionFails() {
+    local expectedMessage="$1"
+    shift
+    local executionOutput
+
+    if executionOutput="$("$@" 2>&1)"; then
+        printf '%s\n' "Expected command to fail: $*" >&2
+        exit 1
+    fi
+    if [[ "$executionOutput" != *"$expectedMessage"* ]]; then
+        printf '%s\n' "Expected diagnostic containing: $expectedMessage" >&2
+        printf '%s\n' "$executionOutput" >&2
+        exit 1
+    fi
+}
+
 if command -v cmake >/dev/null 2>&1; then
     cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
     cmake --build build
@@ -69,4 +86,22 @@ else
 fi
 
 ./build/crossa test.cra --debug
+./build/crossa tests/import-project/entry/runImports.cra --debug
+./build/crossa tests/import-project/entry/runDiamondImports.cra --debug
+./build/crossa examples/imports/repositories/postsRepository.cra --debug
+assertExecutionFails \
+    "was not found under project root" \
+    ./build/crossa tests/import-errors/missing/missingImportEntry.cra
+assertExecutionFails \
+    "is ambiguous" \
+    ./build/crossa tests/import-errors/ambiguous/entry/ambiguousImportEntry.cra
+assertExecutionFails \
+    "Circular import detected" \
+    ./build/crossa tests/import-errors/cycle/cycleOne.cra
+assertExecutionFails \
+    "top-level execution belongs to the entry file" \
+    ./build/crossa tests/import-errors/execution/importedExecutionEntry.cra
+assertExecutionFails \
+    "Imports must appear before all declarations" \
+    ./build/crossa tests/import-errors/order/importAfterDeclaration.cra
 #./build/crossa request.cra --debug

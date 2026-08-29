@@ -13,6 +13,7 @@ namespace crossa::compiler::ast {
 
 // Identifies each top-level declaration supported by the initial parser.
 enum class DeclarationKind {
+    Import,
     Variable,
     Model,
     Function,
@@ -51,6 +52,23 @@ protected:
 private:
     DeclarationKind kind_;
     source::SourceLocation location_;
+};
+
+// Represents one project dependency selected by an exact .cra filename.
+// getFilename() exposes the target consumed by project linking.
+class ImportDeclaration final : public Declaration {
+public:
+    // Creates an import declaration for one validated filename.
+    ImportDeclaration(
+        std::string filename,
+        source::SourceLocation location
+    );
+
+    // Returns the exact imported .cra filename without hash delimiters.
+    [[nodiscard]] const std::string& getFilename() const noexcept;
+
+private:
+    std::string filename_;
 };
 
 // Represents one typed top-level variable and its initializer.

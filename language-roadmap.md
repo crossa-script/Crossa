@@ -1122,28 +1122,30 @@ multipart bodies, and downloads remain planned and are not implicit syntax.
 
 # Phase 19 — Project Compilation and CLI Integration
 
+> **Implementation status:** Recursive exact-filename imports, deterministic project linking, transitive declaration resolution, duplicate-module elimination, source-aware diagnostics, ambiguity failures, and cycle detection are implemented for native CLI execution. Platform artifact generation remains planned.
+
 ## Goal
 
 Compile a Crossa source set rather than isolated files.
 
 Example:
 
-```text
-config.cra
-User.cra
-UsersController.cra
+```cra
+import #models.cra#
+import #postRequests.cra#
 ```
 
 The compiler:
 
-1. Loads project sources.
-2. Tokenizes/parses them.
-3. Builds the project symbol table.
-4. Performs semantic analysis.
-5. Lowers to unified IR.
-6. Links required native runtime modules.
-7. Selects execution/generation targets.
-8. Emits deterministic artifacts.
+1. Loads and parses the entry source.
+2. Recursively resolves exact imported filenames from the CLI project root.
+3. Rejects missing, ambiguous, and circular imports.
+4. Links each reachable source once in dependency order.
+5. Builds the project symbol table and performs semantic analysis.
+6. Lowers to unified IR.
+7. Links required native runtime modules.
+8. Selects execution/generation targets.
+9. Emits deterministic artifacts.
 
 ## Deliverable
 
@@ -1193,7 +1195,7 @@ additional collections
 enums
 if / else
 error-handling syntax
-imports
+packages or visibility beyond filename imports
 visibility
 request bodies
 headers/query declarations

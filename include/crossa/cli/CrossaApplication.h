@@ -63,6 +63,13 @@ private:
         const utils::Log& log
     );
 
+    // Resolves the entry file's transitive imports into one project AST.
+    [[nodiscard]] static compiler::ast::SourceUnit linkProject(
+        const std::filesystem::path& entryPath,
+        compiler::ast::SourceUnit entrySourceUnit,
+        const utils::Log& log
+    );
+
     // Validates one AST and produces its typed semantic model.
     [[nodiscard]] static compiler::semantic::TypedSourceUnit analyzeSource(
         const compiler::ast::SourceUnit& sourceUnit,
@@ -109,7 +116,7 @@ private:
         const utils::Log& log
     );
 
-    inline static constexpr std::size_t TotalSteps = 6;
+    inline static constexpr std::size_t TotalSteps = 7;
 };
 
 }

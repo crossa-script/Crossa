@@ -13,6 +13,7 @@
 #include "crossa/compiler/lexer/Lexer.h"
 #include "crossa/compiler/lexer/TokenType.h"
 #include "crossa/compiler/parser/Parser.h"
+#include "crossa/compiler/project/ProjectLinker.h"
 #include "crossa/compiler/semantic/SemanticAnalyzer.h"
 #include "crossa/compiler/semantic/SemanticModelPrinter.h"
 #include "crossa/compiler/source/SourceLoader.h"
@@ -90,8 +91,10 @@ namespace crossa::cli {
         const utils::Log& log
     ) {
         logStepStarted(1, "Source loading", log);
+        const filesystem::path entryPath =
+            filesystem::weakly_canonical(arguments.sourcePath);
         compiler::source::SourceFile sourceFile =
-            compiler::source::SourceLoader::load(arguments.sourcePath, log);
+            compiler::source::SourceLoader::load(entryPath, log);
         logStepCompleted(1, "Source loading", log);
 
         logStepStarted(2, "Lexical analysis", log);
@@ -106,13 +109,26 @@ namespace crossa::cli {
         logAst(sourceUnit, log);
         logStepCompleted(3, "Parsing and AST creation", log);
 
-        logStepStarted(4, "Semantic analysis and typed model", log);
+        logStepStarted(4, "Import graph resolution and project linking", log);
+        sourceUnit = linkProject(
+            sourceFile.getPath(),
+            std::move(sourceUnit),
+            log
+        );
+        logAst(sourceUnit, log);
+        logStepCompleted(
+            4,
+            "Import graph resolution and project linking",
+            log
+        );
+
+        logStepStarted(5, "Semantic analysis and typed model", log);
         compiler::semantic::TypedSourceUnit semanticModel =
             analyzeSource(sourceUnit, sourceFile, log);
         logSemanticModel(semanticModel, log);
-        logStepCompleted(4, "Semantic analysis and typed model", log);
+        logStepCompleted(5, "Semantic analysis and typed model", log);
 
-        logStepStarted(5, "Typed IR lowering", log);
+        logStepStarted(6, "Typed IR lowering", log);
         compiler::ir::Program program =
             compiler::ir::IrLowerer::lower(semanticModel);
         logIr(program, log);
@@ -121,11 +137,11 @@ namespace crossa::cli {
             to_string(program.getDeclarations().size()) +
             " IR declarations"
         );
-        logStepCompleted(5, "Typed IR lowering", log);
+        logStepCompleted(6, "Typed IR lowering", log);
 
-        logStepStarted(6, "Native execution", log);
+        logStepStarted(7, "Native execution", log);
         optional<compiler::ir::Program> configurationProgram =
-            compileSiblingConfiguration(arguments.sourcePath, log);
+            compileSiblingConfiguration(sourceFile.getPath(), log);
         runtime::ExecutionEngine::execute(
             program,
             configurationProgram.has_value()
@@ -133,7 +149,7 @@ namespace crossa::cli {
                 : nullptr,
             log
         );
-        logStepCompleted(6, "Native execution", log);
+        logStepCompleted(7, "Native execution", log);
     }
 
     // Compiles an optional sibling config.cra into declarative IR.
@@ -218,6 +234,21 @@ namespace crossa::cli {
             " declarations"
         );
         return sourceUnit;
+    }
+
+    // Resolves the entry file's transitive imports into one project AST.
+    compiler::ast::SourceUnit CrossaApplication::linkProject(
+        const filesystem::path& entryPath,
+        compiler::ast::SourceUnit entrySourceUnit,
+        const utils::Log& log
+    ) {
+        log.debug("Project import graph resolution started");
+        return compiler::project::ProjectLinker::link(
+            filesystem::current_path(),
+            entryPath,
+            std::move(entrySourceUnit),
+            log
+        );
     }
 
     // Validates one AST and produces its typed semantic model.

@@ -16,4 +16,9 @@ namespace crossa::compiler::ast {
         return declarations_;
     }
 
+    // Transfers declaration ownership to the project linker.
+    vector<unique_ptr<Declaration>> SourceUnit::takeDeclarations() noexcept {
+        return std::move(declarations_);
+    }
+
 }

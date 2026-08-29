@@ -17,6 +17,10 @@ namespace crossa::compiler::lexer {
                 return "StringLiteral";
             case TokenType::BooleanLiteral:
                 return "BooleanLiteral";
+            case TokenType::ImportPath:
+                return "ImportPath";
+            case TokenType::KeywordImport:
+                return "KeywordImport";
             case TokenType::KeywordFun:
                 return "KeywordFun";
             case TokenType::KeywordRe:
@@ -97,8 +101,6 @@ namespace crossa::compiler::lexer {
                 return "Star";
             case TokenType::Slash:
                 return "Slash";
-            case TokenType::Hash:
-                return "Hash";
             case TokenType::EndOfFile:
                 return "EndOfFile";
         }

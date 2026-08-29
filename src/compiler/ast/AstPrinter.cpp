@@ -20,6 +20,11 @@ namespace crossa::compiler::ast {
     // Returns a readable summary for one declaration.
     string AstPrinter::summarizeDeclaration(const Declaration& declaration) {
         switch (declaration.getKind()) {
+            case DeclarationKind::Import: {
+                const auto& import =
+                    static_cast<const ImportDeclaration&>(declaration);
+                return "AST Import " + import.getFilename();
+            }
             case DeclarationKind::Variable: {
                 const auto& variable =
                     static_cast<const VariableDeclaration&>(declaration);

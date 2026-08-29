@@ -105,7 +105,7 @@ namespace crossa::compiler::lexer {
                 }
                 return;
             case '#':
-                addToken(TokenType::Hash);
+                scanImportPath();
                 return;
             case '@':
                 scanAnnotation();
@@ -201,6 +201,26 @@ namespace crossa::compiler::lexer {
 
         advance();
         addToken(TokenType::StringLiteral);
+    }
+
+    // Scans one hash-delimited import filename.
+    void Lexer::scanImportPath() {
+        while (!isAtEnd() && peek() != '#') {
+            if (peek() == '\n' || peek() == '\r') {
+                fail("Import filename must end with '#'.");
+            }
+            if (peek() == ' ' || peek() == '\t') {
+                fail("Import filename cannot contain whitespace.");
+            }
+            advance();
+        }
+
+        if (isAtEnd()) {
+            fail("Import filename must end with '#'.");
+        }
+
+        advance();
+        addToken(TokenType::ImportPath);
     }
 
     // Scans and validates one execution annotation.
@@ -304,6 +324,9 @@ namespace crossa::compiler::lexer {
 
     // Resolves an identifier lexeme to its keyword or literal token type.
     TokenType Lexer::resolveIdentifierType(string_view lexeme) noexcept {
+        if (lexeme == "import") {
+            return TokenType::KeywordImport;
+        }
         if (lexeme == "fun") {
             return TokenType::KeywordFun;
         }

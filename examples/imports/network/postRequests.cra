@@ -1,0 +1,9 @@
+import #models.cra#
+
+@AsyncAfter
+fun fetchPosts(): List<Post> {
+    re CrossaRequest {
+        url: "https://jsonplaceholder.typicode.com/posts",
+        method: GET
+    }
+}

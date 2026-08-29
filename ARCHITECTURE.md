@@ -110,23 +110,25 @@ Crossa uses `.cra` source files for its small scripting and code-generation lang
 `.cra` is parsed exactly once by the C++ compiler frontend:
 
 ```text
-.cra Source
+.cra Entry Source
     -> C++ Source Loader
     -> C++ Lexer
     -> C++ Parser
-    -> AST
+    -> Per-File AST
+    -> C++ Import Graph Resolver and Project Linker
+    -> Linked Project AST
     -> Semantic Analysis
     -> Typed Crossa Representation
     -> Crossa IR
 ```
 
-The lexer and parser own syntax processing. The AST represents source syntax only. Semantic analysis owns validated types, symbols, functions, models, variables, annotations, string interpolation, and request meaning. Crossa IR represents platform-neutral executable and generatable behavior. Runtime code and generators consume typed semantic/IR data rather than rediscovering meaning from raw parser syntax.
+The lexer and parser own syntax processing. The AST represents source syntax only. The C++ project linker resolves deterministic `.cra` import graphs and preserves original source locations before semantic analysis. Semantic analysis owns validated types, symbols, functions, models, variables, annotations, string interpolation, and request meaning. Crossa IR represents platform-neutral executable and generatable behavior. Runtime code and generators consume typed semantic/IR data rather than rediscovering meaning from raw parser syntax.
 
 Never create a Kotlin, Swift, Android-runtime, or iOS-runtime `.cra` parser. Kotlin and Swift consume compiler output and must not define competing language semantics.
 
 ### Initial Language Surface
 
-The current foundation includes `fun`, `re`, `var`, `print`, `model`, `config`, `Int`, `String`, `Bool`, `List<T>`, `@Sync`, `@Async`, `@AsyncAfter`, `#identifier` interpolation, and `CrossaRequest`. This list establishes integration points only; the language foundation remains authoritative for exact grammar and behavior.
+The current foundation includes `import #filename.cra#`, `fun`, `re`, `var`, `print`, `model`, `config`, `Int`, `String`, `Bool`, `List<T>`, `@Sync`, `@Async`, `@AsyncAfter`, `#identifier` interpolation, and `CrossaRequest`. This list establishes integration points only; the language foundation remains authoritative for exact grammar and behavior.
 
 ### Interpolation and Collections
 

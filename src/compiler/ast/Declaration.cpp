@@ -23,6 +23,19 @@ namespace crossa::compiler::ast {
         return location_;
     }
 
+    // Creates an import declaration for one validated filename.
+    ImportDeclaration::ImportDeclaration(
+        string filename,
+        source::SourceLocation location
+    )
+        : Declaration(DeclarationKind::Import, location),
+          filename_(std::move(filename)) {}
+
+    // Returns the exact imported .cra filename without hash delimiters.
+    const string& ImportDeclaration::getFilename() const noexcept {
+        return filename_;
+    }
+
     // Creates a source variable with its type and initializer.
     VariableDeclaration::VariableDeclaration(
         string name,

@@ -1,0 +1,5 @@
+fun ready() {
+    print("ready")
+}
+
+import #importedMath.cra#

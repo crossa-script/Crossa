@@ -18,6 +18,10 @@ public:
     [[nodiscard]] const std::vector<std::unique_ptr<Declaration>>&
     getDeclarations() const noexcept;
 
+    // Transfers declaration ownership to the project linker.
+    [[nodiscard]] std::vector<std::unique_ptr<Declaration>>
+    takeDeclarations() noexcept;
+
 private:
     std::vector<std::unique_ptr<Declaration>> declarations_;
 };

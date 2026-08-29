@@ -23,6 +23,7 @@ add_executable(
     include/crossa/compiler/ast/SourceUnit.h
     include/crossa/compiler/ast/AstPrinter.h
     include/crossa/compiler/parser/Parser.h
+    include/crossa/compiler/project/ProjectLinker.h
     include/crossa/compiler/ir/IrExpression.h
     include/crossa/compiler/ir/IrStatement.h
     include/crossa/compiler/ir/IrDeclaration.h
@@ -62,6 +63,7 @@ add_executable(
     src/compiler/ast/SourceUnit.cpp
     src/compiler/ast/AstPrinter.cpp
     src/compiler/parser/Parser.cpp
+    src/compiler/project/ProjectLinker.cpp
     src/compiler/ir/IrExpression.cpp
     src/compiler/ir/IrStatement.cpp
     src/compiler/ir/IrDeclaration.cpp

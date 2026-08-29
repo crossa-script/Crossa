@@ -1,0 +1,4 @@
+import #diamondLeft.cra#
+import #diamondRight.cra#
+
+print(diamondLeft() + diamondRight())

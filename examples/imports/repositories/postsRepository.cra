@@ -1,0 +1,6 @@
+import #postRequests.cra#
+
+@AsyncAfter
+fun getPosts(): List<Post> {
+    re fetchPosts()
+}

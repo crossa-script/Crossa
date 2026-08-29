@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <optional>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 
 using namespace std;
@@ -107,9 +108,14 @@ namespace crossa::compiler::semantic {
             const auto& model = static_cast<const ast::ModelDeclaration&>(
                 *sourceUnit_.getDeclarations().front()
             );
+            const string_view declarationSourcePath =
+                model.getLocation().getSourcePath();
+            const bool belongsToEntrySource = declarationSourcePath.empty() ||
+                filesystem::path(string(declarationSourcePath)) ==
+                    sourceFile_.getPath();
             const string sourceIdentity =
                 sourceFile_.getPath().stem().string();
-            if (model.getName() != sourceIdentity) {
+            if (belongsToEntrySource && model.getName() != sourceIdentity) {
                 fail(
                     model.getLocation(),
                     "CRA4002",
@@ -215,6 +221,12 @@ namespace crossa::compiler::semantic {
         const ast::Declaration& declaration
     ) {
         switch (declaration.getKind()) {
+            case ast::DeclarationKind::Import:
+                fail(
+                    declaration.getLocation(),
+                    "CRA1001",
+                    "Unresolved import reached semantic analysis."
+                );
             case ast::DeclarationKind::Variable:
                 return analyzeVariableDeclaration(
                     static_cast<const ast::VariableDeclaration&>(declaration)
@@ -1465,6 +1477,8 @@ namespace crossa::compiler::semantic {
         const ast::Declaration& declaration
     ) noexcept {
         switch (declaration.getKind()) {
+            case ast::DeclarationKind::Import:
+                return nullptr;
             case ast::DeclarationKind::Variable:
                 return &static_cast<const ast::VariableDeclaration&>(declaration)
                             .getName();
@@ -1518,8 +1532,12 @@ namespace crossa::compiler::semantic {
         const string& code,
         const string& message
     ) const {
+        const string_view locationSourcePath = location.getSourcePath();
+        const string diagnosticPath = locationSourcePath.empty()
+            ? sourceFile_.getPath().string()
+            : string(locationSourcePath);
         throw runtime_error(
-            sourceFile_.getPath().string() + ":" +
+            diagnosticPath + ":" +
             to_string(location.getLine()) + ":" +
             to_string(location.getColumn()) + ": " + code + " " + message
         );

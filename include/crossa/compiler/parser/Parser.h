@@ -28,12 +28,15 @@ public:
     Parser(
         const std::vector<lexer::Token>& tokens,
         const source::SourceFile& sourceFile
-    ) noexcept;
+    );
 
     // Parses the complete token stream into one AST source unit.
     [[nodiscard]] ast::SourceUnit parse();
 
 private:
+    // Parses one top-level import after consuming the import keyword.
+    [[nodiscard]] std::unique_ptr<ast::Declaration> parseImportDeclaration();
+
     // Parses one top-level declaration.
     [[nodiscard]] std::unique_ptr<ast::Declaration> parseDeclaration();
 
@@ -134,9 +137,15 @@ private:
     [[nodiscard]] std::string getLexeme(const lexer::Token& token) const;
 
     // Converts a lexer token position into an AST source location.
-    [[nodiscard]] static source::SourceLocation getLocation(
+    [[nodiscard]] source::SourceLocation getLocation(
         const lexer::Token& token
-    ) noexcept;
+    ) const noexcept;
+
+    // Creates a source location inside the parser's current file.
+    [[nodiscard]] source::SourceLocation getLocation(
+        std::size_t line,
+        std::size_t column
+    ) const noexcept;
 
     // Consumes one token when its type matches the expectation.
     const lexer::Token& consume(
@@ -176,6 +185,7 @@ private:
 
     const std::vector<lexer::Token>& tokens_;
     const source::SourceFile& sourceFile_;
+    std::shared_ptr<const std::string> sourcePath_;
     std::size_t current_;
 };
 

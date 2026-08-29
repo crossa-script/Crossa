@@ -52,7 +52,7 @@ These responsibilities must remain separate.
 The canonical flow is:
 
 ```text
-.cra source
+.cra entry source
     |
     v
 C++ Source Loader
@@ -64,7 +64,13 @@ C++ Lexer
 C++ Parser
     |
     v
-AST
+Per-file AST
+    |
+    v
+C++ Import Graph Resolver / Project Linker
+    |
+    v
+Linked Project AST
     |
     v
 Semantic Analysis
@@ -101,7 +107,7 @@ Crossa language design follows these rules:
 5. Do not use runtime reflection in normal execution.
 6. Keep target generators dependent on typed IR, not raw source.
 7. Keep performance-critical runtime features native.
-8. Keep one `.cra` source unit mapped to one primary generated platform identity.
+8. Keep each ordinary `.cra` source unit mapped to one primary generated platform identity while allowing explicitly linked project declarations.
 9. Prefer declarative syntax for runtime configuration.
 10. Describe scheduling policy without exposing physical threads.
 11. Add syntax only for real Crossa requirements.
@@ -185,7 +191,7 @@ Renaming the file can therefore be a generated API breaking change.
 
 # 6. Model Files
 
-Models should normally use one file per model.
+Models should normally use one file per model when they define a public generated identity.
 
 Example:
 
@@ -207,7 +213,21 @@ The primary model name should match the filename stem:
 User.cra -> User
 ```
 
-Do not place unrelated models in one `.cra` file.
+An imported schema file such as `models.cra` may group several related models:
+
+```cra
+model Post(
+    id: Int,
+    title: String
+)
+
+model PostAuthor(
+    id: Int,
+    name: String
+)
+```
+
+Grouped models share the linked project symbol namespace. Avoid unrelated model dumping files.
 
 ---
 
@@ -241,6 +261,7 @@ re
 var
 model
 config
+import
 ```
 
 Language builtin:
@@ -375,6 +396,20 @@ Initial comments use:
 ```
 
 Block comments are not required by the foundation.
+
+---
+
+## 9.7 Imports
+
+Imports use one exact hash-delimited `.cra` filename:
+
+```cra
+import #models.cra#
+```
+
+Imports must appear at the top of a source file before every declaration. The target is a filename only; `/`, `\\`, relative paths, and absolute paths are invalid inside the delimiters.
+
+The filename uses ASCII letters, digits, `_`, `-`, and `.` and must end in `.cra`. It is resolved recursively from the project root according to Section 56. Hash delimiters in an import are syntax and are distinct from `#identifier` interpolation inside a string.
 
 ---
 
@@ -1677,9 +1712,11 @@ Generators must not perform fundamental language validation.
 The frontend layering is:
 
 ```text
-.cra
+.cra entry and imported sources
     ->
-AST
+per-file ASTs
+    ->
+linked project AST
     ->
 typed semantic model
     ->
@@ -1767,7 +1804,17 @@ This avoids repeated source parsing at runtime.
 Foundation grammar:
 
 ```ebnf
-source_file            = { declaration } ;
+source_file            = { import_declaration },
+                         { declaration } ;
+
+import_declaration     = "import", import_path ;
+
+import_path            = "#", cra_filename, "#" ;
+
+cra_filename           = filename_character,
+                         { filename_character }, ".cra" ;
+
+filename_character     = ASCII letter | digit | "_" | "-" | "." ;
 
 declaration            = annotated_function
                        | function_declaration
@@ -1947,7 +1994,9 @@ IntegerLiteral
 DecimalLiteral
 StringLiteral
 BooleanLiteral
+ImportPath
 
+KeywordImport
 KeywordFun
 KeywordRe
 KeywordVar
@@ -1988,7 +2037,6 @@ Plus
 Minus
 Star
 Slash
-Hash
 EndOfFile
 ```
 
@@ -2324,7 +2372,6 @@ nullable syntax
 enums
 maps
 user-defined generic types
-imports
 packages
 visibility modifiers
 inheritance
@@ -2357,11 +2404,57 @@ Crossa language behavior should be statically analyzable by the compiler whereve
 
 # 56. Cross-File Resolution
 
-The compiler can load a known project source set and build a symbol table across `.cra` files.
+Crossa supports explicit filename imports:
 
-Exact import/visibility syntax is not part of V0.
+```cra
+import #models.cra#
+import #postRequests.cra#
+```
 
-Until imports are designed, project-level source discovery/build configuration defines the compilation source set.
+For CLI execution, the normalized current working directory is the project root, and the entry source must be inside it. The C++ project linker recursively indexes regular, non-symlink `.cra` files in that root and all subdirectories.
+
+Resolution rules are deterministic:
+
+1. The target must exactly match one filename, including case.
+2. No match is a source diagnostic.
+3. More than one exact match is an ambiguity diagnostic listing all candidates; traversal order never selects a winner.
+4. `config.cra` cannot be imported and retains its reserved configuration behavior.
+5. Each canonical source path is parsed and linked once, including diamond dependency graphs.
+6. Circular imports are rejected with the dependency chain.
+7. Dependencies are linked before their importers.
+
+All declarations in the reachable import graph share one project symbol namespace. Imported models, variables, functions, and `CrossaRequest` functions can therefore be referenced by other linked declarations. Import syntax determines project inclusion, not private visibility; packages and visibility modifiers remain unsupported.
+
+Imported files may contain declarations only. Their top-level executable expressions are rejected, so only the CLI entry file can start direct calls or direct network/background work. Imported source-variable initializers remain declarations and are evaluated once in dependency order under the normal variable rules. Original file, line, and column locations survive project linking for lexer, parser, linker, and semantic diagnostics.
+
+Example project:
+
+```text
+project/
+    domain/models.cra
+    network/postRequests.cra
+    repositories/postsRepository.cra
+    runPosts.cra
+```
+
+```cra
+// repositories/postsRepository.cra
+import #postRequests.cra#
+
+@AsyncAfter
+fun getPosts(): List<Post> {
+    re fetchPosts()
+}
+```
+
+The runnable entry can then import the repository and start the request explicitly:
+
+```cra
+// runPosts.cra
+import #postsRepository.cra#
+
+print(getPosts())
+```
 
 ---
 
@@ -2407,13 +2500,14 @@ AuthController.cra
 
 The compiler should:
 
-1. load the source set,
-2. tokenize/parse,
-3. register symbols,
-4. perform semantic analysis,
-5. lower typed IR,
-6. link required runtime modules,
-7. generate/execute requested targets.
+1. load and parse the entry source,
+2. recursively resolve and parse its import graph,
+3. detect missing, ambiguous, or circular dependencies,
+4. merge declarations once in deterministic dependency order,
+5. register project symbols and perform semantic analysis,
+6. lower unified typed IR,
+7. link required runtime modules,
+8. generate/execute requested targets.
 
 ---
 
@@ -2450,6 +2544,7 @@ compiler/
     lexer/
     parser/
     ast/
+    project/
     semantic/
     types/
     diagnostics/
@@ -2725,6 +2820,9 @@ No runtime `.cra` source scanning is required for normal request execution.
 28. Models normally follow one-file-per-type.
 29. Unsupported syntax fails with diagnostics.
 30. The language grows only for concrete Crossa requirements.
+31. `import #filename.cra#` is resolved only by the canonical C++ project linker.
+32. Import filename matching is recursive, exact, deterministic, and ambiguity-safe.
+33. Imported top-level expressions never execute; direct execution starts from the entry file only.
 
 ---
 
@@ -2744,7 +2842,7 @@ Do not invent these during unrelated tasks:
 - nullable syntax,
 - enum syntax,
 - control-flow syntax,
-- imports/packages,
+- packages and visibility syntax beyond filename imports,
 - visibility,
 - model mutability,
 - request headers/query/body syntax,

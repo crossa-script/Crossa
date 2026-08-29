@@ -12,7 +12,9 @@ enum class TokenType {
     DecimalLiteral,
     StringLiteral,
     BooleanLiteral,
+    ImportPath,
 
+    KeywordImport,
     KeywordFun,
     KeywordRe,
     KeywordVar,
@@ -56,7 +58,6 @@ enum class TokenType {
     Minus,
     Star,
     Slash,
-    Hash,
 
     EndOfFile
 };

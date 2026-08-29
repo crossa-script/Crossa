@@ -12,8 +12,11 @@ namespace crossa::compiler::parser {
     Parser::Parser(
         const vector<lexer::Token>& tokens,
         const source::SourceFile& sourceFile
-    ) noexcept
-        : tokens_(tokens), sourceFile_(sourceFile), current_(0) {}
+    )
+        : tokens_(tokens),
+          sourceFile_(sourceFile),
+          sourcePath_(make_shared<const string>(sourceFile.getPath().string())),
+          current_(0) {}
 
     // Parses the complete token stream into one AST source unit.
     ast::SourceUnit Parser::parse() {
@@ -31,11 +34,69 @@ namespace crossa::compiler::parser {
         }
 
         vector<unique_ptr<ast::Declaration>> declarations;
+        bool declarationsStarted = false;
         while (!isAtEnd()) {
+            if (match(lexer::TokenType::KeywordImport)) {
+                if (declarationsStarted) {
+                    fail(
+                        previous(),
+                        "Imports must appear before all declarations."
+                    );
+                }
+                declarations.push_back(parseImportDeclaration());
+                continue;
+            }
+
+            declarationsStarted = true;
             declarations.push_back(parseDeclaration());
         }
 
         return ast::SourceUnit(std::move(declarations));
+    }
+
+    // Parses one top-level import after consuming the import keyword.
+    unique_ptr<ast::Declaration> Parser::parseImportDeclaration() {
+        const lexer::Token& importToken = previous();
+        const lexer::Token& pathToken = consume(
+            lexer::TokenType::ImportPath,
+            "Expected a hash-delimited .cra filename after 'import'."
+        );
+        const string lexeme = getLexeme(pathToken);
+        if (lexeme.size() < 3) {
+            fail(pathToken, "Import filename cannot be empty.");
+        }
+
+        const string filename = lexeme.substr(1, lexeme.size() - 2);
+        if (filename.find('/') != string::npos ||
+            filename.find('\\') != string::npos) {
+            fail(
+                pathToken,
+                "Import accepts a filename only; paths are not supported."
+            );
+        }
+        for (const char value : filename) {
+            const bool supported =
+                (value >= 'a' && value <= 'z') ||
+                (value >= 'A' && value <= 'Z') ||
+                (value >= '0' && value <= '9') ||
+                value == '_' || value == '-' || value == '.';
+            if (!supported) {
+                fail(
+                    pathToken,
+                    "Import filename contains an unsupported character."
+                );
+            }
+        }
+        if (filename == "." || filename == ".." ||
+            filename.size() <= 4 ||
+            filename.substr(filename.size() - 4) != ".cra") {
+            fail(pathToken, "Import filename must end with '.cra'.");
+        }
+
+        return make_unique<ast::ImportDeclaration>(
+            filename,
+            getLocation(importToken)
+        );
     }
 
     // Parses one top-level declaration.
@@ -663,7 +724,7 @@ namespace crossa::compiler::parser {
                 segments.emplace_back(
                     ast::StringSegmentKind::Literal,
                     std::move(literal),
-                    source::SourceLocation(
+                    getLocation(
                         token.getLine(),
                         token.getColumn() + 1 + literalStart
                     )
@@ -679,7 +740,7 @@ namespace crossa::compiler::parser {
             segments.emplace_back(
                 ast::StringSegmentKind::Identifier,
                 string(content.substr(identifierStart, current - identifierStart)),
-                source::SourceLocation(
+                getLocation(
                     token.getLine(),
                     token.getColumn() + 1 + identifierStart
                 )
@@ -690,7 +751,7 @@ namespace crossa::compiler::parser {
             segments.emplace_back(
                 ast::StringSegmentKind::Literal,
                 std::move(literal),
-                source::SourceLocation(
+                getLocation(
                     token.getLine(),
                     token.getColumn() + 1 + literalStart
                 )
@@ -828,8 +889,20 @@ namespace crossa::compiler::parser {
     // Converts a lexer token position into an AST source location.
     source::SourceLocation Parser::getLocation(
         const lexer::Token& token
-    ) noexcept {
-        return source::SourceLocation(token.getLine(), token.getColumn());
+    ) const noexcept {
+        return getLocation(token.getLine(), token.getColumn());
+    }
+
+    // Creates a source location inside the parser's current file.
+    source::SourceLocation Parser::getLocation(
+        size_t line,
+        size_t column
+    ) const noexcept {
+        return source::SourceLocation(
+            sourcePath_,
+            line,
+            column
+        );
     }
 
     // Consumes one token when its type matches the expectation.
