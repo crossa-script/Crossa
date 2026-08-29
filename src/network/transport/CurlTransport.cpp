@@ -1,16 +1,19 @@
 #include "crossa/network/transport/CurlTransport.h"
 
 #include <array>
+#include <chrono>
 #include <condition_variable>
 #include <curl/curl.h>
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "crossa/network/HttpHeader.h"
 #include "crossa/network/HttpMethod.h"
+#include "crossa/runtime/errors/CrossaException.h"
 
 using namespace std;
 
@@ -51,19 +54,34 @@ public:
     // Stops acquisitions and releases every native easy handle.
     ~Implementation() {
         {
-            lock_guard lock(mutex_);
+            unique_lock lock(mutex_);
             stopping_ = true;
+            for (const auto& [handle, requestHandle] : activeRequests_) {
+                (void)handle;
+                (void)requestHandle.cancel();
+            }
+            available_.notify_all();
+            drained_.wait(lock, [this]() {
+                return activeRequests_.empty();
+            });
         }
-        available_.notify_all();
         releaseHandles();
         curl_global_cleanup();
     }
 
     // Performs one request using an acquired reusable easy handle.
-    response::HttpResponse execute(const request::PreparedRequest& request) {
-        CURL* handle = acquireHandle();
+    response::HttpResponse execute(
+        const request::PreparedRequest& request,
+        const runtime::RequestHandle& requestHandle
+    ) {
+        requestHandle.throwIfCancellationRequested();
+        CURL* handle = acquireHandle(requestHandle);
         try {
-            response::HttpResponse response = perform(handle, request);
+            response::HttpResponse response = perform(
+                handle,
+                request,
+                requestHandle
+            );
             releaseHandle(handle);
             return response;
         } catch (...) {
@@ -79,6 +97,23 @@ private:
         size_t maximumBytes;
         bool overflowed;
     };
+
+    // Stops libcurl when the shared native handle requests cancellation.
+    static int observeProgress(
+        void* context,
+        curl_off_t downloadTotal,
+        curl_off_t downloadCurrent,
+        curl_off_t uploadTotal,
+        curl_off_t uploadCurrent
+    ) noexcept {
+        (void)downloadTotal;
+        (void)downloadCurrent;
+        (void)uploadTotal;
+        (void)uploadCurrent;
+        const auto& requestHandle =
+            *static_cast<const runtime::RequestHandle*>(context);
+        return requestHandle.isCancellationRequested() ? 1 : 0;
+    }
 
     // Appends response bytes while enforcing the configured size limit.
     static size_t writeBody(
@@ -134,16 +169,23 @@ private:
     }
 
     // Acquires one reusable easy handle without exceeding pool bounds.
-    CURL* acquireHandle() {
+    CURL* acquireHandle(const runtime::RequestHandle& requestHandle) {
         unique_lock lock(mutex_);
-        available_.wait(lock, [this]() {
-            return stopping_ || !availableHandles_.empty();
-        });
-        if (stopping_) {
-            throw runtime_error("Native HTTP transport is shutting down.");
+        while (!stopping_ && availableHandles_.empty()) {
+            requestHandle.throwIfCancellationRequested();
+            available_.wait_for(lock, chrono::milliseconds(25));
         }
+        if (stopping_) {
+            throw runtime::CrossaException(
+                runtime::CrossaError::runtime(
+                    "Native HTTP transport is shutting down."
+                )
+            );
+        }
+        requestHandle.throwIfCancellationRequested();
         CURL* handle = availableHandles_.back();
         availableHandles_.pop_back();
+        activeRequests_.emplace(handle, requestHandle);
         return handle;
     }
 
@@ -151,7 +193,11 @@ private:
     void releaseHandle(CURL* handle) noexcept {
         {
             lock_guard lock(mutex_);
+            activeRequests_.erase(handle);
             availableHandles_.push_back(handle);
+            if (activeRequests_.empty()) {
+                drained_.notify_all();
+            }
         }
         available_.notify_one();
     }
@@ -159,7 +205,8 @@ private:
     // Configures and performs one libcurl transfer.
     response::HttpResponse perform(
         CURL* handle,
-        const request::PreparedRequest& request
+        const request::PreparedRequest& request,
+        const runtime::RequestHandle& requestHandle
     ) {
         curl_easy_reset(handle);
         ResponseBuffer responseBuffer{
@@ -177,20 +224,25 @@ private:
             responseBuffer,
             responseHeaders,
             errorBuffer,
-            requestHeaders
+            requestHeaders,
+            requestHandle
         );
         setMethodOptions(handle, request);
         const CURLcode result = curl_easy_perform(handle);
         curl_slist_free_all(requestHeaders);
 
         if (responseBuffer.overflowed) {
-            throw runtime_error("HTTP response exceeded the configured byte limit.");
+            throw runtime::CrossaException(
+                runtime::CrossaError::runtime(
+                    "HTTP response exceeded the configured byte limit."
+                )
+            );
         }
         if (result != CURLE_OK) {
             const string detail = errorBuffer.front() == '\0'
                 ? curl_easy_strerror(result)
                 : errorBuffer.data();
-            throw runtime_error("Native HTTP transport failed: " + detail);
+            throwTransportError(result, detail, requestHandle);
         }
 
         long statusCode = 0;
@@ -199,7 +251,11 @@ private:
                 CURLINFO_RESPONSE_CODE,
                 &statusCode
             ) != CURLE_OK) {
-            throw runtime_error("Unable to read the HTTP response status.");
+            throw runtime::CrossaException(
+                runtime::CrossaError::connection(
+                    "Unable to read the HTTP response status."
+                )
+            );
         }
         return response::HttpResponse(
             statusCode,
@@ -215,7 +271,8 @@ private:
         ResponseBuffer& responseBuffer,
         vector<HttpHeader>& responseHeaders,
         array<char, CURL_ERROR_SIZE>& errorBuffer,
-        curl_slist* requestHeaders
+        curl_slist* requestHeaders,
+        const runtime::RequestHandle& requestHandle
     ) {
         curl_easy_setopt(handle, CURLOPT_URL, request.getUrl().c_str());
         curl_easy_setopt(handle, CURLOPT_HTTPHEADER, requestHeaders);
@@ -252,6 +309,65 @@ private:
         curl_easy_setopt(handle, CURLOPT_WRITEDATA, &responseBuffer);
         curl_easy_setopt(handle, CURLOPT_HEADERFUNCTION, writeHeader);
         curl_easy_setopt(handle, CURLOPT_HEADERDATA, &responseHeaders);
+        curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(handle, CURLOPT_XFERINFOFUNCTION, observeProgress);
+        curl_easy_setopt(handle, CURLOPT_XFERINFODATA, &requestHandle);
+    }
+
+    // Maps one libcurl failure into the stable CrossaError taxonomy.
+    [[noreturn]] static void throwTransportError(
+        CURLcode result,
+        const string& detail,
+        const runtime::RequestHandle& requestHandle
+    ) {
+        const long nativeCode = static_cast<long>(result);
+        if (result == CURLE_ABORTED_BY_CALLBACK &&
+            requestHandle.isCancellationRequested()) {
+            throw runtime::CrossaException(
+                runtime::CrossaError::cancellation()
+            );
+        }
+        if (result == CURLE_OPERATION_TIMEDOUT) {
+            throw runtime::CrossaException(
+                runtime::CrossaError::timeout(
+                    "Native HTTP request timed out: " + detail
+                )
+            );
+        }
+        switch (result) {
+            case CURLE_SSL_CONNECT_ERROR:
+            case CURLE_PEER_FAILED_VERIFICATION:
+            case CURLE_SSL_CERTPROBLEM:
+            case CURLE_SSL_CIPHER:
+            case CURLE_SSL_CACERT_BADFILE:
+            case CURLE_SSL_CRL_BADFILE:
+            case CURLE_SSL_ISSUER_ERROR:
+                throw runtime::CrossaException(
+                    runtime::CrossaError::tls(
+                        "Native TLS request failed: " + detail,
+                        nativeCode
+                    )
+                );
+            case CURLE_COULDNT_RESOLVE_PROXY:
+            case CURLE_COULDNT_RESOLVE_HOST:
+            case CURLE_COULDNT_CONNECT:
+            case CURLE_SEND_ERROR:
+            case CURLE_RECV_ERROR:
+            case CURLE_GOT_NOTHING:
+                throw runtime::CrossaException(
+                    runtime::CrossaError::connection(
+                        "Native HTTP connection failed: " + detail,
+                        nativeCode
+                    )
+                );
+            default:
+                throw runtime::CrossaException(
+                    runtime::CrossaError::connection(
+                        "Native HTTP transport failed: " + detail,
+                        nativeCode
+                    )
+                );
+        }
     }
 
     // Applies the exact HTTP method and optional serialized request body.
@@ -308,8 +424,10 @@ private:
 
     mutex mutex_;
     condition_variable available_;
+    condition_variable drained_;
     vector<CURL*> handles_;
     vector<CURL*> availableHandles_;
+    unordered_map<CURL*, runtime::RequestHandle> activeRequests_;
     bool stopping_;
 };
 
@@ -322,9 +440,10 @@ CurlTransport::~CurlTransport() = default;
 
 // Executes one prepared request and returns its buffered native response.
 response::HttpResponse CurlTransport::execute(
-    const request::PreparedRequest& request
+    const request::PreparedRequest& request,
+    const runtime::RequestHandle& requestHandle
 ) {
-    return implementation_->execute(request);
+    return implementation_->execute(request, requestHandle);
 }
 
 }

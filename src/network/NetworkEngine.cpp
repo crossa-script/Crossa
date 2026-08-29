@@ -1,7 +1,8 @@
 #include "crossa/network/NetworkEngine.h"
 
-#include <stdexcept>
 #include <string>
+
+#include "crossa/runtime/errors/CrossaException.h"
 
 using namespace std;
 
@@ -19,18 +20,22 @@ NetworkEngine::NetworkEngine(
 
 // Builds and executes one request through the shared native pipeline.
 response::HttpResponse NetworkEngine::execute(
-    const request::RequestSpec& spec
+    const request::RequestSpec& spec,
+    const runtime::RequestHandle& requestHandle
 ) {
+    requestHandle.throwIfCancellationRequested();
     request::PreparedRequest request = requestBuilder_.build(spec);
     try {
         interceptor_.beforeRequest(request);
-        response::HttpResponse response = transport_.execute(request);
+        response::HttpResponse response = transport_.execute(
+            request,
+            requestHandle
+        );
         interceptor_.afterResponse(request, response);
         if (response.getStatusCode() < 200 ||
             response.getStatusCode() >= 300) {
-            throw runtime_error(
-                "HTTP request failed with status " +
-                to_string(response.getStatusCode()) + "."
+            throw runtime::CrossaException(
+                runtime::CrossaError::httpStatus(response.getStatusCode())
             );
         }
         return response;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <variant>
 
@@ -8,17 +9,22 @@
 
 namespace crossa::runtime {
 
-// Identifies the primitive values currently executable by the native runtime.
+class NativeList;
+class NativeModel;
+
+// Identifies every value currently owned by the native runtime.
 enum class RuntimeValueKind {
     Unit,
     Int,
     String,
     Bool,
-    Json
+    Json,
+    Model,
+    List
 };
 
-// Owns one runtime value produced while interpreting Crossa IR.
-// The first execution slice intentionally supports scalar values only.
+// Owns one scalar, JSON boundary, typed model, or typed list runtime value.
+// Models and lists use immutable native storage shared with future bindings.
 class RuntimeValue final {
 public:
     // Creates the runtime Unit value.
@@ -36,6 +42,12 @@ public:
     // Creates a runtime Json value.
     static RuntimeValue createJson(network::json::JsonValue value);
 
+    // Creates a typed native model value.
+    static RuntimeValue createModel(NativeModel value);
+
+    // Creates a typed native list value.
+    static RuntimeValue createList(NativeList value);
+
     // Returns the stored runtime value category.
     [[nodiscard]] RuntimeValueKind getKind() const noexcept;
 
@@ -51,30 +63,34 @@ public:
     // Returns the stored Json value and requires a Json kind.
     [[nodiscard]] const network::json::JsonValue& getJson() const;
 
+    // Returns the stored native model and requires a Model kind.
+    [[nodiscard]] const NativeModel& getModel() const;
+
+    // Returns the stored native list and requires a List kind.
+    [[nodiscard]] const NativeList& getList() const;
+
     // Returns a stable human-readable representation for output.
     [[nodiscard]] std::string format() const;
 
 private:
-    // Creates a runtime value from its kind and owned storage.
-    RuntimeValue(
-        RuntimeValueKind kind,
-        std::variant<
-            std::monostate,
-            std::int64_t,
-            std::string,
-            bool,
-            network::json::JsonValue
-        > value
-    );
-
-    RuntimeValueKind kind_;
-    std::variant<
+    using Storage = std::variant<
         std::monostate,
         std::int64_t,
         std::string,
         bool,
-        network::json::JsonValue
-    > value_;
+        network::json::JsonValue,
+        std::shared_ptr<const NativeModel>,
+        std::shared_ptr<const NativeList>
+    >;
+
+    // Creates a runtime value from its kind and owned storage.
+    RuntimeValue(RuntimeValueKind kind, Storage value);
+
+    // Formats this value as valid JSON for nested native values.
+    [[nodiscard]] std::string formatJson() const;
+
+    RuntimeValueKind kind_;
+    Storage value_;
 };
 
 }

@@ -9,6 +9,9 @@
 #include "crossa/compiler/ir/IrJsonExpression.h"
 #include "crossa/network/json/JsonSerializer.h"
 #include "crossa/network/utils/UrlUtils.h"
+#include "crossa/runtime/errors/CrossaException.h"
+#include "crossa/runtime/objects/NativeList.h"
+#include "crossa/runtime/objects/NativeModel.h"
 #include "crossa/utils/PrintUtils.h"
 
 using namespace std;
@@ -109,14 +112,16 @@ namespace crossa::runtime {
     RuntimeValue IrInterpreter::invokeFunction(
         const compiler::ir::IrFunctionDeclaration& function,
         vector<RuntimeValue> arguments,
-        size_t callDepth
+        size_t callDepth,
+        const RequestHandle& requestHandle
     ) {
         constexpr size_t MaximumCallDepth = 1024;
         if (callDepth >= MaximumCallDepth) {
             fail("Maximum function call depth exceeded.");
         }
 
-        ExecutionFrame frame;
+        requestHandle.throwIfCancellationRequested();
+        ExecutionFrame frame(requestHandle);
         for (size_t index = 0; index < arguments.size(); ++index) {
             if (!frame.declare(function.getParameters()[index].getName(),
                                std::move(arguments[index]))) {
@@ -260,7 +265,8 @@ namespace crossa::runtime {
                 return invokeScheduledFunction(
                     *functionIterator->second,
                     std::move(arguments),
-                    callDepth + 1
+                    callDepth + 1,
+                    frame.getRequestHandle()
                 );
             }
             case compiler::ir::IrExpressionKind::Unary: {
@@ -406,12 +412,18 @@ namespace crossa::runtime {
         );
         log_.debug("CrossaRequest execution entered native network engine");
         const network::response::HttpResponse response =
-            networkEngine_.execute(spec);
+            networkEngine_.execute(spec, frame.getRequestHandle());
         log_.debug("CrossaRequest response entered native decoder");
-        return responseDecoder_.decode(
+        RuntimeValue decoded = responseDecoder_.decode(
             response.getBody(),
-            request.getType()
+            request.getType(),
+            frame.getRequestHandle()
         );
+        log_.debug(
+            "CrossaRequest response decoding completed: nativeType=" +
+            request.getType().format()
+        );
+        return decoded;
     }
 
     // Evaluates one string build with optional URL component encoding.
@@ -498,7 +510,8 @@ namespace crossa::runtime {
     RuntimeValue IrInterpreter::invokeScheduledFunction(
         const compiler::ir::IrFunctionDeclaration& function,
         vector<RuntimeValue> arguments,
-        size_t callDepth
+        size_t callDepth,
+        const RequestHandle& requestHandle
     ) {
         switch (function.getExecutionPolicy()) {
             case compiler::ir::IrExecutionPolicy::Sync:
@@ -506,7 +519,8 @@ namespace crossa::runtime {
                 return invokeFunction(
                     function,
                     std::move(arguments),
-                    callDepth
+                    callDepth,
+                    requestHandle
                 );
             case compiler::ir::IrExecutionPolicy::Async:
                 log_.debug("Function policy selected: @Async background");
@@ -514,25 +528,19 @@ namespace crossa::runtime {
                     (void)invokeFunction(
                         function,
                         std::move(arguments),
-                        callDepth
+                        callDepth,
+                        requestHandle
                     );
                 } else {
-                    scheduler_.submitDetached(
+                    (void)scheduler_.submitDetached(
                         [this, &function, arguments = std::move(arguments),
-                         callDepth]() mutable {
-                            try {
-                                (void)invokeFunction(
-                                    function,
-                                    std::move(arguments),
-                                    callDepth
-                                );
-                            } catch (const exception& error) {
-                                log_.error(
-                                    "@Async function '" +
-                                    function.getName() + "' failed: " +
-                                    error.what()
-                                );
-                            }
+                         callDepth](const RequestHandle& asyncHandle) mutable {
+                            (void)invokeFunction(
+                                function,
+                                std::move(arguments),
+                                callDepth,
+                                asyncHandle
+                            );
                         }
                     );
                 }
@@ -543,19 +551,32 @@ namespace crossa::runtime {
                     return invokeFunction(
                         function,
                         std::move(arguments),
-                        callDepth
+                        callDepth,
+                        requestHandle
                     );
                 }
-                return scheduler_.submit(
+                scheduler::ScheduledTask task = scheduler_.submit(
                     [this, &function, arguments = std::move(arguments),
-                     callDepth]() mutable {
+                     callDepth](const RequestHandle& asyncHandle) mutable {
                         return invokeFunction(
                             function,
                             std::move(arguments),
-                            callDepth
+                            callDepth,
+                            asyncHandle
                         );
                     }
-                ).get();
+                );
+                CrossaState<RuntimeValue> state = task.await();
+                if (state.isSuccess()) {
+                    log_.debug("@AsyncAfter terminal state: Success");
+                    return state.takeData();
+                }
+                if (state.isCancelled()) {
+                    log_.debug("@AsyncAfter terminal state: Cancelled");
+                    throw CrossaException(CrossaError::cancellation());
+                }
+                log_.debug("@AsyncAfter terminal state: Failed");
+                throw CrossaException(state.getError());
         }
         fail("Unknown function scheduling policy.");
     }
@@ -579,6 +600,31 @@ namespace crossa::runtime {
                 );
             case RuntimeValueKind::Json:
                 return value.getJson();
+            case RuntimeValueKind::Model: {
+                network::json::JsonValue::Object fields;
+                fields.reserve(value.getModel().getFields().size());
+                for (const NativeModel::Field& field :
+                     value.getModel().getFields()) {
+                    fields.emplace_back(
+                        field.first,
+                        toJsonValue(field.second)
+                    );
+                }
+                return network::json::JsonValue::createObject(
+                    std::move(fields)
+                );
+            }
+            case RuntimeValueKind::List: {
+                network::json::JsonValue::Array values;
+                values.reserve(value.getList().getSize());
+                for (const RuntimeValue& element :
+                     value.getList().getValues()) {
+                    values.push_back(toJsonValue(element));
+                }
+                return network::json::JsonValue::createArray(
+                    std::move(values)
+                );
+            }
             case RuntimeValueKind::Unit:
                 fail("Unit cannot be encoded as JSON.");
         }
@@ -712,7 +758,9 @@ namespace crossa::runtime {
 
     // Raises a deterministic runtime execution failure.
     [[noreturn]] void IrInterpreter::fail(const string& message) {
-        throw runtime_error("Native IR execution failed: " + message);
+        throw CrossaException(
+            CrossaError::runtime("Native IR execution failed: " + message)
+        );
     }
 
 }

@@ -5,6 +5,7 @@
 
 #include "crossa/network/request/PreparedRequest.h"
 #include "crossa/network/response/HttpResponse.h"
+#include "crossa/runtime/RequestHandle.h"
 
 namespace crossa::network::transport {
 
@@ -23,7 +24,8 @@ public:
 
     // Executes one prepared request and returns its buffered native response.
     [[nodiscard]] response::HttpResponse execute(
-        const request::PreparedRequest& request
+        const request::PreparedRequest& request,
+        const runtime::RequestHandle& requestHandle
     );
 
 private:

@@ -43,14 +43,14 @@ namespace crossa::runtime {
                 configuration.getSchedulerOptions().getMaximumQueuedTasks()
             )
         );
-        scheduler::TaskScheduler scheduler(
-            configuration.getSchedulerOptions(),
-            log
-        );
         network::NetworkEngine networkEngine(
             configuration.getNetworkConfiguration(),
             log,
             configuration.getSchedulerOptions().getWorkerCount()
+        );
+        scheduler::TaskScheduler scheduler(
+            configuration.getSchedulerOptions(),
+            log
         );
         IrInterpreter interpreter(
             program,

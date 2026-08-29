@@ -6,6 +6,7 @@
 #include "crossa/compiler/ir/Program.h"
 #include "crossa/compiler/types/SemanticType.h"
 #include "crossa/network/json/JsonValue.h"
+#include "crossa/runtime/RequestHandle.h"
 #include "crossa/runtime/RuntimeValue.h"
 
 namespace crossa::network::response {
@@ -24,15 +25,17 @@ public:
     // Decodes one successful response body into a native runtime value.
     [[nodiscard]] runtime::RuntimeValue decode(
         const std::string& body,
-        const compiler::types::SemanticType& expectedType
+        const compiler::types::SemanticType& expectedType,
+        const runtime::RequestHandle& requestHandle
     ) const;
 
 private:
-    // Validates one parsed JSON value against a resolved semantic type.
-    void validate(
+    // Converts one parsed value directly into its typed native representation.
+    [[nodiscard]] runtime::RuntimeValue decodeValue(
         const json::JsonValue& value,
         const compiler::types::SemanticType& expectedType,
-        const std::string& path
+        const std::string& path,
+        const runtime::RequestHandle& requestHandle
     ) const;
 
     // Locates one lowered model schema by exact name.

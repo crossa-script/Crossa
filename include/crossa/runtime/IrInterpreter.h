@@ -52,7 +52,8 @@ private:
     [[nodiscard]] RuntimeValue invokeFunction(
         const compiler::ir::IrFunctionDeclaration& function,
         std::vector<RuntimeValue> arguments,
-        std::size_t callDepth
+        std::size_t callDepth,
+        const RequestHandle& requestHandle
     );
 
     // Executes a function's ordered statements until it returns.
@@ -109,7 +110,8 @@ private:
     [[nodiscard]] RuntimeValue invokeScheduledFunction(
         const compiler::ir::IrFunctionDeclaration& function,
         std::vector<RuntimeValue> arguments,
-        std::size_t callDepth
+        std::size_t callDepth,
+        const RequestHandle& requestHandle
     );
 
     // Converts one runtime scalar or Json value into an owned JSON value.

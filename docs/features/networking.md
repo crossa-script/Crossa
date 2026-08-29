@@ -17,13 +17,22 @@ The configured interceptor observes every request. It appends common headers and
 Successful `2xx` responses are decoded from the containing function's logical
 return type. `String` receives the bounded raw response body; `Int` and `Bool`
 require matching JSON scalars; `Json` receives any JSON value; model and list
-results are validated recursively against the lowered IR schema. Non-`2xx`
-responses and malformed or incompatible JSON produce native execution errors.
+results are decoded recursively against the lowered IR schema. Known models and
+lists become immutable native `NativeModel` and `NativeList` values; their
+temporary generic JSON DOM is released after construction. Only an explicit
+`Json` result retains generic JSON storage. Non-`2xx` responses and malformed or
+incompatible JSON produce structured native errors.
 
 `@Sync` executes the request inline. `@Async` queues fire-and-forget work, and
-`@AsyncAfter` queues work and preserves one terminal result. Direct CLI calls
-wait for `@AsyncAfter`; generated platform completion bridges remain planned.
+`@AsyncAfter` queues work and preserves one terminal `Success`, `Failed`, or
+`Cancelled` result. Every async operation has an idempotent `RequestHandle` that
+propagates through libcurl and response decoding. Direct CLI calls wait for
+`@AsyncAfter`; generated platform completion bridges remain planned.
+
+The stable error categories distinguish HTTP status, timeout, connection, TLS,
+invalid JSON, response type mismatch, cancellation, and internal runtime errors.
+HTTP and transport metadata remain attached to `CrossaError`.
 
 ## Limits
 
-The foundation transport uses pooled reusable libcurl easy handles on the shared bounded scheduler. It does not create a thread per request. Cancellation handles, retries, multipart, streaming, downloads, and generated direct schema decoders remain planned work.
+The foundation transport uses pooled reusable libcurl easy handles on the shared bounded scheduler. It does not create a thread per request. Retries, multipart, streaming, downloads, platform cancellation bridging, and generated direct schema decoders remain planned work.

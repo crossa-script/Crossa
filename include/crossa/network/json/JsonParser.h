@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "crossa/network/json/JsonValue.h"
+#include "crossa/runtime/RequestHandle.h"
 
 namespace crossa::network::json {
 
@@ -16,12 +17,17 @@ public:
     [[nodiscard]] static JsonValue parse(
         std::string_view input,
         std::size_t maximumBytes,
-        std::size_t maximumDepth
+        std::size_t maximumDepth,
+        const runtime::RequestHandle* requestHandle = nullptr
     );
 
 private:
     // Creates one parser over a bounded input view.
-    JsonParser(std::string_view input, std::size_t maximumDepth) noexcept;
+    JsonParser(
+        std::string_view input,
+        std::size_t maximumDepth,
+        const runtime::RequestHandle* requestHandle
+    ) noexcept;
 
     // Parses one JSON value at the requested nesting depth.
     [[nodiscard]] JsonValue parseValue(std::size_t depth);
@@ -62,12 +68,17 @@ private:
     // Returns whether all input bytes were consumed.
     [[nodiscard]] bool isAtEnd() const noexcept;
 
+    // Checks cancellation at bounded byte intervals during parsing.
+    void checkCancellation();
+
     // Throws a stable JSON parse failure at the current byte offset.
     [[noreturn]] void fail(const std::string& message) const;
 
     std::string_view input_;
     std::size_t maximumDepth_;
     std::size_t current_;
+    std::size_t nextCancellationCheck_;
+    const runtime::RequestHandle* requestHandle_;
 };
 
 }

@@ -1,7 +1,11 @@
 #include "crossa/runtime/scheduler/TaskScheduler.h"
 
+#include <exception>
+#include <future>
 #include <stdexcept>
 #include <utility>
+
+#include "crossa/runtime/errors/CrossaException.h"
 
 using namespace std;
 
@@ -17,8 +21,18 @@ namespace crossa::runtime::scheduler {
           activeTasks_(0),
           stopping_(false) {
         workers_.reserve(options.getWorkerCount());
-        for (size_t index = 0; index < options.getWorkerCount(); ++index) {
-            workers_.emplace_back([this]() { workerLoop(); });
+        try {
+            for (size_t index = 0; index < options.getWorkerCount(); ++index) {
+                workers_.emplace_back([this]() { workerLoop(); });
+            }
+        } catch (...) {
+            {
+                lock_guard lock(mutex_);
+                stopping_ = true;
+            }
+            taskAvailable_.notify_all();
+            joinWorkers();
+            throw;
         }
         log_.debug(
             "Scheduler started: workers=" + to_string(workers_.size()) +
@@ -26,26 +40,55 @@ namespace crossa::runtime::scheduler {
         );
     }
 
-    // Stops submissions, drains queued work, and joins every worker.
+    // Cancels outstanding work and joins every worker.
     TaskScheduler::~TaskScheduler() {
         shutdown();
     }
 
-    // Submits a result-producing task and returns its terminal future.
-    future<RuntimeValue> TaskScheduler::submit(
-        function<RuntimeValue()> task
+    // Submits a result-producing task with a cancellable terminal state.
+    ScheduledTask TaskScheduler::submit(
+        function<RuntimeValue(const RequestHandle&)> task
     ) {
-        auto packaged = make_shared<packaged_task<RuntimeValue()>>(
-            std::move(task)
+        RequestHandle requestHandle;
+        auto packaged = make_shared<packaged_task<CrossaState<RuntimeValue>()>>(
+            [task = std::move(task), requestHandle]() {
+                return runTask(task, requestHandle);
+            }
         );
-        future<RuntimeValue> result = packaged->get_future();
-        enqueue([packaged]() { (*packaged)(); });
-        return result;
+        future<CrossaState<RuntimeValue>> result = packaged->get_future();
+        enqueue(ScheduledWork{
+            [packaged]() { (*packaged)(); },
+            requestHandle
+        });
+        return ScheduledTask(requestHandle, std::move(result));
     }
 
-    // Submits fire-and-forget work to the bounded queue.
-    void TaskScheduler::submitDetached(function<void()> task) {
-        enqueue(std::move(task));
+    // Submits fire-and-forget work and returns its cancellation handle.
+    RequestHandle TaskScheduler::submitDetached(
+        function<void(const RequestHandle&)> task
+    ) {
+        RequestHandle requestHandle;
+        enqueue(ScheduledWork{
+            [this, task = std::move(task), requestHandle]() {
+                CrossaState<RuntimeValue> state = runTask(
+                    [&task](const RequestHandle& handle) {
+                        task(handle);
+                        return RuntimeValue::createUnit();
+                    },
+                    requestHandle
+                );
+                if (state.isFailed()) {
+                    log_.error(
+                        "Detached scheduler task failed: " +
+                        state.getError().format()
+                    );
+                } else if (state.isCancelled()) {
+                    log_.debug("Detached scheduler task cancelled");
+                }
+            },
+            requestHandle
+        });
+        return requestHandle;
     }
 
     // Waits until the queue is empty and no worker is executing.
@@ -62,7 +105,7 @@ namespace crossa::runtime::scheduler {
         return workerIds_.contains(this_thread::get_id());
     }
 
-    // Stops accepting tasks and joins all workers after draining work.
+    // Stops submissions, cancels outstanding work, and joins all workers.
     void TaskScheduler::shutdown() {
         {
             lock_guard lock(mutex_);
@@ -70,28 +113,32 @@ namespace crossa::runtime::scheduler {
                 return;
             }
             stopping_ = true;
+            for (const ScheduledWork& work : tasks_) {
+                (void)work.requestHandle.cancel();
+            }
+            for (const auto& [workerId, requestHandle] : activeHandles_) {
+                (void)workerId;
+                (void)requestHandle.cancel();
+            }
         }
         taskAvailable_.notify_all();
         queueSpaceAvailable_.notify_all();
-        for (thread& worker : workers_) {
-            if (worker.joinable()) {
-                worker.join();
-            }
-        }
-        workers_.clear();
+        joinWorkers();
         log_.debug("Scheduler stopped");
     }
 
     // Adds one task while respecting queue bounds and shutdown state.
-    void TaskScheduler::enqueue(function<void()> task) {
+    void TaskScheduler::enqueue(ScheduledWork work) {
         unique_lock lock(mutex_);
         queueSpaceAvailable_.wait(lock, [this]() {
             return stopping_ || tasks_.size() < maximumQueuedTasks_;
         });
         if (stopping_) {
-            throw runtime_error("Scheduler is shutting down.");
+            throw CrossaException(
+                CrossaError::runtime("Scheduler is shutting down.")
+            );
         }
-        tasks_.push_back(std::move(task));
+        tasks_.push_back(std::move(work));
         const size_t queuedTasks = tasks_.size();
         lock.unlock();
         log_.debug(
@@ -100,14 +147,53 @@ namespace crossa::runtime::scheduler {
         taskAvailable_.notify_one();
     }
 
+    // Converts one native task into exactly one CrossaState terminal result.
+    CrossaState<RuntimeValue> TaskScheduler::runTask(
+        const function<RuntimeValue(const RequestHandle&)>& task,
+        const RequestHandle& requestHandle
+    ) {
+        try {
+            requestHandle.throwIfCancellationRequested();
+            RuntimeValue value = task(requestHandle);
+            if (!requestHandle.tryComplete()) {
+                return CrossaState<RuntimeValue>::cancelled();
+            }
+            return CrossaState<RuntimeValue>::success(std::move(value));
+        } catch (const CrossaException& error) {
+            if (error.getError().getCode() == CrossaErrorCode::Cancellation) {
+                (void)requestHandle.tryComplete();
+                return CrossaState<RuntimeValue>::cancelled();
+            }
+            if (!requestHandle.tryComplete()) {
+                return CrossaState<RuntimeValue>::cancelled();
+            }
+            return CrossaState<RuntimeValue>::failed(error.getError());
+        } catch (const exception& error) {
+            if (!requestHandle.tryComplete()) {
+                return CrossaState<RuntimeValue>::cancelled();
+            }
+            return CrossaState<RuntimeValue>::failed(
+                CrossaError::runtime(error.what())
+            );
+        } catch (...) {
+            if (!requestHandle.tryComplete()) {
+                return CrossaState<RuntimeValue>::cancelled();
+            }
+            return CrossaState<RuntimeValue>::failed(
+                CrossaError::runtime("Unknown native scheduler failure.")
+            );
+        }
+    }
+
     // Processes queued work until shutdown completes.
     void TaskScheduler::workerLoop() {
+        const thread::id workerId = this_thread::get_id();
         {
             lock_guard lock(mutex_);
-            workerIds_.insert(this_thread::get_id());
+            workerIds_.insert(workerId);
         }
         while (true) {
-            function<void()> task;
+            ScheduledWork work;
             size_t queuedTasks = 0;
             size_t activeTasks = 0;
             {
@@ -116,11 +202,15 @@ namespace crossa::runtime::scheduler {
                     return stopping_ || !tasks_.empty();
                 });
                 if (stopping_ && tasks_.empty()) {
-                    workerIds_.erase(this_thread::get_id());
+                    workerIds_.erase(workerId);
                     return;
                 }
-                task = std::move(tasks_.front());
+                work = std::move(tasks_.front());
                 tasks_.pop_front();
+                activeHandles_.insert_or_assign(
+                    workerId,
+                    work.requestHandle
+                );
                 ++activeTasks_;
                 queuedTasks = tasks_.size();
                 activeTasks = activeTasks_;
@@ -132,9 +222,8 @@ namespace crossa::runtime::scheduler {
                 to_string(queuedTasks) + " active=" +
                 to_string(activeTasks)
             );
-
             try {
-                task();
+                work.task();
             } catch (const exception& error) {
                 log_.error("Scheduler task failed: " + string(error.what()));
             } catch (...) {
@@ -143,6 +232,7 @@ namespace crossa::runtime::scheduler {
 
             {
                 lock_guard lock(mutex_);
+                activeHandles_.erase(workerId);
                 --activeTasks_;
                 queuedTasks = tasks_.size();
                 activeTasks = activeTasks_;
@@ -156,6 +246,16 @@ namespace crossa::runtime::scheduler {
                 }
             }
         }
+    }
+
+    // Joins every worker that was started successfully.
+    void TaskScheduler::joinWorkers() noexcept {
+        for (thread& worker : workers_) {
+            if (worker.joinable()) {
+                worker.join();
+            }
+        }
+        workers_.clear();
     }
 
 }

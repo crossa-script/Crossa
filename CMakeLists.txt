@@ -38,6 +38,12 @@ add_executable(
     include/crossa/compiler/semantic/SemanticModelPrinter.h
     include/crossa/compiler/ir/Program.h
     include/crossa/runtime/RuntimeValue.h
+    include/crossa/runtime/RequestHandle.h
+    include/crossa/runtime/errors/CrossaError.h
+    include/crossa/runtime/errors/CrossaException.h
+    include/crossa/runtime/objects/NativeList.h
+    include/crossa/runtime/objects/NativeModel.h
+    include/crossa/runtime/result/CrossaState.h
     include/crossa/runtime/ExecutionFrame.h
     include/crossa/runtime/IrInterpreter.h
     include/crossa/runtime/ExecutionEngine.h
@@ -71,6 +77,11 @@ add_executable(
     src/compiler/semantic/SemanticModelPrinter.cpp
     src/compiler/ir/Program.cpp
     src/runtime/RuntimeValue.cpp
+    src/runtime/RequestHandle.cpp
+    src/runtime/errors/CrossaError.cpp
+    src/runtime/errors/CrossaException.cpp
+    src/runtime/objects/NativeList.cpp
+    src/runtime/objects/NativeModel.cpp
     src/runtime/ExecutionFrame.cpp
     src/runtime/IrInterpreter.cpp
     src/runtime/ExecutionEngine.cpp
@@ -99,6 +110,7 @@ add_executable(
     include/crossa/network/utils/UrlUtils.h
     include/crossa/runtime/RuntimeConfiguration.h
     include/crossa/runtime/scheduler/SchedulerOptions.h
+    include/crossa/runtime/scheduler/ScheduledTask.h
     include/crossa/runtime/scheduler/TaskScheduler.h
     src/compiler/ast/CrossaRequestExpression.cpp
     src/compiler/ast/JsonExpression.cpp
@@ -123,6 +135,7 @@ add_executable(
     src/network/utils/UrlUtils.cpp
     src/runtime/RuntimeConfiguration.cpp
     src/runtime/scheduler/SchedulerOptions.cpp
+    src/runtime/scheduler/ScheduledTask.cpp
     src/runtime/scheduler/TaskScheduler.cpp
 )
 
@@ -140,3 +153,35 @@ target_link_libraries(
         CURL::libcurl
         Threads::Threads
 )
+
+enable_testing()
+
+add_executable(
+    crossa_runtime_tests
+    tests/native-runtime-tests.cpp
+    src/compiler/ir/IrDeclaration.cpp
+    src/compiler/ir/Program.cpp
+    src/compiler/source/SourceLocation.cpp
+    src/compiler/types/SemanticType.cpp
+    src/network/json/JsonParser.cpp
+    src/network/json/JsonSerializer.cpp
+    src/network/json/JsonValue.cpp
+    src/network/response/ResponseDecoder.cpp
+    src/runtime/RequestHandle.cpp
+    src/runtime/RuntimeValue.cpp
+    src/runtime/errors/CrossaError.cpp
+    src/runtime/errors/CrossaException.cpp
+    src/runtime/objects/NativeList.cpp
+    src/runtime/objects/NativeModel.cpp
+    src/runtime/scheduler/ScheduledTask.cpp
+    src/runtime/scheduler/SchedulerOptions.cpp
+    src/runtime/scheduler/TaskScheduler.cpp
+    src/utils/Log.cpp
+    src/utils/PrintUtils.cpp
+)
+
+target_compile_features(crossa_runtime_tests PRIVATE cxx_std_20)
+target_include_directories(crossa_runtime_tests PRIVATE include)
+target_link_libraries(crossa_runtime_tests PRIVATE Threads::Threads)
+
+add_test(NAME crossa_runtime_tests COMMAND crossa_runtime_tests)

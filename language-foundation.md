@@ -1067,7 +1067,9 @@ CrossaState<T>
     |      data: T
     |
     +-- Failed
-           error: CrossaError
+    |      error: CrossaError
+    |
+    +-- Cancelled
 ```
 
 `T` is the `.cra` function's declared logical result type.
@@ -1093,6 +1095,12 @@ or:
 Failed(CrossaError)
 ```
 
+or:
+
+```text
+Cancelled
+```
+
 ---
 
 ## 23.1 Android Concept
@@ -1109,6 +1117,8 @@ sealed interface CrossaState<out T> {
     data class Failed(
         val error: CrossaError
     ) : CrossaState<Nothing>
+
+    data object Cancelled : CrossaState<Nothing>
 }
 ```
 
@@ -1121,7 +1131,7 @@ fun getUsers(
 )
 ```
 
-`Success` and `Failed` are generated state data representations.
+`Success`, `Failed`, and `Cancelled` are generated state representations.
 
 The final exact package/type naming belongs to Android generator documentation.
 
@@ -1137,6 +1147,7 @@ Concept:
 enum CrossaState<T> {
     case success(T)
     case failed(CrossaError)
+    case cancelled
 }
 ```
 
@@ -1154,6 +1165,7 @@ The language semantics are:
 ```text
 Success(data)
 Failed(error)
+Cancelled
 ```
 
 regardless of the target's physical representation.
@@ -1165,12 +1177,13 @@ regardless of the target's physical representation.
 For `@AsyncAfter`:
 
 - the operation executes through the Crossa scheduler,
-- success/failure state originates from native execution,
+- success/failure/cancellation state originates from native execution,
 - completion is delivered exactly once,
 - native errors are not swallowed,
 - the platform bridge does not re-execute the function,
 - state ownership remains valid through delivery,
-- shutdown/cancellation must be handled safely once cancellation semantics exist.
+- cancellation is race-safe and idempotent while queued or executing,
+- shutdown requests cancellation before native workers are joined.
 
 ---
 
@@ -1325,6 +1338,8 @@ Because it is `@AsyncAfter`, generated callers receive:
 Success(List<User>)
 or
 Failed(CrossaError)
+or
+Cancelled
 ```
 
 through their target completion mechanism.
@@ -2225,7 +2240,7 @@ Generated/schema-specific C++ decoder
 Native List<User>
         |
         v
-Success(data) / Failed(error)
+Success(data) / Failed(error) / Cancelled
         |
         v
 Thin platform completion bridge
@@ -2282,6 +2297,16 @@ The error should preserve:
 - optional metadata.
 
 Errors must not disappear at the platform boundary.
+
+Explicit cancellation is a separate terminal state:
+
+```text
+Cancelled
+```
+
+`CrossaErrorCode::Cancellation` is used for internal native propagation, but a
+cancelled async operation is delivered as `CrossaState<T>::Cancelled`, not as
+`Failed`.
 
 ---
 
@@ -2641,7 +2666,7 @@ HTTP method:
 GET
 
 Completion:
-Success(List<User>) | Failed(CrossaError)
+Success(List<User>) | Failed(CrossaError) | Cancelled
 ```
 
 The native runtime owns request execution and parsing.
@@ -2688,7 +2713,7 @@ No runtime `.cra` source scanning is required for normal request execution.
 16. `config.cra` is the initial reserved declarative config file.
 17. `@Sync`, `@Async`, and `@AsyncAfter` are execution policies.
 18. Async execution uses the shared bounded runtime scheduler.
-19. `@AsyncAfter` delivers `Success(data)` or `Failed(error)` semantics.
+19. `@AsyncAfter` delivers `Success(data)`, `Failed(error)`, or `Cancelled` semantics.
 20. The source return type of `@AsyncAfter` is the logical success data type.
 21. `CrossaRequest` is a language/compiler/runtime builtin.
 22. `CrossaRequest` lowers to native IR rather than target networking code.
@@ -2715,7 +2740,7 @@ Do not invent these during unrelated tasks:
 - exact public name of the generated state wrapper if `CrossaState` changes,
 - exact `CrossaError` public target representation,
 - whether pure functions default to translation or native wrapping in production,
-- cancellation syntax,
+- source-level cancellation syntax,
 - nullable syntax,
 - enum syntax,
 - control-flow syntax,
@@ -2778,7 +2803,7 @@ Accept id: Int.
 Execute the operation asynchronously through Crossa.
 Perform the request in the native C++ runtime.
 Parse the successful response natively as List<User>.
-Deliver Success(data) or Failed(error) to the caller.
+Deliver Success(data), Failed(error), or Cancelled to the caller.
 ```
 
 The language describes the work.

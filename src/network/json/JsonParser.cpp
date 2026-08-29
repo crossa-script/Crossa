@@ -11,12 +11,16 @@ namespace crossa::network::json {
     JsonValue JsonParser::parse(
         string_view input,
         size_t maximumBytes,
-        size_t maximumDepth
+        size_t maximumDepth,
+        const runtime::RequestHandle* requestHandle
     ) {
         if (input.size() > maximumBytes) {
             throw runtime_error("JSON input exceeds the configured byte limit.");
         }
-        JsonParser parser(input, maximumDepth);
+        if (requestHandle != nullptr) {
+            requestHandle->throwIfCancellationRequested();
+        }
+        JsonParser parser(input, maximumDepth, requestHandle);
         parser.skipWhitespace();
         JsonValue result = parser.parseValue(0);
         parser.skipWhitespace();
@@ -27,8 +31,16 @@ namespace crossa::network::json {
     }
 
     // Creates one parser over a bounded input view.
-    JsonParser::JsonParser(string_view input, size_t maximumDepth) noexcept
-        : input_(input), maximumDepth_(maximumDepth), current_(0) {}
+    JsonParser::JsonParser(
+        string_view input,
+        size_t maximumDepth,
+        const runtime::RequestHandle* requestHandle
+    ) noexcept
+        : input_(input),
+          maximumDepth_(maximumDepth),
+          current_(0),
+          nextCancellationCheck_(0),
+          requestHandle_(requestHandle) {}
 
     // Parses one JSON value at the requested nesting depth.
     JsonValue JsonParser::parseValue(size_t depth) {
@@ -287,6 +299,7 @@ namespace crossa::network::json {
         if (isAtEnd()) {
             fail("Unexpected end of JSON input.");
         }
+        checkCancellation();
         return input_[current_++];
     }
 
@@ -298,6 +311,16 @@ namespace crossa::network::json {
     // Returns whether all input bytes were consumed.
     bool JsonParser::isAtEnd() const noexcept {
         return current_ >= input_.size();
+    }
+
+    // Checks cancellation at bounded byte intervals during parsing.
+    void JsonParser::checkCancellation() {
+        constexpr size_t CancellationCheckInterval = 4096;
+        if (requestHandle_ == nullptr || current_ < nextCancellationCheck_) {
+            return;
+        }
+        requestHandle_->throwIfCancellationRequested();
+        nextCancellationCheck_ = current_ + CancellationCheckInterval;
     }
 
     // Throws a stable JSON parse failure at the current byte offset.

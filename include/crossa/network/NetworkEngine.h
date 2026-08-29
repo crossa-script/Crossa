@@ -8,6 +8,7 @@
 #include "crossa/network/request/RequestSpec.h"
 #include "crossa/network/response/HttpResponse.h"
 #include "crossa/network/transport/CurlTransport.h"
+#include "crossa/runtime/RequestHandle.h"
 #include "crossa/utils/Log.h"
 
 namespace crossa::network {
@@ -25,7 +26,8 @@ public:
 
     // Builds and executes one request through the shared native pipeline.
     [[nodiscard]] response::HttpResponse execute(
-        const request::RequestSpec& spec
+        const request::RequestSpec& spec,
+        const runtime::RequestHandle& requestHandle
     );
 
 private:

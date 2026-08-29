@@ -182,10 +182,10 @@ HTTP response bytes
     -> native buffer
     -> generated/schema-aware C++ parser
     -> native List<User>
-    -> Success(data) or Failed(error)
+    -> Success(data), Failed(error), or Cancelled
 ```
 
-The Android/Swift generator does not rediscover or parse the response type. Generated APIs deliver terminal `Success(data)` or `Failed(error)` semantics through an idiomatic callback/closure representation without fixing target-specific class names here.
+The Android/Swift generator does not rediscover or parse the response type. Generated APIs deliver terminal `Success(data)`, `Failed(error)`, or `Cancelled` semantics through an idiomatic callback/closure representation without fixing target-specific class names here.
 
 `@Async` and `@AsyncAfter` use the shared bounded Crossa scheduler, never one OS thread per invocation. `@AsyncAfter` completion is exactly once at the semantic level. Platform code bridges completion and must not execute the function body again.
 

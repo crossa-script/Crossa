@@ -701,6 +701,8 @@ Generated completion payload:
 Success(List<User>)
 or
 Failed(CrossaError)
+or
+Cancelled
 ```
 
 ## Deliverable
@@ -710,6 +712,10 @@ Execution policies are native scheduler semantics, not platform-specific reimple
 ---
 
 # Phase 12 — Async Completion State
+
+> **Implementation status:** Native `CrossaState<T>`, structured
+> `CrossaError`, and cancellable scheduler tasks are implemented. Generated
+> Android and iOS state/cancellation bridges remain planned.
 
 ## Goal
 
@@ -741,7 +747,9 @@ CrossaState<T>
     |      data: T
     |
     +-- Failed
-           error: CrossaError
+    |      error: CrossaError
+    |
+    +-- Cancelled
 ```
 
 ## Android Concept
@@ -756,6 +764,8 @@ sealed interface CrossaState<out T> {
     data class Failed(
         val error: CrossaError
     ) : CrossaState<Nothing>
+
+    data object Cancelled : CrossaState<Nothing>
 }
 ```
 
@@ -770,12 +780,13 @@ fun getUsers(
 
 ## iOS Concept
 
-Swift should expose the same two semantic states using an idiomatic Swift representation, for example an enum or equivalent generated wrapper:
+Swift should expose the same three semantic states using an idiomatic Swift representation, for example an enum or equivalent generated wrapper:
 
 ```swift
 enum CrossaState<T> {
     case success(T)
     case failed(CrossaError)
+    case cancelled
 }
 ```
 
@@ -793,6 +804,7 @@ Exact public target naming may be finalized by platform-generator documentation,
 ```text
 Success(data)
 Failed(error)
+Cancelled
 ```
 
 ## Runtime Rules
@@ -984,7 +996,7 @@ Path interpolation works through the same language semantics as ordinary strings
 
 # Phase 16 — Native Response Decoding
 
-> **Implementation status:** Foundation decoding is implemented for scalar, `Json`, model, and list results. Generated direct schema decoders remain a production optimization.
+> **Implementation status:** Foundation decoding is implemented for scalar, `Json`, native model, and native list results. Typed results release the temporary generic JSON DOM after construction. Generated direct schema decoders remain a production optimization.
 
 ## Goal
 
@@ -1103,7 +1115,7 @@ download
 retry
 ```
 
-Streaming, cancellation handles, retry policy, authentication providers,
+Streaming, platform cancellation bridging, retry policy, authentication providers,
 multipart bodies, and downloads remain planned and are not implicit syntax.
 
 ---
@@ -1280,6 +1292,8 @@ Must produce:
 Success(List<User>)
 or
 Failed(CrossaError)
+or
+Cancelled
 ```
 
 through generated Android/iOS completion APIs.
@@ -1312,7 +1326,7 @@ Must compile the interpolation into the request plan rather than parse the path 
 6. The containing function return type defines request response decoding.
 7. `@AsyncAfter` return type is the logical success data type.
 8. Generated `@AsyncAfter` APIs expose completion state.
-9. Completion state has `Success(data)` and `Failed(error)` semantics.
+9. Completion state has `Success(data)`, `Failed(error)`, and `Cancelled` semantics.
 10. Native networking, buffering, parsing, models, and scheduling remain in C++.
 11. String interpolation is parsed/lowered ahead of runtime execution.
 12. Async work uses the bounded shared Crossa scheduler.

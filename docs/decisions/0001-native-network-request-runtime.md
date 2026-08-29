@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted for the foundation implementation.
+Accepted for the foundation implementation. Result-state, cancellation, and
+typed-storage details are extended by ADR 0002.
 
 ## Context
 
@@ -17,8 +18,8 @@ Crossa needs its first complete native networking path. The language must descri
 - A sibling `config.cra` supplies the base URL, common headers, interceptor policy, limits, and scheduler bounds.
 - Absolute HTTP/HTTPS URLs bypass `baseUrl`; relative URLs are joined with it.
 - libcurl is wrapped by a Crossa-owned transport. Easy handles are pooled and reused on a bounded shared scheduler to preserve connection reuse without one thread per request.
-- The initial native JSON parser is bounded and Crossa-owned. Typed model/list responses are schema-validated against IR. Generated direct decoders remain the production optimization path.
-- `@Sync` executes in the calling context. `@Async` schedules and discards the result. `@AsyncAfter` schedules on the shared pool and exposes exactly one terminal result; the CLI waits for that result while platform bindings can bridge it asynchronously later.
+- The initial native JSON parser is bounded and Crossa-owned. Typed model/list responses are schema-decoded into native values against IR. Generated direct decoders remain the production optimization path.
+- `@Sync` executes in the calling context. `@Async` schedules and discards the result. `@AsyncAfter` schedules on the shared pool and exposes exactly one `Success`, `Failed`, or `Cancelled` result; the CLI waits for that result while platform bindings can bridge it asynchronously later.
 
 ## Alternatives
 
@@ -32,7 +33,7 @@ Crossa needs its first complete native networking path. The language must descri
 
 - The executable links libcurl and requires a compatible development package.
 - Queue size, worker count, response bytes, JSON depth, and timeouts are bounded.
-- JSON DOM materialization is limited to the explicit `Json` boundary and this foundation decoder. Known production schemas can replace it with generated direct decoding without changing language or IR semantics.
+- JSON DOM materialization is retained only at the explicit `Json` boundary. The foundation decoder uses a bounded temporary DOM that is released after native model/list construction. Known production schemas can replace it with generated direct decoding without changing language or IR semantics.
 - Transport, scheduler, parser, and interceptor types remain internal and replaceable.
 
 ## Compatibility and Migration
