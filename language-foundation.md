@@ -2460,15 +2460,22 @@ print(getPosts())
 
 # 57. Direct Script Execution
 
-Crossa should eventually support executing a valid `.cra` source through CLI/native tooling.
+Crossa supports validating and executing a valid `.cra` source through the
+native CLI.
 
-Conceptual command:
+Supported commands:
 
 ```text
+crossa check UsersController.cra
 crossa run UsersController.cra
+crossa test UsersController.cra
 ```
 
-The exact CLI command is not fixed here.
+`check` loads the complete import graph and runs parsing, semantic analysis, and
+typed IR lowering without loading `config.cra` or executing any function or
+request. `run` and `test` continue through native execution. The command is
+optional for compatibility, so `crossa UsersController.cra` is equivalent to
+`crossa run UsersController.cra`.
 
 Execution must still pass through:
 
@@ -2849,7 +2856,7 @@ Do not invent these during unrelated tasks:
 - additional HTTP methods,
 - interceptor API,
 - source-level error handling,
-- exact CLI commands.
+- future CLI commands beyond `check`, `run`, and `test`.
 
 Those decisions require focused design.
 

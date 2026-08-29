@@ -94,11 +94,27 @@ cmake --build build
 ./build/crossa test.cra
 ```
 
-The executable accepts one `.cra` source file and automatically compiles a sibling `config.cra` when present. It validates, lowers, and executes top-level calls in source order through the shared scheduler and native network runtime. Normal execution displays program output and errors, without compiler lifecycle logs:
+The executable accepts an optional command and one `.cra` source file. `run` and
+`test` validate, lower, and execute top-level calls in source order through the
+shared scheduler and native network runtime. `check` loads imports and runs the
+lexer, parser, semantic analysis, and typed IR lowering, then stops without
+loading configuration or executing requests and functions. Normal execution
+displays program output and errors, without compiler lifecycle logs:
 
 ```sh
 ./build/crossa test.cra
 ```
+
+Use explicit commands when the intent should be clear:
+
+```sh
+./build/crossa check examples/imports/runPosts.cra
+./build/crossa run file.cra
+./build/crossa test file.cra
+```
+
+The command is optional for backward compatibility, so `crossa file.cra` is
+equivalent to `crossa run file.cra`.
 
 Use `--debug` to display every current Crossa execution step, emitted token, parsed AST declaration, typed semantic declaration, and lowered IR instruction:
 
@@ -132,6 +148,16 @@ To configure, build, and run the debug test in one command:
 ```
 
 The script builds and runs the complete compiler, linker, runtime, and `.cra` scripting suite. It uses CMake when available and falls back to the installed C++ compiler. Native networking requires libcurl. GitHub Actions repeats this workflow on every push and pull request.
+
+Optional JSONPlaceholder integration tests can be enabled when network access is
+available:
+
+```sh
+CROSSA_RUN_NETWORK_INTEGRATION=1 ./test.sh
+```
+
+With CMake, the same tests are enabled with
+`-DCROSSA_ENABLE_NETWORK_INTEGRATION=ON`.
 
 See [Crossa Testing](docs/development/testing.md) for the test layers and fixtures.
 

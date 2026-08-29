@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "crossa/compiler/ast/SourceUnit.h"
@@ -23,11 +24,24 @@ public:
     static int run(int argc, char* argv[]);
 
 private:
+    // Selects whether the CLI validates, runs, or tests a source file.
+    enum class Command {
+        Run,
+        Check,
+        Test
+    };
+
     // Stores validated command-line options for one Crossa execution.
     struct Arguments final {
+        Command command;
         bool debugEnabled;
         std::filesystem::path sourcePath;
     };
+
+    // Parses one optional CLI command name.
+    [[nodiscard]] static std::optional<Command> parseCommand(
+        std::string_view argument
+    ) noexcept;
 
     // Parses supported command-line arguments into execution options.
     [[nodiscard]] static std::optional<Arguments> parseArguments(

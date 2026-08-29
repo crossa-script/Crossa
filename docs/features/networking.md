@@ -36,3 +36,17 @@ HTTP and transport metadata remain attached to `CrossaError`.
 ## Limits
 
 The foundation transport uses pooled reusable libcurl easy handles on the shared bounded scheduler. It does not create a thread per request. Retries, multipart, streaming, downloads, platform cancellation bridging, and generated direct schema decoders remain planned work.
+
+## Integration Verification
+
+The opt-in integration fixtures use JSONPlaceholder:
+
+```text
+tests/network-jsonplaceholder.cra
+examples/imports/runPosts.cra
+```
+
+They verify native typed model/list decoding, absolute URL handling, request
+headers, query parameters, and the imported request/model graph. Run them with
+`CROSSA_RUN_NETWORK_INTEGRATION=1 ./test.sh` or enable
+`CROSSA_ENABLE_NETWORK_INTEGRATION` in CMake.

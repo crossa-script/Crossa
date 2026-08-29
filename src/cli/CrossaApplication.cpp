@@ -28,7 +28,7 @@ namespace crossa::cli {
         const optional<Arguments> arguments = parseArguments(argc, argv);
         if (!arguments.has_value()) {
             utils::Log().error(
-                "Usage: crossa [--debug] <file.cra>"
+                "Usage: crossa [check|run|test] [--debug] <file.cra>"
             );
             return 1;
         }
@@ -40,6 +40,13 @@ namespace crossa::cli {
         );
         log.debug("Crossa started");
         log.debug("Source argument received");
+        log.debug(
+            arguments->command == Command::Check
+                ? "Command selected: check"
+                : arguments->command == Command::Test
+                    ? "Command selected: test"
+                    : "Command selected: run"
+        );
 
         try {
             executeSource(*arguments, log);
@@ -61,12 +68,24 @@ namespace crossa::cli {
         }
 
         bool debugEnabled = false;
+        Command command = Command::Run;
+        bool commandProvided = false;
         optional<filesystem::path> sourcePath;
 
         for (int index = 1; index < argc; ++index) {
             const string_view argument(argv[index]);
             if (argument == "--debug") {
                 debugEnabled = true;
+                continue;
+            }
+
+            const optional<Command> parsedCommand = parseCommand(argument);
+            if (parsedCommand.has_value()) {
+                if (commandProvided || sourcePath.has_value()) {
+                    return nullopt;
+                }
+                command = parsedCommand.value();
+                commandProvided = true;
                 continue;
             }
 
@@ -82,10 +101,29 @@ namespace crossa::cli {
         if (!sourcePath.has_value()) {
             return nullopt;
         }
-        return Arguments{debugEnabled, std::move(sourcePath.value())};
+        return Arguments{
+            command,
+            debugEnabled,
+            std::move(sourcePath.value())
+        };
     }
 
-    // Loads, tokenizes, and executes one Crossa source file.
+    // Parses one optional CLI command name.
+    optional<CrossaApplication::Command>
+    CrossaApplication::parseCommand(string_view argument) noexcept {
+        if (argument == "check") {
+            return Command::Check;
+        }
+        if (argument == "run") {
+            return Command::Run;
+        }
+        if (argument == "test") {
+            return Command::Test;
+        }
+        return nullopt;
+    }
+
+    // Loads, compiles, and optionally executes one Crossa source file.
     void CrossaApplication::executeSource(
         const Arguments& arguments,
         const utils::Log& log
@@ -139,7 +177,21 @@ namespace crossa::cli {
         );
         logStepCompleted(6, "Typed IR lowering", log);
 
-        logStepStarted(7, "Native execution", log);
+        const string executionStepName = arguments.command == Command::Check
+            ? "Check completion (execution skipped)"
+            : arguments.command == Command::Test
+                ? "Test execution"
+                : "Native execution";
+        logStepStarted(7, executionStepName, log);
+        if (arguments.command == Command::Check) {
+            log.debug(
+                "Check completed successfully; configuration and execution "
+                "were skipped"
+            );
+            logStepCompleted(7, executionStepName, log);
+            return;
+        }
+
         optional<compiler::ir::Program> configurationProgram =
             compileSiblingConfiguration(sourceFile.getPath(), log);
         runtime::ExecutionEngine::execute(
@@ -149,7 +201,7 @@ namespace crossa::cli {
                 : nullptr,
             log
         );
-        logStepCompleted(7, "Native execution", log);
+        logStepCompleted(7, executionStepName, log);
     }
 
     // Compiles an optional sibling config.cra into declarative IR.

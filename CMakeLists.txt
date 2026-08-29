@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.22)
 
 project(Crossa LANGUAGES CXX)
 
+option(
+    CROSSA_ENABLE_NETWORK_INTEGRATION
+    "Enable integration tests that call JSONPlaceholder"
+    OFF
+)
+
 find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -236,6 +242,18 @@ target_link_libraries(crossa_language_tests PRIVATE Threads::Threads)
 add_test(NAME crossa_language_tests COMMAND crossa_language_tests)
 add_test(NAME crossa_script_test COMMAND crossa test.cra)
 add_test(
+    NAME crossa_check_nested_project_test
+    COMMAND crossa check examples/imports/runPosts.cra
+)
+add_test(
+    NAME crossa_explicit_run_test
+    COMMAND crossa run tests/import-project/entry/runImports.cra
+)
+add_test(
+    NAME crossa_explicit_test_command_test
+    COMMAND crossa test tests/import-project/entry/runImports.cra
+)
+add_test(
     NAME crossa_script_import_test
     COMMAND crossa tests/import-project/entry/runImports.cra
 )
@@ -257,6 +275,9 @@ add_test(
 )
 set_tests_properties(
     crossa_script_test
+    crossa_check_nested_project_test
+    crossa_explicit_run_test
+    crossa_explicit_test_command_test
     crossa_script_import_test
     crossa_script_nested_project_test
     crossa_script_http_methods_test
@@ -268,3 +289,19 @@ set_tests_properties(
     crossa_script_missing_import_test
     PROPERTIES WILL_FAIL TRUE
 )
+
+if(CROSSA_ENABLE_NETWORK_INTEGRATION)
+    add_test(
+        NAME crossa_network_jsonplaceholder_test
+        COMMAND crossa run tests/network-jsonplaceholder.cra
+    )
+    add_test(
+        NAME crossa_network_imported_posts_test
+        COMMAND crossa run examples/imports/runPosts.cra
+    )
+    set_tests_properties(
+        crossa_network_jsonplaceholder_test
+        crossa_network_imported_posts_test
+        PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+endif()

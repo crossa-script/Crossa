@@ -4,7 +4,15 @@ Crossa uses two test layers:
 
 - `crossa_language_tests` is a dependency-free C++ unit-test executable covering lexer tokens, parser/AST, semantic types and diagnostics, IR lowering, and recursive project linking.
 - `crossa_runtime_tests` covers native result state, typed response decoding, structured errors, scheduler cancellation, and shutdown behavior.
-- CTest runs the real `crossa` executable against `test.cra`, imported scripts, nested project fixtures, and expected CLI failures.
+- CTest runs the real `crossa` executable against `test.cra`, imported scripts,
+  nested project fixtures, explicit `check`, `run`, and `test` commands, and
+  expected CLI failures.
+
+Use `check` for a side-effect-free validation pass. It loads the complete import
+graph and stops after typed IR lowering, so it does not load `config.cra` and
+does not execute top-level functions or requests. `run` and `test` continue
+through native execution; `test` currently uses the same runtime path while the
+language-level assertion model is developed.
 
 Run the complete local suite from the repository root:
 
@@ -21,3 +29,14 @@ GitHub Actions runs the same script on every push and pull request through:
 ```
 
 The test fixtures do not depend on a live network service. The runnable JSONPlaceholder example remains available at `examples/imports/runPosts.cra`, but it is intentionally not part of the deterministic CI suite.
+
+CrossaRequest integration tests use JSONPlaceholder and are opt-in because they
+depend on external network availability. Enable them with:
+
+```bash
+CROSSA_RUN_NETWORK_INTEGRATION=1 ./test.sh
+```
+
+The integration suite covers a direct typed `Post` response with headers and
+query parameters, plus the imported `List<Post>` request chain in
+`examples/imports/runPosts.cra`.
