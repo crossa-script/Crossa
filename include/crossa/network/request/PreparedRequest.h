@@ -8,6 +8,7 @@
 
 #include "crossa/network/HttpHeader.h"
 #include "crossa/network/HttpMethod.h"
+#include "crossa/network/json/JsonValue.h"
 
 namespace crossa::network::request {
 
@@ -23,7 +24,14 @@ public:
         std::optional<std::string> body,
         std::int64_t timeoutMilliseconds,
         bool followRedirects,
-        std::size_t maximumResponseBytes
+        std::size_t maximumResponseBytes,
+        std::optional<json::JsonValue> retryPolicy,
+        std::optional<json::JsonValue> multipart,
+        std::optional<json::JsonValue> proxy,
+        std::optional<json::JsonValue> certificatePolicy,
+        std::optional<bool> uploadProgress,
+        std::optional<bool> downloadStreaming,
+        std::optional<json::JsonValue> telemetry
     );
 
     // Adds or replaces one header using case-insensitive name matching.
@@ -53,6 +61,25 @@ public:
     // Returns the maximum response body bytes.
     [[nodiscard]] std::size_t getMaximumResponseBytes() const noexcept;
 
+    [[nodiscard]] const std::optional<json::JsonValue>&
+    getRetryPolicy() const noexcept;
+
+    [[nodiscard]] const std::optional<json::JsonValue>&
+    getMultipart() const noexcept;
+
+    [[nodiscard]] const std::optional<json::JsonValue>& getProxy() const noexcept;
+
+    [[nodiscard]] const std::optional<json::JsonValue>&
+    getCertificatePolicy() const noexcept;
+
+    [[nodiscard]] const std::optional<bool>& getUploadProgress() const noexcept;
+
+    [[nodiscard]] const std::optional<bool>&
+    getDownloadStreaming() const noexcept;
+
+    [[nodiscard]] const std::optional<json::JsonValue>&
+    getTelemetry() const noexcept;
+
 private:
     // Compares header names without ASCII case sensitivity.
     [[nodiscard]] static bool headerNamesEqual(
@@ -67,6 +94,13 @@ private:
     std::int64_t timeoutMilliseconds_;
     bool followRedirects_;
     std::size_t maximumResponseBytes_;
+    std::optional<json::JsonValue> retryPolicy_;
+    std::optional<json::JsonValue> multipart_;
+    std::optional<json::JsonValue> proxy_;
+    std::optional<json::JsonValue> certificatePolicy_;
+    std::optional<bool> uploadProgress_;
+    std::optional<bool> downloadStreaming_;
+    std::optional<json::JsonValue> telemetry_;
 };
 
 }

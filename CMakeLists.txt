@@ -107,6 +107,7 @@ add_executable(
     include/crossa/network/HttpHeader.h
     include/crossa/network/HttpMethod.h
     include/crossa/network/NetworkConfiguration.h
+    include/crossa/network/NetworkPolicy.h
     include/crossa/network/NetworkEngine.h
     include/crossa/network/NetworkInterceptor.h
     include/crossa/network/json/JsonParser.h
@@ -132,6 +133,7 @@ add_executable(
     src/network/HttpHeader.cpp
     src/network/HttpMethod.cpp
     src/network/NetworkConfiguration.cpp
+    src/network/NetworkPolicy.cpp
     src/network/NetworkEngine.cpp
     src/network/NetworkInterceptor.cpp
     src/network/json/JsonParser.cpp

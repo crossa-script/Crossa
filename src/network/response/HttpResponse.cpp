@@ -10,11 +10,13 @@ namespace crossa::network::response {
     HttpResponse::HttpResponse(
         long statusCode,
         vector<HttpHeader> headers,
-        string body
+        string body,
+        TransferMetrics metrics
     )
         : statusCode_(statusCode),
           headers_(std::move(headers)),
-          body_(std::move(body)) {}
+          body_(std::move(body)),
+          metrics_(metrics) {}
 
     // Returns the HTTP status code.
     long HttpResponse::getStatusCode() const noexcept {
@@ -29,6 +31,10 @@ namespace crossa::network::response {
     // Returns buffered response body bytes.
     const string& HttpResponse::getBody() const noexcept {
         return body_;
+    }
+
+    const TransferMetrics& HttpResponse::getTransferMetrics() const noexcept {
+        return metrics_;
     }
 
 }

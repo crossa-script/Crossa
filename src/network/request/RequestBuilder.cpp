@@ -36,7 +36,26 @@ namespace crossa::network::request {
                 configuration_.getTimeoutMilliseconds()
             ),
             configuration_.shouldFollowRedirects(),
-            configuration_.getMaximumResponseBytes()
+            configuration_.getMaximumResponseBytes(),
+            spec.getRetryPolicy().has_value()
+                ? spec.getRetryPolicy()
+                : configuration_.getRetryPolicy(),
+            spec.getMultipart(),
+            spec.getProxy().has_value()
+                ? spec.getProxy()
+                : configuration_.getProxy(),
+            spec.getCertificatePolicy().has_value()
+                ? spec.getCertificatePolicy()
+                : configuration_.getCertificatePolicy(),
+            spec.getUploadProgress().has_value()
+                ? spec.getUploadProgress()
+                : optional<bool>(configuration_.shouldReportUploadProgress()),
+            spec.getDownloadStreaming().has_value()
+                ? spec.getDownloadStreaming()
+                : optional<bool>(configuration_.shouldStreamDownloads()),
+            spec.getTelemetry().has_value()
+                ? spec.getTelemetry()
+                : configuration_.getTelemetry()
         );
         for (const HttpHeader& header : spec.getHeaders()) {
             validateHeader(header);

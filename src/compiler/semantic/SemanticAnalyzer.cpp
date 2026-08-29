@@ -540,6 +540,23 @@ namespace crossa::compiler::semantic {
                 }
             }
 
+            const unordered_set<string> objectConfigKeys{
+                "retryPolicy",
+                "authProviders",
+                "proxy",
+                "certificatePolicy",
+                "telemetry"
+            };
+            if (objectConfigKeys.contains(entry.getName()) &&
+                value->getKind() != TypedExpressionKind::JsonObject) {
+                fail(
+                    entry.getLocation(),
+                    "CRA5013",
+                    "Config key '" + entry.getName() +
+                    "' expects a JSON object."
+                );
+            }
+
             entries.emplace_back(
                 entry.getName(),
                 *expectedType,
@@ -1216,7 +1233,16 @@ namespace crossa::compiler::semantic {
             "queryParams",
             "pathVariables",
             "body",
-            "timeout"
+            "timeout",
+            "retryPolicy",
+            "auth",
+            "multipart",
+            "uploadProgress",
+            "downloadStreaming",
+            "coalesce",
+            "proxy",
+            "certificatePolicy",
+            "telemetry"
         };
         unordered_set<string> names;
         for (const ast::CrossaRequestEntry& entry : expression.getEntries()) {
@@ -1306,6 +1332,15 @@ namespace crossa::compiler::semantic {
         unique_ptr<TypedExpression> queryParams;
         unique_ptr<TypedExpression> body;
         unique_ptr<TypedExpression> timeout;
+        unique_ptr<TypedExpression> retryPolicy;
+        unique_ptr<TypedExpression> authentication;
+        unique_ptr<TypedExpression> multipart;
+        unique_ptr<TypedExpression> uploadProgress;
+        unique_ptr<TypedExpression> downloadStreaming;
+        unique_ptr<TypedExpression> coalesce;
+        unique_ptr<TypedExpression> proxy;
+        unique_ptr<TypedExpression> certificatePolicy;
+        unique_ptr<TypedExpression> telemetry;
         const ast::CrossaRequestEntry* headersEntry =
             findRequestEntry(expression, "headers");
         if (headersEntry != nullptr) {
@@ -1358,6 +1393,90 @@ namespace crossa::compiler::semantic {
             }
         }
 
+        const ast::CrossaRequestEntry* retryPolicyEntry =
+            findRequestEntry(expression, "retryPolicy");
+        if (retryPolicyEntry != nullptr) {
+            retryPolicy = analyzeExpression(
+                retryPolicyEntry->getValue(),
+                scope
+            );
+            validateRequestObject(*retryPolicy, "retryPolicy");
+        }
+        const ast::CrossaRequestEntry* authenticationEntry =
+            findRequestEntry(expression, "auth");
+        if (authenticationEntry != nullptr) {
+            authentication = analyzeExpression(
+                authenticationEntry->getValue(),
+                scope
+            );
+            if (authentication->getKind() != TypedExpressionKind::JsonObject &&
+                authentication->getType().getKind() !=
+                    types::SemanticTypeKind::String) {
+                fail(
+                    authenticationEntry->getLocation(),
+                    "CRA7013",
+                    "CrossaRequest auth expects a provider String or JSON object."
+                );
+            }
+        }
+        const unordered_set<string> requestObjectFields{
+            "multipart",
+            "proxy",
+            "certificatePolicy",
+            "telemetry"
+        };
+        for (const string& fieldName : requestObjectFields) {
+            const ast::CrossaRequestEntry* entry =
+                findRequestEntry(expression, fieldName);
+            if (entry == nullptr) {
+                continue;
+            }
+            unique_ptr<TypedExpression> value = analyzeExpression(
+                entry->getValue(),
+                scope
+            );
+            validateRequestObject(*value, fieldName);
+            if (fieldName == "multipart") {
+                multipart = std::move(value);
+            } else if (fieldName == "proxy") {
+                proxy = std::move(value);
+            } else if (fieldName == "certificatePolicy") {
+                certificatePolicy = std::move(value);
+            } else {
+                telemetry = std::move(value);
+            }
+        }
+        const unordered_set<string> requestBoolFields{
+            "uploadProgress",
+            "downloadStreaming",
+            "coalesce"
+        };
+        for (const string& fieldName : requestBoolFields) {
+            const ast::CrossaRequestEntry* entry =
+                findRequestEntry(expression, fieldName);
+            if (entry == nullptr) {
+                continue;
+            }
+            unique_ptr<TypedExpression> value = analyzeExpression(
+                entry->getValue(),
+                scope
+            );
+            if (value->getType().getKind() != types::SemanticTypeKind::Bool) {
+                fail(
+                    entry->getLocation(),
+                    "CRA7014",
+                    "CrossaRequest " + fieldName + " expects Bool."
+                );
+            }
+            if (fieldName == "uploadProgress") {
+                uploadProgress = std::move(value);
+            } else if (fieldName == "downloadStreaming") {
+                downloadStreaming = std::move(value);
+            } else {
+                coalesce = std::move(value);
+            }
+        }
+
         return make_unique<TypedCrossaRequestExpression>(
             resolveHttpMethod(methodExpression.getMethod()),
             std::move(url),
@@ -1366,6 +1485,15 @@ namespace crossa::compiler::semantic {
             std::move(queryParams),
             std::move(body),
             std::move(timeout),
+            std::move(retryPolicy),
+            std::move(authentication),
+            std::move(multipart),
+            std::move(uploadProgress),
+            std::move(downloadStreaming),
+            std::move(coalesce),
+            std::move(proxy),
+            std::move(certificatePolicy),
+            std::move(telemetry),
             responseType,
             expression.getLocation()
         );
@@ -1508,6 +1636,20 @@ namespace crossa::compiler::semantic {
                     " values must be scalar."
                 );
             }
+        }
+    }
+
+    void SemanticAnalyzer::validateRequestObject(
+        const TypedExpression& expression,
+        const string& fieldName
+    ) const {
+        if (expression.getKind() != TypedExpressionKind::JsonObject) {
+            fail(
+                expression.getLocation(),
+                "CRA7015",
+                "CrossaRequest " + fieldName +
+                " expects a JSON object."
+            );
         }
     }
 
@@ -1663,6 +1805,21 @@ namespace crossa::compiler::semantic {
             return types::SemanticType::createInt();
         }
         if (name == "followRedirects") {
+            return types::SemanticType::createBool();
+        }
+        if (name == "retryPolicy" ||
+            name == "authProviders" ||
+            name == "proxy" ||
+            name == "certificatePolicy" ||
+            name == "telemetry") {
+            return types::SemanticType::createJson();
+        }
+        if (name == "defaultAuthProvider") {
+            return types::SemanticType::createString();
+        }
+        if (name == "uploadProgress" ||
+            name == "downloadStreaming" ||
+            name == "requestCoalescing") {
             return types::SemanticType::createBool();
         }
 

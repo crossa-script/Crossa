@@ -20,7 +20,22 @@ fun getPost(): Post {
         queryParams: {
             page: 1
         },
-        timeout: 1000
+        timeout: 1000,
+        retryPolicy: {
+            maxAttempts: 1
+        },
+        uploadProgress: true,
+        downloadStreaming: true,
+        coalesce: true,
+        proxy: {},
+        certificatePolicy: {
+            verifyPeer: true,
+            verifyHost: true
+        },
+        telemetry: {
+            enabled: true,
+            serviceName: "request-test"
+        }
     }
 }
 
@@ -45,7 +60,39 @@ fun createPost(): Json {
     }
 }
 
+@AsyncAfter
+fun getAuthenticated(): Json {
+    re CrossaRequest {
+        url: "/auth",
+        method: GET,
+        auth: "api",
+        uploadProgress: true,
+        downloadStreaming: true
+    }
+}
+
+@AsyncAfter
+fun uploadMultipart(): Json {
+    re CrossaRequest {
+        url: "/multipart",
+        method: POST,
+        multipart: {
+            parts: [
+                {name: "description", data: "native"},
+                {name: "payload", data: "crossa"}
+            ]
+        },
+        uploadProgress: true,
+        telemetry: {
+            enabled: true,
+            serviceName: "multipart-test"
+        }
+    }
+}
+
 getPost()
 listPosts()
 createPost()
+getAuthenticated()
+uploadMultipart()
 assert(true, "local CrossaRequest integration passed")

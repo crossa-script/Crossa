@@ -482,6 +482,78 @@ namespace crossa::runtime {
                 fail("CrossaRequest timeout must be between 1 and 600000 ms.");
             }
         }
+        optional<network::json::JsonValue> retryPolicy;
+        if (request.getRetryPolicy() != nullptr) {
+            retryPolicy = toJsonValue(evaluate(
+                *request.getRetryPolicy(),
+                frame,
+                callDepth
+            ));
+        }
+        optional<network::json::JsonValue> authentication;
+        if (request.getAuthentication() != nullptr) {
+            authentication = toJsonValue(evaluate(
+                *request.getAuthentication(),
+                frame,
+                callDepth
+            ));
+        }
+        optional<network::json::JsonValue> multipart;
+        if (request.getMultipart() != nullptr) {
+            multipart = toJsonValue(evaluate(
+                *request.getMultipart(),
+                frame,
+                callDepth
+            ));
+        }
+        optional<bool> uploadProgress;
+        if (request.getUploadProgress() != nullptr) {
+            uploadProgress = evaluate(
+                *request.getUploadProgress(),
+                frame,
+                callDepth
+            ).getBool();
+        }
+        optional<bool> downloadStreaming;
+        if (request.getDownloadStreaming() != nullptr) {
+            downloadStreaming = evaluate(
+                *request.getDownloadStreaming(),
+                frame,
+                callDepth
+            ).getBool();
+        }
+        optional<bool> coalesce;
+        if (request.getCoalesce() != nullptr) {
+            coalesce = evaluate(
+                *request.getCoalesce(),
+                frame,
+                callDepth
+            ).getBool();
+        }
+        optional<network::json::JsonValue> proxy;
+        if (request.getProxy() != nullptr) {
+            proxy = toJsonValue(evaluate(
+                *request.getProxy(),
+                frame,
+                callDepth
+            ));
+        }
+        optional<network::json::JsonValue> certificatePolicy;
+        if (request.getCertificatePolicy() != nullptr) {
+            certificatePolicy = toJsonValue(evaluate(
+                *request.getCertificatePolicy(),
+                frame,
+                callDepth
+            ));
+        }
+        optional<network::json::JsonValue> telemetry;
+        if (request.getTelemetry() != nullptr) {
+            telemetry = toJsonValue(evaluate(
+                *request.getTelemetry(),
+                frame,
+                callDepth
+            ));
+        }
 
         network::request::RequestSpec spec(
             resolveHttpMethod(request.getMethod()),
@@ -494,7 +566,16 @@ namespace crossa::runtime {
                 callDepth
             ),
             std::move(body),
-            timeout
+            timeout,
+            std::move(retryPolicy),
+            std::move(authentication),
+            std::move(multipart),
+            uploadProgress,
+            downloadStreaming,
+            coalesce,
+            std::move(proxy),
+            std::move(certificatePolicy),
+            std::move(telemetry)
         );
         log_.debug("CrossaRequest execution entered native network engine");
         const network::response::HttpResponse response =

@@ -196,6 +196,11 @@ private:
         const std::string& fieldName
     ) const;
 
+    void validateRequestObject(
+        const TypedExpression& expression,
+        const std::string& fieldName
+    ) const;
+
     // Returns one named request entry or null when it is absent.
     [[nodiscard]] static const ast::CrossaRequestEntry* findRequestEntry(
         const ast::CrossaRequestExpression& expression,

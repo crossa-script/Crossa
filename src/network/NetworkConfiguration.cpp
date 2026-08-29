@@ -19,6 +19,9 @@ namespace crossa::network {
           logHeaders_(false),
           logBody_(false),
           followRedirects_(true),
+          uploadProgress_(false),
+          downloadStreaming_(false),
+          requestCoalescing_(false),
           maximumResponseBytes_(8U * 1024U * 1024U),
           maximumJsonDepth_(128) {}
 
@@ -99,6 +102,42 @@ namespace crossa::network {
         followRedirects_ = enabled;
     }
 
+    void NetworkConfiguration::setRetryPolicy(json::JsonValue policy) {
+        retryPolicy_ = std::move(policy);
+    }
+
+    void NetworkConfiguration::setAuthProviders(json::JsonValue providers) {
+        authProviders_ = std::move(providers);
+    }
+
+    void NetworkConfiguration::setDefaultAuthProvider(string provider) {
+        defaultAuthProvider_ = std::move(provider);
+    }
+
+    void NetworkConfiguration::setUploadProgress(bool enabled) noexcept {
+        uploadProgress_ = enabled;
+    }
+
+    void NetworkConfiguration::setDownloadStreaming(bool enabled) noexcept {
+        downloadStreaming_ = enabled;
+    }
+
+    void NetworkConfiguration::setRequestCoalescing(bool enabled) noexcept {
+        requestCoalescing_ = enabled;
+    }
+
+    void NetworkConfiguration::setProxy(json::JsonValue proxy) {
+        proxy_ = std::move(proxy);
+    }
+
+    void NetworkConfiguration::setCertificatePolicy(json::JsonValue policy) {
+        certificatePolicy_ = std::move(policy);
+    }
+
+    void NetworkConfiguration::setTelemetry(json::JsonValue telemetry) {
+        telemetry_ = std::move(telemetry);
+    }
+
     // Sets the maximum buffered response bytes.
     void NetworkConfiguration::setMaximumResponseBytes(
         size_t maximumResponseBytes
@@ -170,6 +209,47 @@ namespace crossa::network {
     // Returns whether redirects may be followed.
     bool NetworkConfiguration::shouldFollowRedirects() const noexcept {
         return followRedirects_;
+    }
+
+    const optional<json::JsonValue>&
+    NetworkConfiguration::getRetryPolicy() const noexcept {
+        return retryPolicy_;
+    }
+
+    const optional<json::JsonValue>&
+    NetworkConfiguration::getAuthProviders() const noexcept {
+        return authProviders_;
+    }
+
+    const string& NetworkConfiguration::getDefaultAuthProvider() const noexcept {
+        return defaultAuthProvider_;
+    }
+
+    bool NetworkConfiguration::shouldReportUploadProgress() const noexcept {
+        return uploadProgress_;
+    }
+
+    bool NetworkConfiguration::shouldStreamDownloads() const noexcept {
+        return downloadStreaming_;
+    }
+
+    bool NetworkConfiguration::shouldCoalesceRequests() const noexcept {
+        return requestCoalescing_;
+    }
+
+    const optional<json::JsonValue>&
+    NetworkConfiguration::getProxy() const noexcept {
+        return proxy_;
+    }
+
+    const optional<json::JsonValue>&
+    NetworkConfiguration::getCertificatePolicy() const noexcept {
+        return certificatePolicy_;
+    }
+
+    const optional<json::JsonValue>&
+    NetworkConfiguration::getTelemetry() const noexcept {
+        return telemetry_;
     }
 
     // Returns the maximum buffered response bytes.

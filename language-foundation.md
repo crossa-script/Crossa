@@ -1296,7 +1296,49 @@ config {
     maxQueuedTasks: 256,
     maxResponseBytes: 8388608,
     maxJsonDepth: 128,
-    followRedirects: true
+    followRedirects: true,
+    retryPolicy: {
+        maxAttempts: 3,
+        initialDelay: 100,
+        maxDelay: 5000,
+        backoffMultiplier: 2.0,
+        retryStatusCodes: [408, 425, 429, 500, 502, 503, 504],
+        retryNonIdempotent: false
+    },
+    authProviders: {
+        api: {
+            tokenUrl: "https://auth.example.com/token",
+            accessToken: "initial-token",
+            refreshToken: "refresh-token",
+            clientId: "client-id",
+            clientSecret: "client-secret",
+            tokenField: "access_token",
+            expiresAt: 0
+        }
+    },
+    defaultAuthProvider: "api",
+    uploadProgress: true,
+    downloadStreaming: true,
+    requestCoalescing: true,
+    proxy: {
+        url: "http://proxy.example.com:8080",
+        username: "proxy-user",
+        password: "proxy-password"
+    },
+    certificatePolicy: {
+        verifyPeer: true,
+        verifyHost: true,
+        caInfo: "/path/to/ca.pem",
+        clientCertificate: "/path/to/client.pem",
+        clientKey: "/path/to/client-key.pem",
+        pinnedPublicKey: "sha256//..."
+    },
+    telemetry: {
+        enabled: true,
+        serviceName: "crossa",
+        includeHeaders: false,
+        includeBody: false
+    }
 }
 ```
 
@@ -1312,6 +1354,15 @@ maxQueuedTasks: Int
 maxResponseBytes: Int
 maxJsonDepth: Int
 followRedirects: Bool
+retryPolicy: Json object
+authProviders: Json object
+defaultAuthProvider: String
+uploadProgress: Bool
+downloadStreaming: Bool
+requestCoalescing: Bool
+proxy: Json object
+certificatePolicy: Json object
+telemetry: Json object
 ```
 
 `timeoutRequest` unit:
@@ -1340,6 +1391,12 @@ Unknown keys are compile errors.
 Duplicate keys are compile errors.
 
 `config.cra` is declarative and should not contain arbitrary functions in V0.
+
+Retry attempts are bounded to ten. Authentication providers use a configured
+Bearer token and can refresh it with a refresh-token grant when the token is
+empty, expired, or the request receives `401`. Certificate verification cannot
+be disabled by configuration. Download streaming currently exposes native
+chunk/progress metrics while response decoding remains buffered.
 
 ---
 
@@ -1496,7 +1553,32 @@ CrossaRequest {
         name: name,
         active: true
     },
-    timeout: 5000
+    timeout: 5000,
+    retryPolicy: {
+        maxAttempts: 2,
+        retryStatusCodes: [429, 503]
+    },
+    auth: "api",
+    multipart: {
+        parts: [
+            {name: "description", data: "profile"},
+            {name: "document", filePath: "/tmp/document.pdf", filename: "document.pdf", contentType: "application/pdf"}
+        ]
+    },
+    uploadProgress: true,
+    downloadStreaming: true,
+    coalesce: true,
+    proxy: {
+        url: "http://proxy.example.com:8080"
+    },
+    certificatePolicy: {
+        verifyPeer: true,
+        verifyHost: true
+    },
+    telemetry: {
+        enabled: true,
+        serviceName: "users"
+    }
 }
 ```
 
@@ -1512,6 +1594,15 @@ queryParams: Json object with scalar values
 pathVariables: Json object mapping interpolation aliases to identifiers
 body: any JSON-compatible value
 timeout: Int milliseconds
+retryPolicy: Json object overriding the configured retry policy
+auth: provider String or JSON object with a `provider` field
+multipart: JSON object with a `parts` array containing `name` and `data` or `filePath`
+uploadProgress: Bool
+downloadStreaming: Bool
+coalesce: Bool
+proxy: JSON object overriding proxy configuration
+certificatePolicy: JSON object overriding certificate configuration
+telemetry: JSON object overriding telemetry configuration
 ```
 
 Supported method literals:

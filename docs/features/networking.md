@@ -49,9 +49,33 @@ The stable error categories distinguish HTTP status, timeout, connection, TLS,
 invalid JSON, response type mismatch, cancellation, and internal runtime errors.
 HTTP and transport metadata remain attached to `CrossaError`.
 
+## Integrated Network Policies
+
+The native runtime now accepts bounded retry policies, named Bearer
+authentication providers, multipart parts from memory or file paths, proxy and
+certificate policies, request coalescing, transfer progress metrics, and
+structured telemetry. These policies may be supplied globally in `config.cra`
+or overridden on an individual `CrossaRequest`.
+
+Retrying is limited to ten attempts, uses bounded exponential backoff, and
+defaults to idempotent methods and transient HTTP statuses. Non-idempotent
+methods require `retryNonIdempotent: true`. Authentication refresh uses a
+refresh-token grant and retries the original request once after a `401`.
+
+Certificate verification remains enabled and cannot be disabled by policy.
+Proxy credentials and authentication values are never emitted by structured
+telemetry. Multipart uploads use native libcurl MIME parts and can read a
+bounded source file. `uploadProgress` records native transfer counters.
+
+`downloadStreaming` records native chunk and progress counters while retaining
+the response buffer for the current decoder contract. Incremental delivery to
+generated Android/iOS APIs remains a future stream ABI decision.
+
 ## Limits
 
-The foundation transport uses pooled reusable libcurl easy handles on the shared bounded scheduler. It does not create a thread per request. Retries, multipart, streaming, downloads, platform cancellation bridging, and generated direct schema decoders remain planned work.
+The transport uses pooled reusable libcurl easy handles on the shared bounded
+scheduler. It does not create a thread per request. Platform cancellation
+bridging and generated direct schema decoders remain planned work.
 
 ## Integration Verification
 

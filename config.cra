@@ -16,5 +16,29 @@ config {
     maxQueuedTasks: 256,
     maxResponseBytes: 8388608,
     maxJsonDepth: 128,
-    followRedirects: true
+    followRedirects: true,
+    retryPolicy: {
+        maxAttempts: 3,
+        initialDelay: 100,
+        maxDelay: 5000,
+        backoffMultiplier: 2.0,
+        retryStatusCodes: [408, 425, 429, 500, 502, 503, 504],
+        retryNonIdempotent: false
+    },
+    authProviders: {},
+    defaultAuthProvider: "",
+    uploadProgress: true,
+    downloadStreaming: true,
+    requestCoalescing: true,
+    proxy: {},
+    certificatePolicy: {
+        verifyPeer: true,
+        verifyHost: true
+    },
+    telemetry: {
+        enabled: true,
+        serviceName: "crossa",
+        includeHeaders: false,
+        includeBody: false
+    }
 }

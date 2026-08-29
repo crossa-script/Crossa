@@ -41,6 +41,12 @@ class MockRequestHandler(BaseHTTPRequestHandler):
             time.sleep(0.3)
             self._write_json(200, {"slow": True})
             return
+        if parsed.path == "/auth":
+            if self.headers.get("Authorization") == "Bearer fresh-token":
+                self._write_json(200, {"authenticated": True})
+            else:
+                self._write_json(401, {"error": "expired"})
+            return
         self._write_json(404, {"error": "not found"})
 
     def do_POST(self):
@@ -49,6 +55,20 @@ class MockRequestHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(length).decode("utf-8")
         self.server.requests.append(("POST", parsed.path, body))
         self._validate_headers(parsed.path)
+        if parsed.path == "/token":
+            if "refresh_token=refresh-token" not in body:
+                self.server.errors.append("Refresh token grant mismatch")
+            self._write_json(200, {"access_token": "fresh-token"})
+            return
+        if parsed.path == "/multipart":
+            if "multipart/form-data" not in self.headers.get("Content-Type", ""):
+                self.server.errors.append("Multipart content type missing")
+            if "name=\"description\"" not in body or "native" not in body:
+                self.server.errors.append("Multipart description missing")
+            if "name=\"payload\"" not in body or "crossa" not in body:
+                self.server.errors.append("Multipart payload missing")
+            self._write_json(200, {"uploaded": True})
+            return
         if parsed.path == "/posts":
             try:
                 if json.loads(body) != {
@@ -145,6 +165,10 @@ def main():
             raise RuntimeError("Enabled body logging did not appear.")
         if "secret-token" in network_logs:
             raise RuntimeError("Excluded Authorization header appeared in logs.")
+        if "telemetry event=completed" not in local_output:
+            raise RuntimeError("Structured telemetry event did not appear.")
+        if "streamed=true" not in local_output or "downloadChunks=" not in local_output:
+            raise RuntimeError("Transfer streaming metrics did not appear.")
         run_case(
             sys.argv[1],
             root / "tests/local-network/http-error.cra",
@@ -175,11 +199,19 @@ def main():
             ("GET", "/status/500"),
             ("GET", "/invalid-json"),
             ("GET", "/slow"),
+            ("GET", "/auth"),
+            ("POST", "/token"),
+            ("POST", "/multipart"),
         }
         if not required_routes.issubset(observed_routes):
             raise RuntimeError(
                 f"Missing request routes: {required_routes - observed_routes}"
             )
+        if sum(
+            1 for request in server.requests
+            if request[0] == "GET" and request[1] == "/status/500"
+        ) != 2:
+            raise RuntimeError("Retry policy did not perform two status attempts.")
     finally:
         server.shutdown()
         server.server_close()

@@ -2,10 +2,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "crossa/network/HttpHeader.h"
+#include "crossa/network/json/JsonValue.h"
 
 namespace crossa::network {
 
@@ -46,6 +48,24 @@ public:
     // Enables or disables bounded HTTP redirect following.
     void setFollowRedirects(bool enabled) noexcept;
 
+    void setRetryPolicy(json::JsonValue policy);
+
+    void setAuthProviders(json::JsonValue providers);
+
+    void setDefaultAuthProvider(std::string provider);
+
+    void setUploadProgress(bool enabled) noexcept;
+
+    void setDownloadStreaming(bool enabled) noexcept;
+
+    void setRequestCoalescing(bool enabled) noexcept;
+
+    void setProxy(json::JsonValue proxy);
+
+    void setCertificatePolicy(json::JsonValue policy);
+
+    void setTelemetry(json::JsonValue telemetry);
+
     // Sets the maximum buffered response bytes.
     void setMaximumResponseBytes(std::size_t maximumResponseBytes);
 
@@ -83,6 +103,29 @@ public:
     // Returns whether redirects may be followed.
     [[nodiscard]] bool shouldFollowRedirects() const noexcept;
 
+    [[nodiscard]] const std::optional<json::JsonValue>&
+    getRetryPolicy() const noexcept;
+
+    [[nodiscard]] const std::optional<json::JsonValue>&
+    getAuthProviders() const noexcept;
+
+    [[nodiscard]] const std::string& getDefaultAuthProvider() const noexcept;
+
+    [[nodiscard]] bool shouldReportUploadProgress() const noexcept;
+
+    [[nodiscard]] bool shouldStreamDownloads() const noexcept;
+
+    [[nodiscard]] bool shouldCoalesceRequests() const noexcept;
+
+    [[nodiscard]] const std::optional<json::JsonValue>&
+    getProxy() const noexcept;
+
+    [[nodiscard]] const std::optional<json::JsonValue>&
+    getCertificatePolicy() const noexcept;
+
+    [[nodiscard]] const std::optional<json::JsonValue>&
+    getTelemetry() const noexcept;
+
     // Returns the maximum buffered response bytes.
     [[nodiscard]] std::size_t getMaximumResponseBytes() const noexcept;
 
@@ -100,6 +143,15 @@ private:
     bool logBody_;
     std::vector<std::string> excludedLogHeaders_;
     bool followRedirects_;
+    std::optional<json::JsonValue> retryPolicy_;
+    std::optional<json::JsonValue> authProviders_;
+    std::string defaultAuthProvider_;
+    bool uploadProgress_;
+    bool downloadStreaming_;
+    bool requestCoalescing_;
+    std::optional<json::JsonValue> proxy_;
+    std::optional<json::JsonValue> certificatePolicy_;
+    std::optional<json::JsonValue> telemetry_;
     std::size_t maximumResponseBytes_;
     std::size_t maximumJsonDepth_;
 };

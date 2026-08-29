@@ -13,6 +13,7 @@
 
 #include "crossa/network/HttpHeader.h"
 #include "crossa/network/HttpMethod.h"
+#include "crossa/network/NetworkPolicy.h"
 #include "crossa/runtime/errors/CrossaException.h"
 
 using namespace std;
@@ -96,6 +97,12 @@ private:
         string body;
         size_t maximumBytes;
         bool overflowed;
+        response::TransferMetrics metrics;
+    };
+
+    struct ProgressContext final {
+        const runtime::RequestHandle* requestHandle;
+        response::TransferMetrics* metrics;
     };
 
     // Stops libcurl when the shared native handle requests cancellation.
@@ -110,9 +117,13 @@ private:
         (void)downloadCurrent;
         (void)uploadTotal;
         (void)uploadCurrent;
-        const auto& requestHandle =
-            *static_cast<const runtime::RequestHandle*>(context);
-        return requestHandle.isCancellationRequested() ? 1 : 0;
+        auto& progress = *static_cast<ProgressContext*>(context);
+        progress.metrics->uploadTotal = static_cast<uint64_t>(uploadTotal);
+        progress.metrics->uploadBytes = static_cast<uint64_t>(uploadCurrent);
+        progress.metrics->downloadTotal = static_cast<uint64_t>(downloadTotal);
+        progress.metrics->downloadBytes = static_cast<uint64_t>(downloadCurrent);
+        ++progress.metrics->progressEvents;
+        return progress.requestHandle->isCancellationRequested() ? 1 : 0;
     }
 
     // Appends response bytes while enforcing the configured size limit.
@@ -129,6 +140,8 @@ private:
             return 0;
         }
         buffer.body.append(data, byteCount);
+        buffer.metrics.downloadBytes = buffer.body.size();
+        ++buffer.metrics.downloadChunks;
         return byteCount;
     }
 
@@ -212,23 +225,41 @@ private:
         ResponseBuffer responseBuffer{
             "",
             request.getMaximumResponseBytes(),
-            false
+            false,
+            {}
         };
         vector<HttpHeader> responseHeaders;
         array<char, CURL_ERROR_SIZE> errorBuffer{};
+        ProgressContext progressContext{
+            &requestHandle,
+            &responseBuffer.metrics
+        };
         curl_slist* requestHeaders = createHeaders(request.getHeaders());
-
-        setCommonOptions(
-            handle,
-            request,
-            responseBuffer,
-            responseHeaders,
-            errorBuffer,
-            requestHeaders,
-            requestHandle
-        );
-        setMethodOptions(handle, request);
-        const CURLcode result = curl_easy_perform(handle);
+        curl_mime* multipart = nullptr;
+        CURLcode result = CURLE_OK;
+        try {
+            multipart = createMultipart(handle, request);
+            setCommonOptions(
+                handle,
+                request,
+                responseBuffer,
+                responseHeaders,
+                errorBuffer,
+                requestHeaders,
+                progressContext
+            );
+            setMethodOptions(handle, request, multipart);
+            result = curl_easy_perform(handle);
+        } catch (...) {
+            if (multipart != nullptr) {
+                curl_mime_free(multipart);
+            }
+            curl_slist_free_all(requestHeaders);
+            throw;
+        }
+        if (multipart != nullptr) {
+            curl_mime_free(multipart);
+        }
         curl_slist_free_all(requestHeaders);
 
         if (responseBuffer.overflowed) {
@@ -260,7 +291,8 @@ private:
         return response::HttpResponse(
             statusCode,
             std::move(responseHeaders),
-            std::move(responseBuffer.body)
+            std::move(responseBuffer.body),
+            responseBuffer.metrics
         );
     }
 
@@ -272,7 +304,7 @@ private:
         vector<HttpHeader>& responseHeaders,
         array<char, CURL_ERROR_SIZE>& errorBuffer,
         curl_slist* requestHeaders,
-        const runtime::RequestHandle& requestHandle
+        ProgressContext& progressContext
     ) {
         curl_easy_setopt(handle, CURLOPT_URL, request.getUrl().c_str());
         curl_easy_setopt(handle, CURLOPT_HTTPHEADER, requestHeaders);
@@ -305,13 +337,67 @@ private:
         curl_easy_setopt(handle, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(handle, CURLOPT_ACCEPT_ENCODING, "");
         curl_easy_setopt(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
+        const NetworkPolicy::Proxy proxy = NetworkPolicy::parseProxy(
+            request.getProxy()
+        );
+        if (!proxy.url.empty()) {
+            curl_easy_setopt(handle, CURLOPT_PROXY, proxy.url.c_str());
+            if (!proxy.username.empty()) {
+                curl_easy_setopt(handle, CURLOPT_PROXYUSERNAME,
+                                 proxy.username.c_str());
+            }
+            if (!proxy.password.empty()) {
+                curl_easy_setopt(handle, CURLOPT_PROXYPASSWORD,
+                                 proxy.password.c_str());
+            }
+        } else {
+            curl_easy_setopt(handle, CURLOPT_PROXY, nullptr);
+            curl_easy_setopt(handle, CURLOPT_PROXYUSERNAME, nullptr);
+            curl_easy_setopt(handle, CURLOPT_PROXYPASSWORD, nullptr);
+        }
+        const NetworkPolicy::Certificate certificate =
+            NetworkPolicy::parseCertificate(request.getCertificatePolicy());
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER,
+                         certificate.verifyPeer ? 1L : 0L);
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST,
+                         certificate.verifyHost ? 2L : 0L);
+        if (!certificate.caInfo.empty()) {
+            curl_easy_setopt(handle, CURLOPT_CAINFO, certificate.caInfo.c_str());
+        } else {
+            curl_easy_setopt(handle, CURLOPT_CAINFO, nullptr);
+        }
+        if (!certificate.clientCertificate.empty()) {
+            curl_easy_setopt(handle, CURLOPT_SSLCERT,
+                             certificate.clientCertificate.c_str());
+        } else {
+            curl_easy_setopt(handle, CURLOPT_SSLCERT, nullptr);
+        }
+        if (!certificate.clientKey.empty()) {
+            curl_easy_setopt(handle, CURLOPT_SSLKEY,
+                             certificate.clientKey.c_str());
+        } else {
+            curl_easy_setopt(handle, CURLOPT_SSLKEY, nullptr);
+        }
+#if LIBCURL_VERSION_NUM >= 0x072700
+        if (!certificate.pinnedPublicKey.empty()) {
+            curl_easy_setopt(handle, CURLOPT_PINNEDPUBLICKEY,
+                             certificate.pinnedPublicKey.c_str());
+        } else {
+            curl_easy_setopt(handle, CURLOPT_PINNEDPUBLICKEY, nullptr);
+        }
+#endif
         curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, writeBody);
         curl_easy_setopt(handle, CURLOPT_WRITEDATA, &responseBuffer);
         curl_easy_setopt(handle, CURLOPT_HEADERFUNCTION, writeHeader);
         curl_easy_setopt(handle, CURLOPT_HEADERDATA, &responseHeaders);
         curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(handle, CURLOPT_XFERINFOFUNCTION, observeProgress);
-        curl_easy_setopt(handle, CURLOPT_XFERINFODATA, &requestHandle);
+        responseBuffer.metrics.streamed = request.getDownloadStreaming()
+            .value_or(false);
+        curl_easy_setopt(handle, CURLOPT_XFERINFODATA, &progressContext);
+        if (!request.getUploadProgress().value_or(false)) {
+            curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 1L);
+        }
     }
 
     // Maps one libcurl failure into the stable CrossaError taxonomy.
@@ -373,10 +459,13 @@ private:
     // Applies the exact HTTP method and optional serialized request body.
     static void setMethodOptions(
         CURL* handle,
-        const request::PreparedRequest& request
+        const request::PreparedRequest& request,
+        curl_mime* multipart
     ) {
         const HttpMethod method = request.getMethod();
-        if (request.getBody().has_value() && method != HttpMethod::Head) {
+        if (multipart != nullptr && method != HttpMethod::Head) {
+            curl_easy_setopt(handle, CURLOPT_MIMEPOST, multipart);
+        } else if (request.getBody().has_value() && method != HttpMethod::Head) {
             curl_easy_setopt(
                 handle,
                 CURLOPT_POSTFIELDS,
@@ -396,6 +485,59 @@ private:
         if (method == HttpMethod::Head) {
             curl_easy_setopt(handle, CURLOPT_NOBODY, 1L);
         }
+    }
+
+    static curl_mime* createMultipart(
+        CURL* handle,
+        const request::PreparedRequest& request
+    ) {
+        if (!request.getMultipart().has_value()) {
+            return nullptr;
+        }
+        const vector<NetworkPolicy::MultipartPart> parts =
+            NetworkPolicy::parseMultipart(*request.getMultipart());
+        curl_mime* mime = curl_mime_init(handle);
+        if (mime == nullptr) {
+            throw runtime_error("Unable to allocate multipart form.");
+        }
+        try {
+            for (const NetworkPolicy::MultipartPart& part : parts) {
+                curl_mimepart* item = curl_mime_addpart(mime);
+                if (item == nullptr ||
+                    curl_mime_name(item, part.name.c_str()) != CURLE_OK) {
+                    throw runtime_error("Unable to allocate multipart field.");
+                }
+                CURLcode result = CURLE_OK;
+                if (part.data.has_value()) {
+                    result = curl_mime_data(
+                        item,
+                        part.data->data(),
+                        part.data->size()
+                    );
+                } else {
+                    result = curl_mime_filedata(
+                        item,
+                        part.filePath->c_str()
+                    );
+                }
+                if (result != CURLE_OK) {
+                    throw runtime_error("Unable to add multipart content.");
+                }
+                if (part.filename.has_value()) {
+                    result = curl_mime_filename(item, part.filename->c_str());
+                }
+                if (result == CURLE_OK && part.contentType.has_value()) {
+                    result = curl_mime_type(item, part.contentType->c_str());
+                }
+                if (result != CURLE_OK) {
+                    throw runtime_error("Unable to configure multipart content.");
+                }
+            }
+        } catch (...) {
+            curl_mime_free(mime);
+            throw;
+        }
+        return mime;
     }
 
     // Builds libcurl's native request-header linked list.

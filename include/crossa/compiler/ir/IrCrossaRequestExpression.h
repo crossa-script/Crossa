@@ -32,6 +32,15 @@ public:
         std::unique_ptr<IrExpression> queryParams,
         std::unique_ptr<IrExpression> body,
         std::unique_ptr<IrExpression> timeout,
+        std::unique_ptr<IrExpression> retryPolicy,
+        std::unique_ptr<IrExpression> authentication,
+        std::unique_ptr<IrExpression> multipart,
+        std::unique_ptr<IrExpression> uploadProgress,
+        std::unique_ptr<IrExpression> downloadStreaming,
+        std::unique_ptr<IrExpression> coalesce,
+        std::unique_ptr<IrExpression> proxy,
+        std::unique_ptr<IrExpression> certificatePolicy,
+        std::unique_ptr<IrExpression> telemetry,
         types::SemanticType responseType,
         source::SourceLocation location
     );
@@ -57,6 +66,24 @@ public:
     // Returns the timeout expression or null when absent.
     [[nodiscard]] const IrExpression* getTimeout() const noexcept;
 
+    [[nodiscard]] const IrExpression* getRetryPolicy() const noexcept;
+
+    [[nodiscard]] const IrExpression* getAuthentication() const noexcept;
+
+    [[nodiscard]] const IrExpression* getMultipart() const noexcept;
+
+    [[nodiscard]] const IrExpression* getUploadProgress() const noexcept;
+
+    [[nodiscard]] const IrExpression* getDownloadStreaming() const noexcept;
+
+    [[nodiscard]] const IrExpression* getCoalesce() const noexcept;
+
+    [[nodiscard]] const IrExpression* getProxy() const noexcept;
+
+    [[nodiscard]] const IrExpression* getCertificatePolicy() const noexcept;
+
+    [[nodiscard]] const IrExpression* getTelemetry() const noexcept;
+
 private:
     IrHttpMethod method_;
     std::unique_ptr<IrExpression> url_;
@@ -65,6 +92,15 @@ private:
     std::unique_ptr<IrExpression> queryParams_;
     std::unique_ptr<IrExpression> body_;
     std::unique_ptr<IrExpression> timeout_;
+    std::unique_ptr<IrExpression> retryPolicy_;
+    std::unique_ptr<IrExpression> authentication_;
+    std::unique_ptr<IrExpression> multipart_;
+    std::unique_ptr<IrExpression> uploadProgress_;
+    std::unique_ptr<IrExpression> downloadStreaming_;
+    std::unique_ptr<IrExpression> coalesce_;
+    std::unique_ptr<IrExpression> proxy_;
+    std::unique_ptr<IrExpression> certificatePolicy_;
+    std::unique_ptr<IrExpression> telemetry_;
 };
 
 }

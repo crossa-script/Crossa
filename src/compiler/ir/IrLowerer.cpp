@@ -383,6 +383,15 @@ namespace crossa::compiler::ir {
                     lowerOptionalExpression(request.getQueryParams()),
                     lowerOptionalExpression(request.getBody()),
                     lowerOptionalExpression(request.getTimeout()),
+                    lowerOptionalExpression(request.getRetryPolicy()),
+                    lowerOptionalExpression(request.getAuthentication()),
+                    lowerOptionalExpression(request.getMultipart()),
+                    lowerOptionalExpression(request.getUploadProgress()),
+                    lowerOptionalExpression(request.getDownloadStreaming()),
+                    lowerOptionalExpression(request.getCoalesce()),
+                    lowerOptionalExpression(request.getProxy()),
+                    lowerOptionalExpression(request.getCertificatePolicy()),
+                    lowerOptionalExpression(request.getTelemetry()),
                     request.getType(),
                     request.getLocation()
                 );

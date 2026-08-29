@@ -12,6 +12,7 @@
 #include "crossa/compiler/ir/IrExpression.h"
 #include "crossa/compiler/ir/IrJsonExpression.h"
 #include "crossa/network/HttpHeader.h"
+#include "crossa/network/NetworkPolicy.h"
 
 using namespace std;
 
@@ -56,6 +57,39 @@ public:
                 "Runtime configuration failed: only one config block is allowed."
             );
         }
+
+        (void)network::NetworkPolicy::parseRetry(
+            networkConfiguration.getRetryPolicy()
+        );
+        const vector<network::NetworkPolicy::AuthProvider> authProviders =
+            network::NetworkPolicy::parseAuthProviders(
+            networkConfiguration.getAuthProviders()
+        );
+        if (!networkConfiguration.getDefaultAuthProvider().empty()) {
+            bool found = false;
+            for (const network::NetworkPolicy::AuthProvider& provider :
+                 authProviders) {
+                if (provider.name ==
+                    networkConfiguration.getDefaultAuthProvider()) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                throw runtime_error(
+                    "Runtime configuration defaultAuthProvider was not declared."
+                );
+            }
+        }
+        (void)network::NetworkPolicy::parseProxy(
+            networkConfiguration.getProxy()
+        );
+        (void)network::NetworkPolicy::parseCertificate(
+            networkConfiguration.getCertificatePolicy()
+        );
+        (void)network::NetworkPolicy::parseTelemetry(
+            networkConfiguration.getTelemetry()
+        );
 
         return RuntimeConfiguration(
             std::move(networkConfiguration),
@@ -142,6 +176,32 @@ private:
             networkConfiguration.setFollowRedirects(
                 readBool(entry.getValue())
             );
+        } else if (name == "retryPolicy") {
+            networkConfiguration.setRetryPolicy(readJson(entry.getValue()));
+        } else if (name == "authProviders") {
+            networkConfiguration.setAuthProviders(readJson(entry.getValue()));
+        } else if (name == "defaultAuthProvider") {
+            networkConfiguration.setDefaultAuthProvider(
+                readString(entry.getValue())
+            );
+        } else if (name == "uploadProgress") {
+            networkConfiguration.setUploadProgress(readBool(entry.getValue()));
+        } else if (name == "downloadStreaming") {
+            networkConfiguration.setDownloadStreaming(
+                readBool(entry.getValue())
+            );
+        } else if (name == "requestCoalescing") {
+            networkConfiguration.setRequestCoalescing(
+                readBool(entry.getValue())
+            );
+        } else if (name == "proxy") {
+            networkConfiguration.setProxy(readJson(entry.getValue()));
+        } else if (name == "certificatePolicy") {
+            networkConfiguration.setCertificatePolicy(
+                readJson(entry.getValue())
+            );
+        } else if (name == "telemetry") {
+            networkConfiguration.setTelemetry(readJson(entry.getValue()));
         }
     }
 

@@ -14,7 +14,14 @@ namespace crossa::network::request {
         optional<string> body,
         int64_t timeoutMilliseconds,
         bool followRedirects,
-        size_t maximumResponseBytes
+        size_t maximumResponseBytes,
+        optional<json::JsonValue> retryPolicy,
+        optional<json::JsonValue> multipart,
+        optional<json::JsonValue> proxy,
+        optional<json::JsonValue> certificatePolicy,
+        optional<bool> uploadProgress,
+        optional<bool> downloadStreaming,
+        optional<json::JsonValue> telemetry
     )
         : method_(method),
           url_(std::move(url)),
@@ -22,7 +29,14 @@ namespace crossa::network::request {
           body_(std::move(body)),
           timeoutMilliseconds_(timeoutMilliseconds),
           followRedirects_(followRedirects),
-          maximumResponseBytes_(maximumResponseBytes) {}
+          maximumResponseBytes_(maximumResponseBytes),
+          retryPolicy_(std::move(retryPolicy)),
+          multipart_(std::move(multipart)),
+          proxy_(std::move(proxy)),
+          certificatePolicy_(std::move(certificatePolicy)),
+          uploadProgress_(uploadProgress),
+          downloadStreaming_(downloadStreaming),
+          telemetry_(std::move(telemetry)) {}
 
     // Adds or replaces one header using case-insensitive name matching.
     void PreparedRequest::setHeader(HttpHeader header, bool overwrite) {
@@ -81,6 +95,38 @@ namespace crossa::network::request {
     // Returns the maximum response body bytes.
     size_t PreparedRequest::getMaximumResponseBytes() const noexcept {
         return maximumResponseBytes_;
+    }
+
+    const optional<json::JsonValue>&
+    PreparedRequest::getRetryPolicy() const noexcept {
+        return retryPolicy_;
+    }
+
+    const optional<json::JsonValue>&
+    PreparedRequest::getMultipart() const noexcept {
+        return multipart_;
+    }
+
+    const optional<json::JsonValue>& PreparedRequest::getProxy() const noexcept {
+        return proxy_;
+    }
+
+    const optional<json::JsonValue>&
+    PreparedRequest::getCertificatePolicy() const noexcept {
+        return certificatePolicy_;
+    }
+
+    const optional<bool>& PreparedRequest::getUploadProgress() const noexcept {
+        return uploadProgress_;
+    }
+
+    const optional<bool>&
+    PreparedRequest::getDownloadStreaming() const noexcept {
+        return downloadStreaming_;
+    }
+
+    const optional<json::JsonValue>& PreparedRequest::getTelemetry() const noexcept {
+        return telemetry_;
     }
 
     // Compares header names without ASCII case sensitivity.

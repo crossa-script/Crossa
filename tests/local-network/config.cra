@@ -16,5 +16,34 @@ config {
     maxQueuedTasks: 16,
     maxResponseBytes: 1048576,
     maxJsonDepth: 32,
-    followRedirects: false
+    followRedirects: false,
+    retryPolicy: {
+        maxAttempts: 2,
+        initialDelay: 10,
+        maxDelay: 50,
+        backoffMultiplier: 2.0,
+        retryStatusCodes: [500],
+        retryNonIdempotent: false
+    },
+    authProviders: {
+        api: {
+            tokenUrl: "http://127.0.0.1:18765/token",
+            accessToken: "expired-token",
+            refreshToken: "refresh-token",
+            clientId: "client-id",
+            clientSecret: "client-secret"
+        }
+    },
+    uploadProgress: true,
+    downloadStreaming: true,
+    requestCoalescing: true,
+    proxy: {},
+    certificatePolicy: {
+        verifyPeer: true,
+        verifyHost: true
+    },
+    telemetry: {
+        enabled: true,
+        serviceName: "local-test"
+    }
 }

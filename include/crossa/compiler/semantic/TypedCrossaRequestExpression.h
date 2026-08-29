@@ -32,6 +32,15 @@ public:
         std::unique_ptr<TypedExpression> queryParams,
         std::unique_ptr<TypedExpression> body,
         std::unique_ptr<TypedExpression> timeout,
+        std::unique_ptr<TypedExpression> retryPolicy,
+        std::unique_ptr<TypedExpression> authentication,
+        std::unique_ptr<TypedExpression> multipart,
+        std::unique_ptr<TypedExpression> uploadProgress,
+        std::unique_ptr<TypedExpression> downloadStreaming,
+        std::unique_ptr<TypedExpression> coalesce,
+        std::unique_ptr<TypedExpression> proxy,
+        std::unique_ptr<TypedExpression> certificatePolicy,
+        std::unique_ptr<TypedExpression> telemetry,
         types::SemanticType responseType,
         source::SourceLocation location
     );
@@ -57,6 +66,24 @@ public:
     // Returns the request timeout expression or null when absent.
     [[nodiscard]] const TypedExpression* getTimeout() const noexcept;
 
+    [[nodiscard]] const TypedExpression* getRetryPolicy() const noexcept;
+
+    [[nodiscard]] const TypedExpression* getAuthentication() const noexcept;
+
+    [[nodiscard]] const TypedExpression* getMultipart() const noexcept;
+
+    [[nodiscard]] const TypedExpression* getUploadProgress() const noexcept;
+
+    [[nodiscard]] const TypedExpression* getDownloadStreaming() const noexcept;
+
+    [[nodiscard]] const TypedExpression* getCoalesce() const noexcept;
+
+    [[nodiscard]] const TypedExpression* getProxy() const noexcept;
+
+    [[nodiscard]] const TypedExpression* getCertificatePolicy() const noexcept;
+
+    [[nodiscard]] const TypedExpression* getTelemetry() const noexcept;
+
 private:
     SemanticHttpMethod method_;
     std::unique_ptr<TypedExpression> url_;
@@ -65,6 +92,15 @@ private:
     std::unique_ptr<TypedExpression> queryParams_;
     std::unique_ptr<TypedExpression> body_;
     std::unique_ptr<TypedExpression> timeout_;
+    std::unique_ptr<TypedExpression> retryPolicy_;
+    std::unique_ptr<TypedExpression> authentication_;
+    std::unique_ptr<TypedExpression> multipart_;
+    std::unique_ptr<TypedExpression> uploadProgress_;
+    std::unique_ptr<TypedExpression> downloadStreaming_;
+    std::unique_ptr<TypedExpression> coalesce_;
+    std::unique_ptr<TypedExpression> proxy_;
+    std::unique_ptr<TypedExpression> certificatePolicy_;
+    std::unique_ptr<TypedExpression> telemetry_;
 };
 
 }
