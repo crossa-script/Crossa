@@ -89,10 +89,19 @@ namespace crossa::compiler::lexer {
                 addToken(match('=') ? TokenType::EqualEqual : TokenType::Equal);
                 return;
             case '!':
-                if (!match('=')) {
-                    fail("Unexpected character '!'.");
+                addToken(match('=') ? TokenType::BangEqual : TokenType::Bang);
+                return;
+            case '&':
+                if (!match('&')) {
+                    fail("Expected '&' after '&'.");
                 }
-                addToken(TokenType::BangEqual);
+                addToken(TokenType::AndAnd);
+                return;
+            case '|':
+                if (!match('|')) {
+                    fail("Expected '|' after '|'.");
+                }
+                addToken(TokenType::OrOr);
                 return;
             case '+':
                 addToken(TokenType::Plus);

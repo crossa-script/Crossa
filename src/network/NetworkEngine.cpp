@@ -18,7 +18,7 @@ namespace crossa::network {
 
 class NetworkEngine::CoalescedRequest final {
 public:
-    mutex mutex;
+    mutex mutex_;
     condition_variable completed;
     bool isCompleted = false;
     optional<response::HttpResponse> response;
@@ -72,7 +72,7 @@ response::HttpResponse NetworkEngine::execute(
         }
     }
     if (!owner) {
-        unique_lock lock(operation->mutex);
+        unique_lock lock(operation->mutex_);
         while (!operation->isCompleted) {
             requestHandle.throwIfCancellationRequested();
             operation->completed.wait_for(lock, chrono::milliseconds(25));
@@ -90,7 +90,7 @@ response::HttpResponse NetworkEngine::execute(
             requestHandle
         );
         {
-            lock_guard lock(operation->mutex);
+            lock_guard lock(operation->mutex_);
             operation->response = response;
             operation->isCompleted = true;
         }
@@ -100,7 +100,7 @@ response::HttpResponse NetworkEngine::execute(
         return response;
     } catch (...) {
         {
-            lock_guard lock(operation->mutex);
+            lock_guard lock(operation->mutex_);
             operation->error = current_exception();
             operation->isCompleted = true;
         }

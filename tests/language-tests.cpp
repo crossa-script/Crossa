@@ -175,7 +175,7 @@ private:
             "import #models.cra# fun re if else var model config print assert Int Long "
             "Double String Bool List Json null true false GET POST PUT PATCH DELETE HEAD "
             "OPTIONS TRACE CONNECT @Sync @Async @AsyncAfter ( ) { } [ ] "
-            "< > <= >= : , = == != + - * /";
+            "< > <= >= : , = == != && || ! + - * /";
         source::SourceFile sourceFile(sourcePath, content);
         lexer::Lexer lexer(sourceFile);
         const vector<lexer::Token> tokens = lexer.tokenize();
@@ -204,6 +204,12 @@ private:
                 "Lexer did not recognize less-than-or-equal operator.");
         require(countToken(tokens, lexer::TokenType::GreaterEqual) == 1,
                 "Lexer did not recognize greater-than-or-equal operator.");
+        require(countToken(tokens, lexer::TokenType::AndAnd) == 1,
+                "Lexer did not recognize logical-and operator.");
+        require(countToken(tokens, lexer::TokenType::OrOr) == 1,
+                "Lexer did not recognize logical-or operator.");
+        require(countToken(tokens, lexer::TokenType::Bang) == 1,
+                "Lexer did not recognize logical-not operator.");
         require(countToken(tokens, lexer::TokenType::KeywordLong) == 1,
                 "Lexer did not recognize Long keyword.");
         require(countToken(tokens, lexer::TokenType::KeywordDouble) == 1,

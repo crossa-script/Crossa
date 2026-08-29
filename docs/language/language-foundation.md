@@ -823,6 +823,19 @@ Equality supports values of the same scalar type (`Int`, `Long`, `Double`,
 `String`, or `Bool`). Ordering supports values of the same numeric type.
 Comparison expressions always produce `Bool`.
 
+Boolean expressions also support:
+
+```text
+&&
+||
+!
+```
+
+`&&` and `||` use short-circuit evaluation. For `a && b`, `b` is evaluated
+only when `a` is true. For `a || b`, `b` is evaluated only when `a` is false.
+Both operands of `&&` and `||` must be `Bool`, and `!` requires a `Bool`
+operand.
+
 ---
 
 # 15. Function Calls
@@ -887,10 +900,13 @@ before equality expressions. The precedence order is:
 
 ```text
 1. Parentheses
-2. * /
-3. + -
-4. < <= > >=
-5. == !=
+2. Unary `-` `!`
+3. * /
+4. + -
+5. < <= > >=
+6. == !=
+7. &&
+8. ||
 ```
 
 Precedence:
@@ -2050,7 +2066,13 @@ return_statement       = "re", expression ;
 
 expression_statement   = expression ;
 
-expression             = equality_expression ;
+expression             = logical_or_expression ;
+
+logical_or_expression  = logical_and_expression,
+                         { "||", logical_and_expression } ;
+
+logical_and_expression = equality_expression,
+                         { "&&", equality_expression } ;
 
 equality_expression    = comparison_expression,
                          { ("==" | "!="), comparison_expression } ;

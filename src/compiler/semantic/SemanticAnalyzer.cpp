@@ -1129,6 +1129,22 @@ namespace crossa::compiler::semantic {
             scope,
             expectedType
         );
+        if (expression.getOperator() == ast::UnaryOperator::Not) {
+            if (operand->getType().getKind() != types::SemanticTypeKind::Bool) {
+                fail(
+                    operand->getLocation(),
+                    "CRA3017",
+                    "Unary '!' requires a Bool operand but received '" +
+                    operand->getType().format() + "'."
+                );
+            }
+            return make_unique<TypedUnaryExpression>(
+                TypedUnaryOperator::Not,
+                std::move(operand),
+                types::SemanticType::createBool(),
+                expression.getLocation()
+            );
+        }
         if (!isNumericType(operand->getType())) {
             fail(
                 operand->getLocation(),
@@ -1195,6 +1211,12 @@ namespace crossa::compiler::semantic {
             case ast::BinaryOperator::GreaterEqual:
                 operation = TypedBinaryOperator::GreaterEqual;
                 break;
+            case ast::BinaryOperator::LogicalAnd:
+                operation = TypedBinaryOperator::LogicalAnd;
+                break;
+            case ast::BinaryOperator::LogicalOr:
+                operation = TypedBinaryOperator::LogicalOr;
+                break;
         }
 
         const bool equality = expression.getOperator() == ast::BinaryOperator::Equal ||
@@ -1204,6 +1226,27 @@ namespace crossa::compiler::semantic {
             expression.getOperator() == ast::BinaryOperator::LessEqual ||
             expression.getOperator() == ast::BinaryOperator::Greater ||
             expression.getOperator() == ast::BinaryOperator::GreaterEqual;
+        const bool logical = expression.getOperator() == ast::BinaryOperator::LogicalAnd ||
+            expression.getOperator() == ast::BinaryOperator::LogicalOr;
+        if (logical) {
+            if (left->getType().getKind() != types::SemanticTypeKind::Bool ||
+                right->getType().getKind() != types::SemanticTypeKind::Bool) {
+                fail(
+                    expression.getLocation(),
+                    "CRA3018",
+                    "Logical operators require Bool operands but received '" +
+                    left->getType().format() + "' and '" +
+                    right->getType().format() + "'."
+                );
+            }
+            return make_unique<TypedBinaryExpression>(
+                std::move(left),
+                operation,
+                std::move(right),
+                types::SemanticType::createBool(),
+                expression.getLocation()
+            );
+        }
         if (comparison) {
             const bool sameType = left->getType() == right->getType();
             const bool scalarEquality = equality &&

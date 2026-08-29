@@ -250,6 +250,9 @@ GET
 =
 ==
 !=
+&&
+||
+!
 +
 -
 *
@@ -296,6 +299,7 @@ Parse the initial language into a syntax-only AST.
 - Interpolated strings.
 - `if`, `else if`, and `else` conditional statements.
 - Comparison expressions used by conditional statements.
+- Boolean operators `&&`, `||`, and `!` with short-circuit evaluation.
 
 ## Important Rule
 
@@ -446,6 +450,7 @@ Lower valid language semantics into platform-neutral Crossa IR.
 - Request method.
 - Expected response type.
 - Conditional branch instructions.
+- Short-circuit logical expressions.
 
 ## Example
 

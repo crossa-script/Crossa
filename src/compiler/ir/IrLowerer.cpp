@@ -501,6 +501,8 @@ namespace crossa::compiler::ir {
         switch (operation) {
             case semantic::TypedUnaryOperator::Negate:
                 return IrArithmeticOperator::Negate;
+            case semantic::TypedUnaryOperator::Not:
+                return IrArithmeticOperator::Not;
         }
 
         return IrArithmeticOperator::Negate;
@@ -531,6 +533,10 @@ namespace crossa::compiler::ir {
                 return IrArithmeticOperator::Greater;
             case semantic::TypedBinaryOperator::GreaterEqual:
                 return IrArithmeticOperator::GreaterEqual;
+            case semantic::TypedBinaryOperator::LogicalAnd:
+                return IrArithmeticOperator::LogicalAnd;
+            case semantic::TypedBinaryOperator::LogicalOr:
+                return IrArithmeticOperator::LogicalOr;
         }
 
         return IrArithmeticOperator::Add;

@@ -278,6 +278,12 @@ namespace crossa::compiler::ir {
                 return "Greater";
             case IrArithmeticOperator::GreaterEqual:
                 return "GreaterEqual";
+            case IrArithmeticOperator::LogicalAnd:
+                return "LogicalAnd";
+            case IrArithmeticOperator::LogicalOr:
+                return "LogicalOr";
+            case IrArithmeticOperator::Not:
+                return "Not";
         }
         return "Unknown";
     }

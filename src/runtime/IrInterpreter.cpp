@@ -356,6 +356,10 @@ namespace crossa::runtime {
                     frame,
                     callDepth
                 );
+                if (unary.getOperator() ==
+                    compiler::ir::IrArithmeticOperator::Not) {
+                    return RuntimeValue::createBool(!value.getBool());
+                }
                 if (expression.getType().getKind() ==
                     compiler::types::SemanticTypeKind::Double) {
                     return RuntimeValue::createDouble(
@@ -388,6 +392,16 @@ namespace crossa::runtime {
                     frame,
                     callDepth
                 );
+                if (binary.getOperator() ==
+                    compiler::ir::IrArithmeticOperator::LogicalAnd &&
+                    !left.getBool()) {
+                    return RuntimeValue::createBool(false);
+                }
+                if (binary.getOperator() ==
+                    compiler::ir::IrArithmeticOperator::LogicalOr &&
+                    left.getBool()) {
+                    return RuntimeValue::createBool(true);
+                }
                 const RuntimeValue right = evaluate(
                     binary.getRight(),
                     frame,
@@ -395,6 +409,12 @@ namespace crossa::runtime {
                 );
                 if (expression.getType().getKind() ==
                     compiler::types::SemanticTypeKind::Bool) {
+                    if (binary.getOperator() ==
+                            compiler::ir::IrArithmeticOperator::LogicalAnd ||
+                        binary.getOperator() ==
+                            compiler::ir::IrArithmeticOperator::LogicalOr) {
+                        return RuntimeValue::createBool(right.getBool());
+                    }
                     return RuntimeValue::createBool(evaluateComparison(
                         left,
                         binary.getOperator(),
@@ -974,6 +994,11 @@ namespace crossa::runtime {
             case compiler::ir::IrArithmeticOperator::Greater:
             case compiler::ir::IrArithmeticOperator::GreaterEqual:
                 fail("Comparison operation used as arithmetic.");
+            case compiler::ir::IrArithmeticOperator::LogicalAnd:
+            case compiler::ir::IrArithmeticOperator::LogicalOr:
+                fail("Logical operation used as arithmetic.");
+            case compiler::ir::IrArithmeticOperator::Not:
+                fail("Logical negation used as arithmetic.");
         }
 
         fail("Unknown IR arithmetic operation.");
@@ -1006,6 +1031,11 @@ namespace crossa::runtime {
             case compiler::ir::IrArithmeticOperator::Greater:
             case compiler::ir::IrArithmeticOperator::GreaterEqual:
                 fail("Comparison operation used as arithmetic.");
+            case compiler::ir::IrArithmeticOperator::LogicalAnd:
+            case compiler::ir::IrArithmeticOperator::LogicalOr:
+                fail("Logical operation used as arithmetic.");
+            case compiler::ir::IrArithmeticOperator::Not:
+                fail("Logical negation used as arithmetic.");
         }
         return 0.0;
     }

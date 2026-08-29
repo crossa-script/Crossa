@@ -28,7 +28,8 @@ enum class ExpressionKind {
 
 // Identifies the arithmetic unary operators supported by V0.
 enum class UnaryOperator {
-    Negate
+    Negate,
+    Not
 };
 
 // Identifies the arithmetic binary operators supported by V0.
@@ -42,7 +43,9 @@ enum class BinaryOperator {
     Less,
     LessEqual,
     Greater,
-    GreaterEqual
+    GreaterEqual,
+    LogicalAnd,
+    LogicalOr
 };
 
 // Distinguishes literal text from interpolated identifiers in strings.

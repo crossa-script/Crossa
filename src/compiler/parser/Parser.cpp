@@ -396,7 +396,35 @@ namespace crossa::compiler::parser {
 
     // Parses one expression using arithmetic precedence.
     unique_ptr<ast::Expression> Parser::parseExpression() {
-        return parseEqualityExpression();
+        return parseLogicalOrExpression();
+    }
+
+    unique_ptr<ast::Expression> Parser::parseLogicalOrExpression() {
+        unique_ptr<ast::Expression> expression = parseLogicalAndExpression();
+        while (match(lexer::TokenType::OrOr)) {
+            const lexer::Token& operatorToken = previous();
+            expression = make_unique<ast::BinaryExpression>(
+                std::move(expression),
+                ast::BinaryOperator::LogicalOr,
+                parseLogicalAndExpression(),
+                getLocation(operatorToken)
+            );
+        }
+        return expression;
+    }
+
+    unique_ptr<ast::Expression> Parser::parseLogicalAndExpression() {
+        unique_ptr<ast::Expression> expression = parseEqualityExpression();
+        while (match(lexer::TokenType::AndAnd)) {
+            const lexer::Token& operatorToken = previous();
+            expression = make_unique<ast::BinaryExpression>(
+                std::move(expression),
+                ast::BinaryOperator::LogicalAnd,
+                parseEqualityExpression(),
+                getLocation(operatorToken)
+            );
+        }
+        return expression;
     }
 
     unique_ptr<ast::Expression> Parser::parseEqualityExpression() {
@@ -500,6 +528,14 @@ namespace crossa::compiler::parser {
 
     // Parses unary negation expressions.
     unique_ptr<ast::Expression> Parser::parseUnaryExpression() {
+        if (match(lexer::TokenType::Bang)) {
+            const source::SourceLocation location = getLocation(previous());
+            return make_unique<ast::UnaryExpression>(
+                ast::UnaryOperator::Not,
+                parseUnaryExpression(),
+                location
+            );
+        }
         if (match(lexer::TokenType::Minus)) {
             const source::SourceLocation location = getLocation(previous());
             if (match(lexer::TokenType::DecimalLiteral)) {

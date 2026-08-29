@@ -36,7 +36,8 @@ enum class ValueSymbolKind {
 
 // Identifies the supported typed unary operation.
 enum class TypedUnaryOperator {
-    Negate
+    Negate,
+    Not
 };
 
 // Identifies the supported typed arithmetic operations.
@@ -50,7 +51,9 @@ enum class TypedBinaryOperator {
     Less,
     LessEqual,
     Greater,
-    GreaterEqual
+    GreaterEqual,
+    LogicalAnd,
+    LogicalOr
 };
 
 // Distinguishes static string content from resolved symbol reads.

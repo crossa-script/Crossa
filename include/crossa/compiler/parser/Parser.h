@@ -79,6 +79,10 @@ private:
     // Parses one expression using arithmetic precedence.
     [[nodiscard]] std::unique_ptr<ast::Expression> parseExpression();
 
+    [[nodiscard]] std::unique_ptr<ast::Expression> parseLogicalOrExpression();
+
+    [[nodiscard]] std::unique_ptr<ast::Expression> parseLogicalAndExpression();
+
     [[nodiscard]] std::unique_ptr<ast::Expression> parseEqualityExpression();
 
     [[nodiscard]] std::unique_ptr<ast::Expression> parseComparisonExpression();

@@ -17,8 +17,21 @@ fun choose(flag: Bool): Int {
     }
 }
 
+fun allowed(age: Int, isActive: Bool): Bool {
+    re age >= 18 && isActive
+}
+
+fun invalidWhenCalled(): Bool {
+    re (1 / 0) == 0
+}
+
 assert(classify(11) == "high")
 assert(classify(10) == "equal")
 assert(classify(3) == "low")
 assert(choose(true) == 1)
 assert(choose(false) == 2)
+assert(allowed(20, true))
+assert(!allowed(17, true))
+assert(!(false && invalidWhenCalled()))
+assert(true || invalidWhenCalled())
+assert(!false)

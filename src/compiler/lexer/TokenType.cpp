@@ -107,10 +107,16 @@ namespace crossa::compiler::lexer {
                 return "EqualEqual";
             case TokenType::BangEqual:
                 return "BangEqual";
+            case TokenType::Bang:
+                return "Bang";
             case TokenType::LessEqual:
                 return "LessEqual";
             case TokenType::GreaterEqual:
                 return "GreaterEqual";
+            case TokenType::AndAnd:
+                return "AndAnd";
+            case TokenType::OrOr:
+                return "OrOr";
             case TokenType::Plus:
                 return "Plus";
             case TokenType::Minus:

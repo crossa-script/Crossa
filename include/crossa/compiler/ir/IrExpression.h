@@ -39,7 +39,10 @@ enum class IrArithmeticOperator {
     Less,
     LessEqual,
     Greater,
-    GreaterEqual
+    GreaterEqual,
+    LogicalAnd,
+    LogicalOr,
+    Not
 };
 
 // Identifies the owner of a symbol read in an IR expression.

@@ -31,6 +31,9 @@ source order and one-branch-only execution.
 Add scalar comparison expressions for `==`, `!=`, `<`, `<=`, `>`, and `>=`.
 Equality requires equal scalar types; ordering requires equal numeric types.
 
+Add Bool logical expressions for `&&`, `||`, and `!`. The runtime evaluates
+`&&` and `||` left-to-right with short-circuit behavior.
+
 The IR owns structured conditional instructions. The interpreter executes the
 selected block in a child runtime frame whose parent resolves captured values.
 

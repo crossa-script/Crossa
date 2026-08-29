@@ -128,7 +128,7 @@ Never create a Kotlin, Swift, Android-runtime, or iOS-runtime `.cra` parser. Kot
 
 ### Initial Language Surface
 
-The current foundation includes `import #filename.cra#`, `fun`, `re`, `if`, `else if`, `else`, `var`, `print`, `model`, `config`, `Int`, `Long`, `Double`, `String`, `Bool`, `List<T>`, `@Sync`, `@Async`, `@AsyncAfter`, `#identifier` interpolation, comparison expressions, and `CrossaRequest`. This list establishes integration points only; the language foundation remains authoritative for exact grammar and behavior.
+The current foundation includes `import #filename.cra#`, `fun`, `re`, `if`, `else if`, `else`, `var`, `print`, `model`, `config`, `Int`, `Long`, `Double`, `String`, `Bool`, `List<T>`, `@Sync`, `@Async`, `@AsyncAfter`, `#identifier` interpolation, comparison and boolean expressions, and `CrossaRequest`. This list establishes integration points only; the language foundation remains authoritative for exact grammar and behavior.
 
 ### Interpolation and Collections
 
