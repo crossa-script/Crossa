@@ -30,7 +30,8 @@ private:
         Run,
         Check,
         Test,
-        GenerateKotlin
+        GenerateKotlin,
+        GenerateAndroidLibrary
     };
 
     // Stores validated command-line options for one Crossa execution.
@@ -54,6 +55,16 @@ private:
 
     // Loads, compiles, and applies the requested workflow to one Crossa source file.
     static void executeSource(const Arguments& arguments, const utils::Log& log);
+
+    // Compiles every project source and writes the generated Android library project.
+    static void executeAndroidLibraryBuild(
+        const Arguments& arguments,
+        const utils::Log& log
+    );
+
+    // Discovers every non-configuration Crossa source in a project directory.
+    [[nodiscard]] static std::vector<std::filesystem::path>
+    discoverProjectSources(const std::filesystem::path& projectDirectory);
 
     // Writes one generated Kotlin source unit into the requested output directory.
     static void writeGeneratedKotlinSource(

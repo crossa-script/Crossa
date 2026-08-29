@@ -1,5 +1,6 @@
 #include "crossa/cli/CrossaApplication.h"
 
+#include <algorithm>
 #include <exception>
 #include <fstream>
 #include <stdexcept>
@@ -22,6 +23,7 @@
 #include "crossa/compiler/semantic/SemanticAnalyzer.h"
 #include "crossa/compiler/semantic/SemanticModelPrinter.h"
 #include "crossa/compiler/source/SourceLoader.h"
+#include "crossa/packaging/android/AndroidProjectGenerator.h"
 #include "crossa/runtime/ExecutionEngine.h"
 
 using namespace std;
@@ -35,7 +37,9 @@ namespace crossa::cli {
             utils::Log().error(
                 "Usage: crossa [check|run|test] [--debug] <file.cra>\n"
                 "       crossa generate kotlin [--debug] <file.cra> "
-                "--output <directory>"
+                "--output <directory>\n"
+                "       crossa generate-build android [--debug] "
+                "<project-directory> --output <directory>"
             );
             return 1;
         }
@@ -54,6 +58,8 @@ namespace crossa::cli {
                     ? "Command selected: test"
                     : arguments->command == Command::GenerateKotlin
                         ? "Command selected: generate kotlin"
+                        : arguments->command == Command::GenerateAndroidLibrary
+                            ? "Command selected: generate-build android"
                         : "Command selected: run"
         );
 
@@ -112,6 +118,17 @@ namespace crossa::cli {
                 continue;
             }
 
+            if (argument == "generate-build") {
+                if (commandProvided || sourcePath.has_value() ||
+                    index + 1 >= argc ||
+                    string_view(argv[++index]) != "android") {
+                    return nullopt;
+                }
+                command = Command::GenerateAndroidLibrary;
+                commandProvided = true;
+                continue;
+            }
+
             const optional<Command> parsedCommand = parseCommand(argument);
             if (parsedCommand.has_value()) {
                 if (commandProvided || sourcePath.has_value()) {
@@ -134,8 +151,9 @@ namespace crossa::cli {
         if (!sourcePath.has_value()) {
             return nullopt;
         }
-        const bool generatesKotlin = command == Command::GenerateKotlin;
-        if (generatesKotlin != outputDirectory.has_value()) {
+        const bool generatesOutput = command == Command::GenerateKotlin ||
+            command == Command::GenerateAndroidLibrary;
+        if (generatesOutput != outputDirectory.has_value()) {
             return nullopt;
         }
         return Arguments{
@@ -166,6 +184,11 @@ namespace crossa::cli {
         const Arguments& arguments,
         const utils::Log& log
     ) {
+        if (arguments.command == Command::GenerateAndroidLibrary) {
+            executeAndroidLibraryBuild(arguments, log);
+            return;
+        }
+
         logStepStarted(1, "Source loading", log);
         const filesystem::path entryPath =
             filesystem::weakly_canonical(arguments.sourcePath);
@@ -226,6 +249,9 @@ namespace crossa::cli {
             case Command::GenerateKotlin:
                 finalStepName = "Kotlin source generation";
                 break;
+            case Command::GenerateAndroidLibrary:
+                finalStepName = "Android library generation";
+                break;
             case Command::Run:
                 finalStepName = "Native execution";
                 break;
@@ -271,6 +297,103 @@ namespace crossa::cli {
                 : runtime::ExecutionMode::Run
         );
         logStepCompleted(7, finalStepName, log);
+    }
+
+    // Compiles every project source and writes the generated Android library project.
+    void CrossaApplication::executeAndroidLibraryBuild(
+        const Arguments& arguments,
+        const utils::Log& log
+    ) {
+        const filesystem::path projectDirectory =
+            filesystem::weakly_canonical(arguments.sourcePath);
+        if (!filesystem::is_directory(projectDirectory)) {
+            throw runtime_error(
+                "generate-build android requires a project directory: " +
+                projectDirectory.string()
+            );
+        }
+
+        logStepStarted(1, "Android project source discovery", log);
+        const vector<filesystem::path> sourcePaths =
+            discoverProjectSources(projectDirectory);
+        if (sourcePaths.empty()) {
+            throw runtime_error(
+                "No non-configuration .cra files were found in: " +
+                projectDirectory.string()
+            );
+        }
+        logStepCompleted(1, "Android project source discovery", log);
+
+        const optional<compiler::ir::Program> configurationProgram =
+            compileSiblingConfiguration(projectDirectory / "project.cra", log);
+        const optional<string> packageName =
+            readKotlinPackageName(configurationProgram);
+        compiler::generators::kotlin::KotlinGenerator generator;
+        vector<compiler::generators::kotlin::KotlinGeneratedSource> sources;
+        sources.reserve(sourcePaths.size());
+        for (const filesystem::path& sourcePath : sourcePaths) {
+            compiler::source::SourceFile sourceFile =
+                compiler::source::SourceLoader::load(sourcePath, log);
+            const vector<compiler::lexer::Token> tokens =
+                tokenizeSource(sourceFile, log);
+            compiler::ast::SourceUnit sourceUnit =
+                parseSource(tokens, sourceFile, log);
+            sourceUnit = linkProject(
+                sourceFile.getPath(),
+                std::move(sourceUnit),
+                log
+            );
+            const compiler::semantic::TypedSourceUnit semanticModel =
+                analyzeSource(sourceUnit, sourceFile, log);
+            const compiler::ir::Program program =
+                compiler::ir::IrLowerer::lower(semanticModel);
+            sources.push_back(generator.generate(program, packageName));
+        }
+
+        logStepStarted(7, "Android Gradle library project generation", log);
+        packaging::android::AndroidProjectGenerator projectGenerator;
+        projectGenerator.generate(
+            sources,
+            packageName,
+            arguments.outputDirectory.value()
+        );
+        logStepCompleted(7, "Android Gradle library project generation", log);
+    }
+
+    // Discovers every non-configuration Crossa source in a project directory.
+    vector<filesystem::path> CrossaApplication::discoverProjectSources(
+        const filesystem::path& projectDirectory
+    ) {
+        vector<filesystem::path> sourcePaths;
+        error_code error;
+        filesystem::recursive_directory_iterator iterator(
+            projectDirectory,
+            filesystem::directory_options::skip_permission_denied,
+            error
+        );
+        if (error) {
+            throw runtime_error(
+                "Unable to inspect Android project directory: " +
+                projectDirectory.string()
+            );
+        }
+        const filesystem::recursive_directory_iterator end;
+        while (iterator != end) {
+            if (iterator->is_regular_file(error) &&
+                iterator->path().extension() == ".cra" &&
+                iterator->path().filename() != "config.cra") {
+                sourcePaths.push_back(iterator->path());
+            }
+            iterator.increment(error);
+            if (error) {
+                throw runtime_error(
+                    "Unable to inspect Android project directory: " +
+                    projectDirectory.string()
+                );
+            }
+        }
+        sort(sourcePaths.begin(), sourcePaths.end());
+        return sourcePaths;
     }
 
     // Writes one generated Kotlin source unit into the requested output directory.

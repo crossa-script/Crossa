@@ -37,6 +37,7 @@ add_executable(
     include/crossa/compiler/generators/kotlin/KotlinSourceWriter.h
     include/crossa/compiler/generators/kotlin/KotlinStatementEmitter.h
     include/crossa/compiler/generators/kotlin/KotlinTypeMapper.h
+    include/crossa/packaging/android/AndroidProjectGenerator.h
     include/crossa/compiler/ir/IrExpression.h
     include/crossa/compiler/ir/IrStatement.h
     include/crossa/compiler/ir/IrDeclaration.h
@@ -85,6 +86,7 @@ add_executable(
     src/compiler/generators/kotlin/KotlinSourceWriter.cpp
     src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
     src/compiler/generators/kotlin/KotlinTypeMapper.cpp
+    src/packaging/android/AndroidProjectGenerator.cpp
     src/compiler/ir/IrExpression.cpp
     src/compiler/ir/IrStatement.cpp
     src/compiler/ir/IrDeclaration.cpp
@@ -237,6 +239,7 @@ add_executable(
     src/compiler/generators/kotlin/KotlinSourceWriter.cpp
     src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
     src/compiler/generators/kotlin/KotlinTypeMapper.cpp
+    src/packaging/android/AndroidProjectGenerator.cpp
     src/compiler/types/SemanticType.cpp
     src/compiler/semantic/SemanticScope.cpp
     src/compiler/semantic/TypedExpression.cpp
@@ -301,6 +304,13 @@ add_test(
         $<TARGET_FILE:crossa>
 )
 add_test(
+    NAME crossa_android_project_generator_test_suite
+    COMMAND
+        bash
+        ${CMAKE_SOURCE_DIR}/scripts/run-android-project-generator-tests.sh
+        $<TARGET_FILE:crossa>
+)
+add_test(
     NAME crossa_check_nested_project_test
     COMMAND crossa check examples/imports/runPosts.cra
 )
@@ -337,6 +347,7 @@ set_tests_properties(
     crossa_conditionals_test
     crossa_local_network_integration_test
     crossa_kotlin_generator_test_suite
+    crossa_android_project_generator_test_suite
     crossa_check_nested_project_test
     crossa_explicit_run_test
     crossa_explicit_test_command_test
