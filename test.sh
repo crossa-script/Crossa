@@ -80,6 +80,58 @@ elif command -v c++ >/dev/null 2>&1; then
         -o build/crossa-runtime-tests
 
     ./build/crossa-runtime-tests
+
+    languageTestSources=(
+        tests/language-tests.cpp
+        src/compiler/source/SourceFile.cpp
+        src/compiler/source/SourceLocation.cpp
+        src/compiler/source/SourceLoader.cpp
+        src/compiler/lexer/TokenType.cpp
+        src/compiler/lexer/Token.cpp
+        src/compiler/lexer/Lexer.cpp
+        src/compiler/ast/TypeReference.cpp
+        src/compiler/ast/Expression.cpp
+        src/compiler/ast/Statement.cpp
+        src/compiler/ast/Declaration.cpp
+        src/compiler/ast/SourceUnit.cpp
+        src/compiler/ast/AstPrinter.cpp
+        src/compiler/ast/CrossaRequestExpression.cpp
+        src/compiler/ast/JsonExpression.cpp
+        src/compiler/parser/Parser.cpp
+        src/compiler/project/ProjectLinker.cpp
+        src/compiler/types/SemanticType.cpp
+        src/compiler/semantic/SemanticScope.cpp
+        src/compiler/semantic/TypedExpression.cpp
+        src/compiler/semantic/TypedStatement.cpp
+        src/compiler/semantic/TypedDeclaration.cpp
+        src/compiler/semantic/TypedSourceUnit.cpp
+        src/compiler/semantic/SemanticAnalyzer.cpp
+        src/compiler/semantic/SemanticModelPrinter.cpp
+        src/compiler/semantic/TypedCrossaRequestExpression.cpp
+        src/compiler/semantic/TypedJsonExpression.cpp
+        src/compiler/ir/IrExpression.cpp
+        src/compiler/ir/IrStatement.cpp
+        src/compiler/ir/IrDeclaration.cpp
+        src/compiler/ir/IrLowerer.cpp
+        src/compiler/ir/IrPrinter.cpp
+        src/compiler/ir/IrCrossaRequestExpression.cpp
+        src/compiler/ir/IrJsonExpression.cpp
+        src/compiler/ir/Program.cpp
+        src/utils/Log.cpp
+        src/utils/PrintUtils.cpp
+    )
+
+    c++ \
+        -std=c++20 \
+        -Wall \
+        -Wextra \
+        -Wpedantic \
+        -pthread \
+        -Iinclude \
+        "${languageTestSources[@]}" \
+        -o build/crossa-language-tests
+
+    ./build/crossa-language-tests
 else
     printf '%s\n' 'Build failed: cmake or c++ is required.' >&2
     exit 1
@@ -89,6 +141,8 @@ fi
 ./build/crossa tests/import-project/entry/runImports.cra --debug
 ./build/crossa tests/import-project/entry/runDiamondImports.cra --debug
 ./build/crossa examples/imports/repositories/postsRepository.cra --debug
+./build/crossa tests/all-http-methods.cra
+./build/crossa tests/config.cra
 assertExecutionFails \
     "was not found under project root" \
     ./build/crossa tests/import-errors/missing/missingImportEntry.cra

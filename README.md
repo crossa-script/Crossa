@@ -131,7 +131,9 @@ To configure, build, and run the debug test in one command:
 ./test.sh
 ```
 
-The script uses CMake when available and falls back to the installed C++ compiler. Native networking requires libcurl.
+The script builds and runs the complete compiler, linker, runtime, and `.cra` scripting suite. It uses CMake when available and falls back to the installed C++ compiler. Native networking requires libcurl. GitHub Actions repeats this workflow on every push and pull request.
+
+See [Crossa Testing](docs/development/testing.md) for the test layers and fixtures.
 
 Compiler implementation follows the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, native Networking, then deterministic platform generators.
 

@@ -1,0 +1,21 @@
+name: Crossa CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake ninja-build libcurl4-openssl-dev
+
+      - name: Build and run all tests
+        run: ./test.sh

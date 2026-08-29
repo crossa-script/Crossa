@@ -187,3 +187,84 @@ target_include_directories(crossa_runtime_tests PRIVATE include)
 target_link_libraries(crossa_runtime_tests PRIVATE Threads::Threads)
 
 add_test(NAME crossa_runtime_tests COMMAND crossa_runtime_tests)
+
+add_executable(
+    crossa_language_tests
+    tests/language-tests.cpp
+    src/compiler/source/SourceFile.cpp
+    src/compiler/source/SourceLocation.cpp
+    src/compiler/source/SourceLoader.cpp
+    src/compiler/lexer/TokenType.cpp
+    src/compiler/lexer/Token.cpp
+    src/compiler/lexer/Lexer.cpp
+    src/compiler/ast/TypeReference.cpp
+    src/compiler/ast/Expression.cpp
+    src/compiler/ast/Statement.cpp
+    src/compiler/ast/Declaration.cpp
+    src/compiler/ast/SourceUnit.cpp
+    src/compiler/ast/AstPrinter.cpp
+    src/compiler/ast/CrossaRequestExpression.cpp
+    src/compiler/ast/JsonExpression.cpp
+    src/compiler/parser/Parser.cpp
+    src/compiler/project/ProjectLinker.cpp
+    src/compiler/types/SemanticType.cpp
+    src/compiler/semantic/SemanticScope.cpp
+    src/compiler/semantic/TypedExpression.cpp
+    src/compiler/semantic/TypedStatement.cpp
+    src/compiler/semantic/TypedDeclaration.cpp
+    src/compiler/semantic/TypedSourceUnit.cpp
+    src/compiler/semantic/SemanticAnalyzer.cpp
+    src/compiler/semantic/SemanticModelPrinter.cpp
+    src/compiler/semantic/TypedCrossaRequestExpression.cpp
+    src/compiler/semantic/TypedJsonExpression.cpp
+    src/compiler/ir/IrExpression.cpp
+    src/compiler/ir/IrStatement.cpp
+    src/compiler/ir/IrDeclaration.cpp
+    src/compiler/ir/IrLowerer.cpp
+    src/compiler/ir/IrPrinter.cpp
+    src/compiler/ir/IrCrossaRequestExpression.cpp
+    src/compiler/ir/IrJsonExpression.cpp
+    src/compiler/ir/Program.cpp
+    src/utils/Log.cpp
+    src/utils/PrintUtils.cpp
+)
+
+target_compile_features(crossa_language_tests PRIVATE cxx_std_20)
+target_include_directories(crossa_language_tests PRIVATE include)
+target_link_libraries(crossa_language_tests PRIVATE Threads::Threads)
+
+add_test(NAME crossa_language_tests COMMAND crossa_language_tests)
+add_test(NAME crossa_script_test COMMAND crossa test.cra)
+add_test(
+    NAME crossa_script_import_test
+    COMMAND crossa tests/import-project/entry/runImports.cra
+)
+add_test(
+    NAME crossa_script_nested_project_test
+    COMMAND crossa examples/imports/repositories/postsRepository.cra
+)
+add_test(
+    NAME crossa_script_http_methods_test
+    COMMAND crossa tests/all-http-methods.cra
+)
+add_test(
+    NAME crossa_script_config_test
+    COMMAND crossa tests/config.cra
+)
+add_test(
+    NAME crossa_script_missing_import_test
+    COMMAND crossa tests/import-errors/missing/missingImportEntry.cra
+)
+set_tests_properties(
+    crossa_script_test
+    crossa_script_import_test
+    crossa_script_nested_project_test
+    crossa_script_http_methods_test
+    crossa_script_config_test
+    crossa_script_missing_import_test
+    PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(
+    crossa_script_missing_import_test
+    PROPERTIES WILL_FAIL TRUE
+)
