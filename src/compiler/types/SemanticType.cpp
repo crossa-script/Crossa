@@ -50,6 +50,11 @@ namespace crossa::compiler::types {
         return SemanticType(SemanticTypeKind::Bool, "", nullptr);
     }
 
+    // Creates the built-in Json type.
+    SemanticType SemanticType::createJson() {
+        return SemanticType(SemanticTypeKind::Json, "", nullptr);
+    }
+
     // Creates a resolved named model type.
     SemanticType SemanticType::createModel(string name) {
         return SemanticType(
@@ -94,6 +99,8 @@ namespace crossa::compiler::types {
                 return "String";
             case SemanticTypeKind::Bool:
                 return "Bool";
+            case SemanticTypeKind::Json:
+                return "Json";
             case SemanticTypeKind::Model:
                 return modelName_;
             case SemanticTypeKind::List:

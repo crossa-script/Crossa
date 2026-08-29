@@ -271,14 +271,25 @@ Initial built-in type names:
 Int
 String
 Bool
+Json
 List
 ```
 
-Initial networking method literal:
+Networking method literals:
 
 ```text
 GET
+POST
+PUT
+PATCH
+DELETE
+HEAD
+OPTIONS
+TRACE
+CONNECT
 ```
+
+The JSON literal `null` is reserved.
 
 Reserved words cannot be used as ordinary declaration identifiers.
 
@@ -420,7 +431,31 @@ false
 
 ---
 
-## 10.4 Model Types
+## 10.4 `Json`
+
+`Json` is the explicit generic JSON boundary used by native requests and
+responses. JSON values may contain objects, arrays, strings, integer or decimal
+numbers, booleans, and `null`. This does not add general maps, nullable types,
+or user-defined dynamic objects to Crossa.
+
+```cra
+fun sendPayload(): Json {
+    re CrossaRequest {
+        url: "/payload",
+        method: POST,
+        body: {
+            name: "Crossa",
+            score: 4.5,
+            tags: ["native", "mobile"],
+            optional: null
+        }
+    }
+}
+```
+
+---
+
+## 10.5 Model Types
 
 A model declaration creates a named language type.
 
@@ -442,7 +477,7 @@ a valid type reference.
 
 ---
 
-## 10.5 `List<T>`
+## 10.6 `List<T>`
 
 Crossa includes a built-in typed list.
 
@@ -525,6 +560,9 @@ Name is : ahmad
 ```
 
 The `#` character inside a string begins interpolation only when it is immediately followed by a valid identifier.
+
+Strings decode `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, and
+Unicode `\uXXXX` escapes. `\#` writes a literal `#` without interpolation.
 
 Examples:
 
@@ -758,6 +796,7 @@ Initial expressions include:
 - parenthesized expressions,
 - basic arithmetic,
 - interpolated strings,
+- JSON objects, arrays, decimal numbers, and `null`,
 - `CrossaRequest`.
 
 Initial arithmetic operators:
@@ -1170,22 +1209,40 @@ Validation belongs to semantic analysis.
 
 # 25. `config.cra`
 
-Initial networking/runtime configuration:
+Networking/runtime configuration:
 
 ```cra
 config {
     baseUrl: "https://api.example.com",
     timeoutRequest: 3000,
-    interceptor: true
+    commonHeaders: {
+        "X-Crossa-Client": "native"
+    },
+    interceptor: {
+        enabled: true,
+        logRequests: true,
+        logResponses: true
+    },
+    workerThreads: 4,
+    maxQueuedTasks: 256,
+    maxResponseBytes: 8388608,
+    maxJsonDepth: 128,
+    followRedirects: true
 }
 ```
 
-Recognized initial keys:
+Recognized keys:
 
 ```text
 baseUrl: String
 timeoutRequest: Int
-interceptor: Bool
+commonHeaders: Json object with scalar values
+interceptor: Bool or Json object
+workerThreads: Int
+maxQueuedTasks: Int
+maxResponseBytes: Int
+maxJsonDepth: Int
+followRedirects: Bool
 ```
 
 `timeoutRequest` unit:
@@ -1322,12 +1379,12 @@ Kotlin and Swift must not parse the network response.
 
 ---
 
-# 29. CrossaRequest Initial Fields
+# 29. CrossaRequest Fields and Methods
 
-V0 request syntax requires:
+Request syntax requires:
 
 ```text
-path
+url or path
 method
 ```
 
@@ -1335,43 +1392,63 @@ Example:
 
 ```cra
 CrossaRequest {
-    path: "/v1/users",
-    method: GET
+    url: "/v1/users/#userId",
+    method: POST,
+    pathVariables: {
+        userId: id
+    },
+    headers: {
+        "X-Request": "create-user"
+    },
+    customHeaders: {
+        "Authorization": token
+    },
+    queryParams: {
+        include: "profile"
+    },
+    body: {
+        name: name,
+        active: true
+    },
+    timeout: 5000
 }
 ```
 
-Initial guaranteed method literal:
+Supported request fields:
+
+```text
+url: String literal
+path: compatibility alias for url
+method: HTTP method literal
+headers: Json object with scalar values
+customHeaders: Json object with scalar values
+queryParams: Json object with scalar values
+pathVariables: Json object mapping interpolation aliases to identifiers
+body: any JSON-compatible value
+timeout: Int milliseconds
+```
+
+Supported method literals:
 
 ```text
 GET
-```
-
-Additional request properties and methods must be added explicitly in networking/language documentation.
-
-Potential future properties include:
-
-```text
-query
-headers
-body
-timeout
-auth
-retry
-multipart
-download
-```
-
-Potential future methods include:
-
-```text
 POST
 PUT
 PATCH
 DELETE
 HEAD
+OPTIONS
+TRACE
+CONNECT
 ```
 
-They are not implicitly supported by this foundation until specified and implemented.
+An absolute `http://` or `https://` URL bypasses `config.cra` `baseUrl`.
+A relative URL is joined to `baseUrl`. Path interpolation values and query
+parameters are percent encoded. `customHeaders` overrides `headers`, while
+request headers override common headers.
+
+JSON objects, arrays, strings, integer and decimal numbers, booleans, and
+`null` are supported. The explicit `Json` type carries a generic JSON result.
 
 ---
 
@@ -1540,6 +1617,10 @@ StringLiteral
 InterpolatedStringExpression
 IntegerLiteral
 BooleanLiteral
+JsonNumberLiteral
+JsonNullLiteral
+JsonObjectExpression
+JsonArrayExpression
 ListTypeReference
 NamedTypeReference
 Annotation
@@ -1741,6 +1822,8 @@ primary_expression     = literal
                        | identifier
                        | function_call
                        | crossa_request_expression
+                       | json_object
+                       | json_array
                        | "(", expression, ")" ;
 
 function_call          = identifier,
@@ -1755,14 +1838,27 @@ crossa_request_expression
 request_entry_list     = request_entry,
                          { ",", request_entry } ;
 
-request_entry          = "path", ":", string_literal
-                       | "method", ":", http_method ;
+request_entry          = identifier, ":", expression ;
 
-http_method            = "GET" ;
+http_method            = "GET" | "POST" | "PUT" | "PATCH"
+                       | "DELETE" | "HEAD" | "OPTIONS"
+                       | "TRACE" | "CONNECT" ;
+
+json_object            = "{", [ json_entry_list ], "}" ;
+
+json_entry_list        = json_entry, { ",", json_entry } ;
+
+json_entry             = (identifier | string_literal),
+                         ":", expression ;
+
+json_array             = "[", [ argument_list ], "]" ;
 
 literal                = string_literal
                        | integer_literal
-                       | boolean_literal ;
+                       | decimal_literal
+                       | boolean_literal
+                       | "null"
+                       | http_method ;
 
 type_reference         = scalar_type
                        | named_type
@@ -1770,7 +1866,8 @@ type_reference         = scalar_type
 
 scalar_type            = "Int"
                        | "String"
-                       | "Bool" ;
+                       | "Bool"
+                       | "Json" ;
 
 list_type              = "List", "<",
                          type_reference, ">" ;
@@ -1832,6 +1929,7 @@ Initial token kinds may include:
 ```text
 Identifier
 IntegerLiteral
+DecimalLiteral
 StringLiteral
 BooleanLiteral
 
@@ -1843,17 +1941,29 @@ KeywordConfig
 KeywordPrint
 KeywordList
 KeywordCrossaRequest
+KeywordJson
+KeywordNull
 
 AnnotationSync
 AnnotationAsync
 AnnotationAsyncAfter
 
 MethodGet
+MethodPost
+MethodPut
+MethodPatch
+MethodDelete
+MethodHead
+MethodOptions
+MethodTrace
+MethodConnect
 
 LeftParen
 RightParen
 LeftBrace
 RightBrace
+LeftBracket
+RightBracket
 LeftAngle
 RightAngle
 Colon

@@ -9,6 +9,7 @@ namespace crossa::compiler::lexer {
 enum class TokenType {
     Identifier,
     IntegerLiteral,
+    DecimalLiteral,
     StringLiteral,
     BooleanLiteral,
 
@@ -22,6 +23,8 @@ enum class TokenType {
     KeywordString,
     KeywordBool,
     KeywordList,
+    KeywordJson,
+    KeywordNull,
     KeywordCrossaRequest,
 
     AnnotationSync,
@@ -29,11 +32,21 @@ enum class TokenType {
     AnnotationAsyncAfter,
 
     MethodGet,
+    MethodPost,
+    MethodPut,
+    MethodPatch,
+    MethodDelete,
+    MethodHead,
+    MethodOptions,
+    MethodTrace,
+    MethodConnect,
 
     LeftParen,
     RightParen,
     LeftBrace,
     RightBrace,
+    LeftBracket,
+    RightBracket,
     LeftAngle,
     RightAngle,
     Colon,

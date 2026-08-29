@@ -11,6 +11,7 @@ enum class SemanticTypeKind {
     Int,
     String,
     Bool,
+    Json,
     Model,
     List
 };
@@ -42,6 +43,9 @@ public:
 
     // Creates the built-in Bool type.
     [[nodiscard]] static SemanticType createBool();
+
+    // Creates the built-in Json type.
+    [[nodiscard]] static SemanticType createJson();
 
     // Creates a resolved named model type.
     [[nodiscard]] static SemanticType createModel(std::string name);

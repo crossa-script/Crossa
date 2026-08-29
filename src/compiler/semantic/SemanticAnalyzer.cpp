@@ -441,7 +441,10 @@ namespace crossa::compiler::semantic {
                 entry.getValue(),
                 globalScope_
             );
-            if (value->getType() != *expectedType) {
+            const bool compatibleInterceptor =
+                entry.getName() == "interceptor" &&
+                value->getType().getKind() == types::SemanticTypeKind::Bool;
+            if (value->getType() != *expectedType && !compatibleInterceptor) {
                 fail(
                     entry.getValue().getLocation(),
                     "CRA5007",
@@ -449,6 +452,50 @@ namespace crossa::compiler::semantic {
                     expectedType->format() + "' but received '" +
                     value->getType().format() + "'."
                 );
+            }
+            if (entry.getName() == "commonHeaders") {
+                validateRequestMap(*value, "commonHeaders");
+            }
+            if (entry.getName() == "interceptor" &&
+                value->getType().getKind() ==
+                    types::SemanticTypeKind::Json &&
+                value->getKind() != TypedExpressionKind::JsonObject) {
+                fail(
+                    entry.getLocation(),
+                    "CRA5008",
+                    "Config interceptor expects Bool or a JSON object."
+                );
+            }
+            if (entry.getName() == "interceptor" &&
+                value->getKind() == TypedExpressionKind::JsonObject) {
+                const auto& interceptor = static_cast<
+                    const TypedJsonObjectExpression&
+                >(*value);
+                const unordered_set<string> supportedOptions{
+                    "enabled",
+                    "logRequests",
+                    "logResponses"
+                };
+                for (const TypedJsonObjectEntry& option :
+                     interceptor.getEntries()) {
+                    if (!supportedOptions.contains(option.getKey())) {
+                        fail(
+                            option.getLocation(),
+                            "CRA5009",
+                            "Unknown interceptor option '" +
+                            option.getKey() + "'."
+                        );
+                    }
+                    if (option.getValue().getType().getKind() !=
+                        types::SemanticTypeKind::Bool) {
+                        fail(
+                            option.getLocation(),
+                            "CRA5010",
+                            "Interceptor option '" + option.getKey() +
+                            "' expects Bool."
+                        );
+                    }
+                }
             }
 
             entries.emplace_back(
@@ -504,10 +551,20 @@ namespace crossa::compiler::semantic {
                     );
                 }
 
-                unique_ptr<TypedExpression> expression = analyzeExpression(
-                    returnStatement.getExpression(),
-                    scope
-                );
+                unique_ptr<TypedExpression> expression =
+                    returnStatement.getExpression().getKind() ==
+                            ast::ExpressionKind::CrossaRequest
+                        ? analyzeCrossaRequestExpression(
+                              static_cast<
+                                  const ast::CrossaRequestExpression&
+                              >(returnStatement.getExpression()),
+                              scope,
+                              returnType
+                          )
+                        : analyzeExpression(
+                              returnStatement.getExpression(),
+                              scope
+                          );
                 if (expression->getType() != returnType) {
                     fail(
                         returnStatement.getExpression().getLocation(),
@@ -526,6 +583,19 @@ namespace crossa::compiler::semantic {
             case ast::StatementKind::Expression: {
                 const auto& expressionStatement =
                     static_cast<const ast::ExpressionStatement&>(statement);
+                if (expressionStatement.getExpression().getKind() ==
+                    ast::ExpressionKind::CrossaRequest) {
+                    return make_unique<TypedExpressionStatement>(
+                        analyzeCrossaRequestExpression(
+                            static_cast<
+                                const ast::CrossaRequestExpression&
+                            >(expressionStatement.getExpression()),
+                            scope,
+                            types::SemanticType::createUnit()
+                        ),
+                        statement.getLocation()
+                    );
+                }
                 return make_unique<TypedExpressionStatement>(
                     analyzeExpression(expressionStatement.getExpression(), scope),
                     statement.getLocation()
@@ -631,6 +701,40 @@ namespace crossa::compiler::semantic {
                 return analyzeBinaryExpression(
                     static_cast<const ast::BinaryExpression&>(expression),
                     scope
+                );
+            case ast::ExpressionKind::JsonNumber: {
+                const auto& number =
+                    static_cast<const ast::JsonNumberExpression&>(expression);
+                return make_unique<TypedJsonNumberExpression>(
+                    number.getValue(),
+                    number.getLocation()
+                );
+            }
+            case ast::ExpressionKind::JsonNull:
+                return make_unique<TypedJsonNullExpression>(
+                    expression.getLocation()
+                );
+            case ast::ExpressionKind::JsonObject:
+                return analyzeJsonObjectExpression(
+                    static_cast<const ast::JsonObjectExpression&>(expression),
+                    scope
+                );
+            case ast::ExpressionKind::JsonArray:
+                return analyzeJsonArrayExpression(
+                    static_cast<const ast::JsonArrayExpression&>(expression),
+                    scope
+                );
+            case ast::ExpressionKind::HttpMethod:
+                fail(
+                    expression.getLocation(),
+                    "CRA7004",
+                    "An HTTP method literal is valid only in CrossaRequest."
+                );
+            case ast::ExpressionKind::CrossaRequest:
+                fail(
+                    expression.getLocation(),
+                    "CRA7001",
+                    "CrossaRequest must be a direct function return or statement."
                 );
         }
 
@@ -874,6 +978,430 @@ namespace crossa::compiler::semantic {
         );
     }
 
+    // Validates one JSON object and recursively types every field value.
+    unique_ptr<TypedExpression>
+    SemanticAnalyzer::analyzeJsonObjectExpression(
+        const ast::JsonObjectExpression& expression,
+        const SemanticScope& scope
+    ) {
+        vector<TypedJsonObjectEntry> entries;
+        entries.reserve(expression.getEntries().size());
+        unordered_set<string> keys;
+        for (const ast::JsonObjectEntry& entry : expression.getEntries()) {
+            if (!keys.insert(entry.getKey()).second) {
+                fail(
+                    entry.getLocation(),
+                    "CRA7010",
+                    "Duplicate JSON object key '" + entry.getKey() + "'."
+                );
+            }
+            unique_ptr<TypedExpression> value = analyzeExpression(
+                entry.getValue(),
+                scope
+            );
+            if (value->getType().getKind() ==
+                    types::SemanticTypeKind::Unit ||
+                value->getType().getKind() ==
+                    types::SemanticTypeKind::Model ||
+                value->getType().getKind() ==
+                    types::SemanticTypeKind::List) {
+                fail(
+                    entry.getLocation(),
+                    "CRA7011",
+                    "JSON field '" + entry.getKey() +
+                    "' requires a JSON-compatible scalar or Json value."
+                );
+            }
+            entries.emplace_back(
+                entry.getKey(),
+                std::move(value),
+                entry.getLocation()
+            );
+        }
+        return make_unique<TypedJsonObjectExpression>(
+            std::move(entries),
+            expression.getLocation()
+        );
+    }
+
+    // Validates one JSON array and recursively types every item.
+    unique_ptr<TypedExpression>
+    SemanticAnalyzer::analyzeJsonArrayExpression(
+        const ast::JsonArrayExpression& expression,
+        const SemanticScope& scope
+    ) {
+        vector<unique_ptr<TypedExpression>> values;
+        values.reserve(expression.getValues().size());
+        for (const unique_ptr<ast::Expression>& item : expression.getValues()) {
+            unique_ptr<TypedExpression> value = analyzeExpression(*item, scope);
+            if (value->getType().getKind() ==
+                    types::SemanticTypeKind::Unit ||
+                value->getType().getKind() ==
+                    types::SemanticTypeKind::Model ||
+                value->getType().getKind() ==
+                    types::SemanticTypeKind::List) {
+                fail(
+                    item->getLocation(),
+                    "CRA7012",
+                    "JSON arrays require JSON-compatible scalar or Json values."
+                );
+            }
+            values.push_back(std::move(value));
+        }
+        return make_unique<TypedJsonArrayExpression>(
+            std::move(values),
+            expression.getLocation()
+        );
+    }
+
+    // Validates a direct request expression against its function result type.
+    unique_ptr<TypedExpression>
+    SemanticAnalyzer::analyzeCrossaRequestExpression(
+        const ast::CrossaRequestExpression& expression,
+        const SemanticScope& scope,
+        const types::SemanticType& responseType
+    ) {
+        const unordered_set<string> supportedFields{
+            "url",
+            "path",
+            "method",
+            "headers",
+            "customHeaders",
+            "queryParams",
+            "pathVariables",
+            "body",
+            "timeout"
+        };
+        unordered_set<string> names;
+        for (const ast::CrossaRequestEntry& entry : expression.getEntries()) {
+            if (!supportedFields.contains(entry.getName())) {
+                fail(
+                    entry.getLocation(),
+                    "CRA7002",
+                    "Unknown CrossaRequest field '" + entry.getName() + "'."
+                );
+            }
+            if (!names.insert(entry.getName()).second) {
+                fail(
+                    entry.getLocation(),
+                    "CRA7003",
+                    "Duplicate CrossaRequest field '" + entry.getName() + "'."
+                );
+            }
+        }
+
+        const ast::CrossaRequestEntry* urlEntry =
+            findRequestEntry(expression, "url");
+        const ast::CrossaRequestEntry* pathEntry =
+            findRequestEntry(expression, "path");
+        if (urlEntry != nullptr && pathEntry != nullptr) {
+            fail(
+                pathEntry->getLocation(),
+                "CRA7005",
+                "CrossaRequest accepts either 'url' or 'path', not both."
+            );
+        }
+        if (urlEntry == nullptr) {
+            urlEntry = pathEntry;
+        }
+        if (urlEntry == nullptr) {
+            fail(
+                expression.getLocation(),
+                "CRA7005",
+                "CrossaRequest requires a 'url' field."
+            );
+        }
+
+        const ast::CrossaRequestEntry* methodEntry =
+            findRequestEntry(expression, "method");
+        if (methodEntry == nullptr || methodEntry->getValue().getKind() !=
+            ast::ExpressionKind::HttpMethod) {
+            fail(
+                methodEntry == nullptr
+                    ? expression.getLocation()
+                    : methodEntry->getLocation(),
+                "CRA7004",
+                "CrossaRequest requires a supported HTTP method literal."
+            );
+        }
+        const auto& methodExpression =
+            static_cast<const ast::HttpMethodLiteralExpression&>(
+                methodEntry->getValue()
+            );
+
+        const ast::CrossaRequestEntry* pathVariablesEntry =
+            findRequestEntry(expression, "pathVariables");
+        const ast::JsonObjectExpression* pathVariables = nullptr;
+        if (pathVariablesEntry != nullptr) {
+            if (pathVariablesEntry->getValue().getKind() !=
+                ast::ExpressionKind::JsonObject) {
+                fail(
+                    pathVariablesEntry->getLocation(),
+                    "CRA7006",
+                    "CrossaRequest pathVariables expects a JSON object."
+                );
+            }
+            pathVariables = &static_cast<const ast::JsonObjectExpression&>(
+                pathVariablesEntry->getValue()
+            );
+            unique_ptr<TypedExpression> validatedPathVariables =
+                analyzeExpression(pathVariablesEntry->getValue(), scope);
+            validateRequestMap(*validatedPathVariables, "pathVariables");
+        }
+
+        unique_ptr<TypedExpression> url = analyzeRequestUrl(
+            urlEntry->getValue(),
+            pathVariables,
+            scope
+        );
+
+        unique_ptr<TypedExpression> headers;
+        unique_ptr<TypedExpression> customHeaders;
+        unique_ptr<TypedExpression> queryParams;
+        unique_ptr<TypedExpression> body;
+        unique_ptr<TypedExpression> timeout;
+        const ast::CrossaRequestEntry* headersEntry =
+            findRequestEntry(expression, "headers");
+        if (headersEntry != nullptr) {
+            headers = analyzeExpression(headersEntry->getValue(), scope);
+            validateRequestMap(*headers, "headers");
+        }
+        const ast::CrossaRequestEntry* customHeadersEntry =
+            findRequestEntry(expression, "customHeaders");
+        if (customHeadersEntry != nullptr) {
+            customHeaders = analyzeExpression(
+                customHeadersEntry->getValue(),
+                scope
+            );
+            validateRequestMap(*customHeaders, "customHeaders");
+        }
+        const ast::CrossaRequestEntry* queryEntry =
+            findRequestEntry(expression, "queryParams");
+        if (queryEntry != nullptr) {
+            queryParams = analyzeExpression(queryEntry->getValue(), scope);
+            validateRequestMap(*queryParams, "queryParams");
+        }
+        const ast::CrossaRequestEntry* bodyEntry =
+            findRequestEntry(expression, "body");
+        if (bodyEntry != nullptr) {
+            body = analyzeExpression(bodyEntry->getValue(), scope);
+            if (body->getType().getKind() ==
+                    types::SemanticTypeKind::Unit ||
+                body->getType().getKind() ==
+                    types::SemanticTypeKind::Model ||
+                body->getType().getKind() ==
+                    types::SemanticTypeKind::List) {
+                fail(
+                    bodyEntry->getLocation(),
+                    "CRA7007",
+                    "CrossaRequest body requires a JSON-compatible value."
+                );
+            }
+        }
+        const ast::CrossaRequestEntry* timeoutEntry =
+            findRequestEntry(expression, "timeout");
+        if (timeoutEntry != nullptr) {
+            timeout = analyzeExpression(timeoutEntry->getValue(), scope);
+            if (timeout->getType().getKind() !=
+                types::SemanticTypeKind::Int) {
+                fail(
+                    timeoutEntry->getLocation(),
+                    "CRA7008",
+                    "CrossaRequest timeout expects Int milliseconds."
+                );
+            }
+        }
+
+        return make_unique<TypedCrossaRequestExpression>(
+            resolveHttpMethod(methodExpression.getMethod()),
+            std::move(url),
+            std::move(headers),
+            std::move(customHeaders),
+            std::move(queryParams),
+            std::move(body),
+            std::move(timeout),
+            responseType,
+            expression.getLocation()
+        );
+    }
+
+    // Resolves URL interpolation including explicit path-variable aliases.
+    unique_ptr<TypedExpression> SemanticAnalyzer::analyzeRequestUrl(
+        const ast::Expression& expression,
+        const ast::JsonObjectExpression* pathVariables,
+        const SemanticScope& scope
+    ) {
+        if (expression.getKind() != ast::ExpressionKind::StringLiteral) {
+            fail(
+                expression.getLocation(),
+                "CRA7005",
+                "CrossaRequest url expects a String literal."
+            );
+        }
+        const auto& stringExpression =
+            static_cast<const ast::StringLiteralExpression&>(expression);
+        vector<TypedStringSegment> segments;
+        segments.reserve(stringExpression.getSegments().size());
+        unordered_set<string> usedAliases;
+
+        for (const ast::StringSegment& segment :
+             stringExpression.getSegments()) {
+            if (segment.getKind() == ast::StringSegmentKind::Literal) {
+                segments.emplace_back(
+                    TypedStringSegmentKind::Literal,
+                    segment.getValue(),
+                    types::SemanticType::createString(),
+                    nullopt,
+                    segment.getLocation()
+                );
+                continue;
+            }
+
+            string symbolName = segment.getValue();
+            const ValueSymbol* symbol = scope.resolve(symbolName);
+            if (symbol == nullptr && pathVariables != nullptr) {
+                for (const ast::JsonObjectEntry& entry :
+                     pathVariables->getEntries()) {
+                    if (entry.getKey() != segment.getValue()) {
+                        continue;
+                    }
+                    usedAliases.insert(entry.getKey());
+                    if (entry.getValue().getKind() !=
+                        ast::ExpressionKind::Identifier) {
+                        fail(
+                            entry.getLocation(),
+                            "CRA7009",
+                            "Path variable aliases must reference an identifier."
+                        );
+                    }
+                    symbolName = static_cast<
+                        const ast::IdentifierExpression&
+                    >(entry.getValue()).getName();
+                    symbol = scope.resolve(symbolName);
+                    break;
+                }
+            }
+            if (symbol == nullptr) {
+                fail(
+                    segment.getLocation(),
+                    "CRA2006",
+                    "Unknown request path variable '" +
+                    segment.getValue() + "'."
+                );
+            }
+            const types::SemanticTypeKind kind = symbol->getType().getKind();
+            if (kind != types::SemanticTypeKind::Int &&
+                kind != types::SemanticTypeKind::String &&
+                kind != types::SemanticTypeKind::Bool) {
+                fail(
+                    segment.getLocation(),
+                    "CRA7009",
+                    "Request path variables require Int, String, or Bool."
+                );
+            }
+            segments.emplace_back(
+                TypedStringSegmentKind::Symbol,
+                symbolName,
+                symbol->getType(),
+                symbol->getKind(),
+                segment.getLocation()
+            );
+        }
+
+        if (pathVariables != nullptr) {
+            for (const ast::JsonObjectEntry& entry :
+                 pathVariables->getEntries()) {
+                if (!usedAliases.contains(entry.getKey()) &&
+                    scope.resolve(entry.getKey()) == nullptr) {
+                    fail(
+                        entry.getLocation(),
+                        "CRA7009",
+                        "Unused path variable alias '" + entry.getKey() + "'."
+                    );
+                }
+            }
+        }
+        return make_unique<TypedStringLiteralExpression>(
+            std::move(segments),
+            expression.getLocation()
+        );
+    }
+
+    // Ensures a request map is a JSON object containing scalar values.
+    void SemanticAnalyzer::validateRequestMap(
+        const TypedExpression& expression,
+        const string& fieldName
+    ) const {
+        if (expression.getKind() != TypedExpressionKind::JsonObject) {
+            fail(
+                expression.getLocation(),
+                "CRA7006",
+                "CrossaRequest " + fieldName + " expects a JSON object."
+            );
+        }
+        const auto& object =
+            static_cast<const TypedJsonObjectExpression&>(expression);
+        for (const TypedJsonObjectEntry& entry : object.getEntries()) {
+            const TypedExpressionKind kind = entry.getValue().getKind();
+            const types::SemanticTypeKind typeKind =
+                entry.getValue().getType().getKind();
+            if (kind == TypedExpressionKind::JsonObject ||
+                kind == TypedExpressionKind::JsonArray ||
+                kind == TypedExpressionKind::JsonNull ||
+                kind == TypedExpressionKind::CrossaRequest ||
+                typeKind == types::SemanticTypeKind::Unit ||
+                typeKind == types::SemanticTypeKind::Model ||
+                typeKind == types::SemanticTypeKind::List) {
+                fail(
+                    entry.getLocation(),
+                    "CRA7006",
+                    "CrossaRequest " + fieldName +
+                    " values must be scalar."
+                );
+            }
+        }
+    }
+
+    // Returns one named request entry or null when it is absent.
+    const ast::CrossaRequestEntry* SemanticAnalyzer::findRequestEntry(
+        const ast::CrossaRequestExpression& expression,
+        const string& name
+    ) noexcept {
+        for (const ast::CrossaRequestEntry& entry : expression.getEntries()) {
+            if (entry.getName() == name) {
+                return &entry;
+            }
+        }
+        return nullptr;
+    }
+
+    // Converts an AST HTTP method into its semantic request method.
+    SemanticHttpMethod SemanticAnalyzer::resolveHttpMethod(
+        ast::HttpMethod method
+    ) noexcept {
+        switch (method) {
+            case ast::HttpMethod::Get:
+                return SemanticHttpMethod::Get;
+            case ast::HttpMethod::Post:
+                return SemanticHttpMethod::Post;
+            case ast::HttpMethod::Put:
+                return SemanticHttpMethod::Put;
+            case ast::HttpMethod::Patch:
+                return SemanticHttpMethod::Patch;
+            case ast::HttpMethod::Delete:
+                return SemanticHttpMethod::Delete;
+            case ast::HttpMethod::Head:
+                return SemanticHttpMethod::Head;
+            case ast::HttpMethod::Options:
+                return SemanticHttpMethod::Options;
+            case ast::HttpMethod::Trace:
+                return SemanticHttpMethod::Trace;
+            case ast::HttpMethod::Connect:
+                return SemanticHttpMethod::Connect;
+        }
+        return SemanticHttpMethod::Get;
+    }
+
     // Resolves a syntax type reference into a complete semantic type.
     types::SemanticType SemanticAnalyzer::resolveType(
         const ast::TypeReference& typeReference
@@ -900,6 +1428,9 @@ namespace crossa::compiler::semantic {
         }
         if (name == "Bool") {
             return types::SemanticType::createBool();
+        }
+        if (name == "Json") {
+            return types::SemanticType::createJson();
         }
         if (modelNames_.contains(name)) {
             return types::SemanticType::createModel(name);
@@ -963,6 +1494,18 @@ namespace crossa::compiler::semantic {
             return types::SemanticType::createInt();
         }
         if (name == "interceptor") {
+            return types::SemanticType::createJson();
+        }
+        if (name == "commonHeaders") {
+            return types::SemanticType::createJson();
+        }
+        if (name == "workerThreads" ||
+            name == "maxQueuedTasks" ||
+            name == "maxResponseBytes" ||
+            name == "maxJsonDepth") {
+            return types::SemanticType::createInt();
+        }
+        if (name == "followRedirects") {
             return types::SemanticType::createBool();
         }
 

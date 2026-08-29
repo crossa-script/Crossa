@@ -3,6 +3,8 @@
 #include <iterator>
 #include <utility>
 
+#include "crossa/compiler/ir/IrJsonExpression.h"
+
 using namespace std;
 
 namespace crossa::compiler::ir {
@@ -145,7 +147,8 @@ namespace crossa::compiler::ir {
                     }
                     first = false;
                     result += segment.getKind() == IrStringSegmentKind::Literal
-                        ? "Literal(\"" + segment.getValue() + "\")"
+                        ? "Literal(\"" + escapeString(segment.getValue()) +
+                            "\")"
                         : "Read(" + segment.getValue() + ")";
                 }
                 return result + ")";
@@ -176,6 +179,40 @@ namespace crossa::compiler::ir {
                 return formatArithmeticOperator(binary.getOperator()) + "(" +
                        formatExpression(binary.getLeft()) + ", " +
                        formatExpression(binary.getRight()) + ")";
+            }
+            case IrExpressionKind::JsonNumber:
+                return "JsonNumber(" + static_cast<
+                    const IrJsonNumberExpression&
+                >(expression).getValue() + ")";
+            case IrExpressionKind::JsonNull:
+                return "JsonNull";
+            case IrExpressionKind::JsonObject: {
+                const auto& object =
+                    static_cast<const IrJsonObjectExpression&>(expression);
+                return "JsonObject(fields=" +
+                    to_string(object.getEntries().size()) + ")";
+            }
+            case IrExpressionKind::JsonArray: {
+                const auto& array =
+                    static_cast<const IrJsonArrayExpression&>(expression);
+                return "JsonArray(values=" +
+                    to_string(array.getValues().size()) + ")";
+            }
+            case IrExpressionKind::CrossaRequest: {
+                const auto& request = static_cast<
+                    const IrCrossaRequestExpression&
+                >(expression);
+                return "CrossaRequest(method=" +
+                    formatHttpMethod(request.getMethod()) +
+                    ", url=" + formatExpression(request.getUrl()) +
+                    ", headers=" +
+                    (request.getHeaders() == nullptr ? "no" : "yes") +
+                    ", customHeaders=" +
+                    (request.getCustomHeaders() == nullptr ? "no" : "yes") +
+                    ", query=" +
+                    (request.getQueryParams() == nullptr ? "no" : "yes") +
+                    ", body=" +
+                    (request.getBody() == nullptr ? "no" : "yes") + ")";
             }
         }
 
@@ -210,6 +247,59 @@ namespace crossa::compiler::ir {
                 return "Negate";
         }
         return "Unknown";
+    }
+
+    // Formats one IR HTTP method.
+    string IrPrinter::formatHttpMethod(IrHttpMethod method) {
+        switch (method) {
+            case IrHttpMethod::Get:
+                return "GET";
+            case IrHttpMethod::Post:
+                return "POST";
+            case IrHttpMethod::Put:
+                return "PUT";
+            case IrHttpMethod::Patch:
+                return "PATCH";
+            case IrHttpMethod::Delete:
+                return "DELETE";
+            case IrHttpMethod::Head:
+                return "HEAD";
+            case IrHttpMethod::Options:
+                return "OPTIONS";
+            case IrHttpMethod::Trace:
+                return "TRACE";
+            case IrHttpMethod::Connect:
+                return "CONNECT";
+        }
+        return "UNKNOWN";
+    }
+
+    // Escapes one string value for unambiguous single-line debug output.
+    string IrPrinter::escapeString(const string& value) {
+        string output;
+        for (const char character : value) {
+            switch (character) {
+                case '"':
+                    output += "\\\"";
+                    break;
+                case '\\':
+                    output += "\\\\";
+                    break;
+                case '\n':
+                    output += "\\n";
+                    break;
+                case '\r':
+                    output += "\\r";
+                    break;
+                case '\t':
+                    output += "\\t";
+                    break;
+                default:
+                    output.push_back(character);
+                    break;
+            }
+        }
+        return output;
     }
 
 }

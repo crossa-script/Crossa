@@ -67,6 +67,12 @@ namespace crossa::compiler::lexer {
             case '}':
                 addToken(TokenType::RightBrace);
                 return;
+            case '[':
+                addToken(TokenType::LeftBracket);
+                return;
+            case ']':
+                addToken(TokenType::RightBracket);
+                return;
             case '<':
                 addToken(TokenType::LeftAngle);
                 return;
@@ -117,7 +123,7 @@ namespace crossa::compiler::lexer {
         }
 
         if (isDigit(value)) {
-            scanInteger();
+            scanNumber();
             return;
         }
 
@@ -140,22 +146,52 @@ namespace crossa::compiler::lexer {
         addToken(resolveIdentifierType(lexeme));
     }
 
-    // Scans one base-10 integer literal.
-    void Lexer::scanInteger() {
+    // Scans one integer or JSON decimal/exponent number literal.
+    void Lexer::scanNumber() {
         while (isDigit(peek())) {
             advance();
         }
 
-        addToken(TokenType::IntegerLiteral);
+        bool decimal = false;
+        if (peek() == '.' && isDigit(peekNext())) {
+            decimal = true;
+            advance();
+            while (isDigit(peek())) {
+                advance();
+            }
+        }
+        if (peek() == 'e' || peek() == 'E') {
+            decimal = true;
+            advance();
+            if (peek() == '+' || peek() == '-') {
+                advance();
+            }
+            if (!isDigit(peek())) {
+                fail("Expected digits after the JSON number exponent.");
+            }
+            while (isDigit(peek())) {
+                advance();
+            }
+        }
+
+        addToken(decimal ? TokenType::DecimalLiteral : TokenType::IntegerLiteral);
     }
 
     // Scans one double-quoted string literal.
     void Lexer::scanString() {
-        while (!isAtEnd() && peek() != '"') {
+        bool escaped = false;
+        while (!isAtEnd()) {
+            if (!escaped && peek() == '"') {
+                break;
+            }
             if (peek() == '\n' || peek() == '\r') {
                 fail("Unterminated string literal.");
             }
-
+            if (escaped) {
+                escaped = false;
+            } else if (peek() == '\\') {
+                escaped = true;
+            }
             advance();
         }
 
@@ -257,6 +293,15 @@ namespace crossa::compiler::lexer {
         return sourceFile_.getContent()[currentOffset_];
     }
 
+    // Returns the byte after the current byte without consuming it.
+    char Lexer::peekNext() const noexcept {
+        const size_t nextOffset = currentOffset_ + 1;
+        if (nextOffset >= sourceFile_.getContent().size()) {
+            return '\0';
+        }
+        return sourceFile_.getContent()[nextOffset];
+    }
+
     // Resolves an identifier lexeme to its keyword or literal token type.
     TokenType Lexer::resolveIdentifierType(string_view lexeme) noexcept {
         if (lexeme == "fun") {
@@ -289,11 +334,41 @@ namespace crossa::compiler::lexer {
         if (lexeme == "List") {
             return TokenType::KeywordList;
         }
+        if (lexeme == "Json") {
+            return TokenType::KeywordJson;
+        }
+        if (lexeme == "null") {
+            return TokenType::KeywordNull;
+        }
         if (lexeme == "CrossaRequest") {
             return TokenType::KeywordCrossaRequest;
         }
         if (lexeme == "GET") {
             return TokenType::MethodGet;
+        }
+        if (lexeme == "POST") {
+            return TokenType::MethodPost;
+        }
+        if (lexeme == "PUT") {
+            return TokenType::MethodPut;
+        }
+        if (lexeme == "PATCH") {
+            return TokenType::MethodPatch;
+        }
+        if (lexeme == "DELETE") {
+            return TokenType::MethodDelete;
+        }
+        if (lexeme == "HEAD") {
+            return TokenType::MethodHead;
+        }
+        if (lexeme == "OPTIONS") {
+            return TokenType::MethodOptions;
+        }
+        if (lexeme == "TRACE") {
+            return TokenType::MethodTrace;
+        }
+        if (lexeme == "CONNECT") {
+            return TokenType::MethodConnect;
         }
         if (lexeme == "true" || lexeme == "false") {
             return TokenType::BooleanLiteral;

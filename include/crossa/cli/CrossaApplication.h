@@ -38,6 +38,18 @@ private:
     // Loads, compiles, and executes one Crossa source file.
     static void executeSource(const Arguments& arguments, const utils::Log& log);
 
+    // Compiles an optional sibling config.cra into declarative IR.
+    [[nodiscard]] static std::optional<compiler::ir::Program>
+    compileSiblingConfiguration(
+        const std::filesystem::path& sourcePath,
+        const utils::Log& log
+    );
+
+    // Ensures a sibling configuration file contains only config declarations.
+    static void validateConfigurationProgram(
+        const compiler::ir::Program& program
+    );
+
     // Tokenizes one source file and reports the lexer lifecycle.
     [[nodiscard]] static std::vector<compiler::lexer::Token> tokenizeSource(
         const compiler::source::SourceFile& sourceFile,

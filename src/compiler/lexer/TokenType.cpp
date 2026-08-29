@@ -11,6 +11,8 @@ namespace crossa::compiler::lexer {
                 return "Identifier";
             case TokenType::IntegerLiteral:
                 return "IntegerLiteral";
+            case TokenType::DecimalLiteral:
+                return "DecimalLiteral";
             case TokenType::StringLiteral:
                 return "StringLiteral";
             case TokenType::BooleanLiteral:
@@ -35,6 +37,10 @@ namespace crossa::compiler::lexer {
                 return "KeywordBool";
             case TokenType::KeywordList:
                 return "KeywordList";
+            case TokenType::KeywordJson:
+                return "KeywordJson";
+            case TokenType::KeywordNull:
+                return "KeywordNull";
             case TokenType::KeywordCrossaRequest:
                 return "KeywordCrossaRequest";
             case TokenType::AnnotationSync:
@@ -45,6 +51,22 @@ namespace crossa::compiler::lexer {
                 return "AnnotationAsyncAfter";
             case TokenType::MethodGet:
                 return "MethodGet";
+            case TokenType::MethodPost:
+                return "MethodPost";
+            case TokenType::MethodPut:
+                return "MethodPut";
+            case TokenType::MethodPatch:
+                return "MethodPatch";
+            case TokenType::MethodDelete:
+                return "MethodDelete";
+            case TokenType::MethodHead:
+                return "MethodHead";
+            case TokenType::MethodOptions:
+                return "MethodOptions";
+            case TokenType::MethodTrace:
+                return "MethodTrace";
+            case TokenType::MethodConnect:
+                return "MethodConnect";
             case TokenType::LeftParen:
                 return "LeftParen";
             case TokenType::RightParen:
@@ -53,6 +75,10 @@ namespace crossa::compiler::lexer {
                 return "LeftBrace";
             case TokenType::RightBrace:
                 return "RightBrace";
+            case TokenType::LeftBracket:
+                return "LeftBracket";
+            case TokenType::RightBracket:
+                return "RightBracket";
             case TokenType::LeftAngle:
                 return "LeftAngle";
             case TokenType::RightAngle:

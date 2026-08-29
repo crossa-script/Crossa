@@ -18,7 +18,12 @@ enum class TypedExpressionKind {
     BooleanLiteral,
     Call,
     Unary,
-    Binary
+    Binary,
+    JsonNumber,
+    JsonNull,
+    JsonObject,
+    JsonArray,
+    CrossaRequest
 };
 
 // Identifies where a resolved value symbol is owned.

@@ -18,7 +18,12 @@ enum class IrExpressionKind {
     BooleanConstant,
     Call,
     Unary,
-    Binary
+    Binary,
+    JsonNumber,
+    JsonNull,
+    JsonObject,
+    JsonArray,
+    CrossaRequest
 };
 
 // Identifies the arithmetic operations represented by Crossa IR.

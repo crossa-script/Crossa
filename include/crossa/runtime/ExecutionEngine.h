@@ -12,6 +12,7 @@ public:
     // Executes one IR program and reports its runtime progress.
     static void execute(
         const compiler::ir::Program& program,
+        const compiler::ir::Program* configurationProgram,
         const utils::Log& log
     );
 };

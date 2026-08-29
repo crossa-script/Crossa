@@ -11,6 +11,11 @@ if command -v cmake >/dev/null 2>&1; then
 elif command -v c++ >/dev/null 2>&1; then
     mkdir -p build
     sourceFiles=()
+    curlFlags=(-lcurl)
+
+    if command -v curl-config >/dev/null 2>&1; then
+        read -r -a curlFlags <<< "$(curl-config --libs)"
+    fi
 
     while IFS= read -r sourceFile; do
         sourceFiles+=("$sourceFile")
@@ -21,8 +26,10 @@ elif command -v c++ >/dev/null 2>&1; then
         -Wall \
         -Wextra \
         -Wpedantic \
+        -pthread \
         -Iinclude \
         "${sourceFiles[@]}" \
+        "${curlFlags[@]}" \
         -o build/crossa
 else
     printf '%s\n' 'Build failed: cmake or c++ is required.' >&2

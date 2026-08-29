@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.22)
 
 project(Crossa LANGUAGES CXX)
 
+find_package(CURL REQUIRED)
+find_package(Threads REQUIRED)
+
 add_executable(
     crossa
     include/crossa/utils/Log.h
@@ -73,6 +76,54 @@ add_executable(
     src/runtime/ExecutionEngine.cpp
     src/utils/Log.cpp
     src/utils/PrintUtils.cpp
+    include/crossa/compiler/ast/CrossaRequestExpression.h
+    include/crossa/compiler/ast/JsonExpression.h
+    include/crossa/compiler/ir/IrCrossaRequestExpression.h
+    include/crossa/compiler/ir/IrJsonExpression.h
+    include/crossa/compiler/semantic/TypedCrossaRequestExpression.h
+    include/crossa/compiler/semantic/TypedJsonExpression.h
+    include/crossa/network/HttpHeader.h
+    include/crossa/network/HttpMethod.h
+    include/crossa/network/NetworkConfiguration.h
+    include/crossa/network/NetworkEngine.h
+    include/crossa/network/NetworkInterceptor.h
+    include/crossa/network/json/JsonParser.h
+    include/crossa/network/json/JsonSerializer.h
+    include/crossa/network/json/JsonValue.h
+    include/crossa/network/request/PreparedRequest.h
+    include/crossa/network/request/RequestBuilder.h
+    include/crossa/network/request/RequestSpec.h
+    include/crossa/network/response/HttpResponse.h
+    include/crossa/network/response/ResponseDecoder.h
+    include/crossa/network/transport/CurlTransport.h
+    include/crossa/network/utils/UrlUtils.h
+    include/crossa/runtime/RuntimeConfiguration.h
+    include/crossa/runtime/scheduler/SchedulerOptions.h
+    include/crossa/runtime/scheduler/TaskScheduler.h
+    src/compiler/ast/CrossaRequestExpression.cpp
+    src/compiler/ast/JsonExpression.cpp
+    src/compiler/ir/IrCrossaRequestExpression.cpp
+    src/compiler/ir/IrJsonExpression.cpp
+    src/compiler/semantic/TypedCrossaRequestExpression.cpp
+    src/compiler/semantic/TypedJsonExpression.cpp
+    src/network/HttpHeader.cpp
+    src/network/HttpMethod.cpp
+    src/network/NetworkConfiguration.cpp
+    src/network/NetworkEngine.cpp
+    src/network/NetworkInterceptor.cpp
+    src/network/json/JsonParser.cpp
+    src/network/json/JsonSerializer.cpp
+    src/network/json/JsonValue.cpp
+    src/network/request/PreparedRequest.cpp
+    src/network/request/RequestBuilder.cpp
+    src/network/request/RequestSpec.cpp
+    src/network/response/HttpResponse.cpp
+    src/network/response/ResponseDecoder.cpp
+    src/network/transport/CurlTransport.cpp
+    src/network/utils/UrlUtils.cpp
+    src/runtime/RuntimeConfiguration.cpp
+    src/runtime/scheduler/SchedulerOptions.cpp
+    src/runtime/scheduler/TaskScheduler.cpp
 )
 
 target_compile_features(crossa PRIVATE cxx_std_20)
@@ -81,4 +132,11 @@ target_include_directories(
     crossa
     PRIVATE
         include
+)
+
+target_link_libraries(
+    crossa
+    PRIVATE
+        CURL::libcurl
+        Threads::Threads
 )

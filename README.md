@@ -6,9 +6,9 @@ Crossa is not a general-purpose programming language or another platform network
 
 ## Project Status
 
-> **Foundation phase:** Crossa currently contains its architecture and language specifications, source loading, the CRA Language V0 lexer, a syntax-only AST/parser, semantic analysis, a typed semantic model, the first platform-neutral IR lowering pass, and a scalar native IR interpreter. The production runtime, AAR, and XCFramework pipelines are not yet implemented.
+> **Foundation phase:** Crossa currently contains its architecture and language specifications, the canonical C++ frontend, typed IR, native IR execution, a bounded shared scheduler, native HTTP transport, JSON request/response support, and schema-aware response validation. The AAR, XCFramework, generated bindings, cancellation, streaming, and release pipelines are not yet implemented.
 
-The frontend currently validates variables, models, config blocks, functions, execution policies, top-level calls, returns, arithmetic, lexical scopes, `List<T>`, and interpolated strings, then lowers them to platform-neutral IR. The native interpreter executes top-level calls in source order; declarations without calls are only compiled. `CrossaRequest` remains tokenized but intentionally fails parsing until its native request milestone.
+The frontend validates variables, models, config blocks, functions, execution policies, top-level calls, returns, arithmetic, lexical scopes, `List<T>`, `Json`, interpolated strings, and `CrossaRequest`, then lowers them to platform-neutral IR. The native interpreter executes only reachable calls; declarations without calls are compiled but remain inert.
 
 The first production runtime module will be Networking. Future modules may include WebSockets, raw and binary sockets, Database, Streaming, Cache, Compression, Cryptography, File Transport, and Telemetry.
 
@@ -54,8 +54,11 @@ model User(
 @AsyncAfter
 fun getUsers(id: Int): List<User> {
     re CrossaRequest {
-        path: "/v1/users/#id",
-        method: GET
+        url: "/v1/users/#id",
+        method: GET,
+        queryParams: {
+            include: "profile"
+        }
     }
 }
 ```
@@ -91,7 +94,7 @@ cmake --build build
 ./build/crossa test.cra
 ```
 
-The current executable accepts one `.cra` source file, validates its extension, tokenizes, parses, semantically validates, and lowers its content to platform-neutral IR before passing it to the native execution engine. It initializes global scalar declarations and executes top-level calls in source order. Normal execution only displays errors:
+The executable accepts one `.cra` source file and automatically compiles a sibling `config.cra` when present. It validates, lowers, and executes top-level calls in source order through the shared scheduler and native network runtime. Normal execution displays program output and errors, without compiler lifecycle logs:
 
 ```sh
 ./build/crossa test.cra
@@ -117,15 +120,20 @@ print(add(1, 2))
 ./build/crossa test.cra
 ```
 
+Use `config.cra` beside the executing source for shared networking and runtime
+settings. Absolute HTTP/HTTPS request URLs bypass `baseUrl`; relative URLs use
+it. See [Native Networking](docs/features/networking.md) for request fields,
+header precedence, response decoding, limits, and current exclusions.
+
 To configure, build, and run the debug test in one command:
 
 ```sh
 ./test.sh
 ```
 
-The script uses CMake when available and falls back to the installed C++ compiler.
+The script uses CMake when available and falls back to the installed C++ compiler. Native networking requires libcurl.
 
-Compiler implementation should follow the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, deterministic generators, then native Networking.
+Compiler implementation follows the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, native Networking, then deterministic platform generators.
 
 Architecture, ABI, IR, ownership, scheduler, transport, parser, memory-layout, module-boundary, and major dependency changes require an ADR under `docs/decisions/`.
 

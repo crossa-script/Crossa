@@ -367,7 +367,7 @@ Crossa resolves scalars, models, and `List<T>` consistently across all targets.
 
 # Phase 5 — Semantic Analysis
 
-> **Implementation status:** Implemented for the current pure-language parser surface, including resolved types, scopes, calls, returns, models, config, execution policies, and interpolation. `CrossaRequest` semantic validation remains deferred with its parser/runtime milestone.
+> **Implementation status:** Implemented for resolved types, scopes, calls, returns, models, config, execution policies, interpolation, JSON values, and `CrossaRequest` validation.
 
 ## Goal
 
@@ -413,7 +413,7 @@ Generators and runtime backends receive already validated typed input.
 
 # Phase 6 — Typed IR Foundation
 
-> **Implementation status:** The first platform-neutral lowering pass is implemented for the current pure-language semantic model. Runtime-backed `CrossaRequest` lowering remains deferred.
+> **Implementation status:** The platform-neutral lowering pass includes JSON construction, native request plans, execution policies, and typed response expectations.
 
 ## Goal
 
@@ -812,6 +812,8 @@ Failed(error)
 
 # Phase 13 — Networking Configuration
 
+> **Implementation status:** Implemented for base URL, timeout, common headers, interceptor controls, scheduler bounds, response/JSON limits, and redirect policy.
+
 ## Goal
 
 Implement `config.cra` for native networking configuration.
@@ -826,12 +828,18 @@ config {
 }
 ```
 
-## Initial Keys
+## Implemented Keys
 
 ```text
 baseUrl: String
 timeoutRequest: Int
-interceptor: Bool
+commonHeaders: Json
+interceptor: Bool or Json
+workerThreads: Int
+maxQueuedTasks: Int
+maxResponseBytes: Int
+maxJsonDepth: Int
+followRedirects: Bool
 ```
 
 `timeoutRequest` is measured in milliseconds.
@@ -845,6 +853,8 @@ The native Network module consumes validated config semantics.
 ---
 
 # Phase 14 — `CrossaRequest` Foundation
+
+> **Implementation status:** Implemented through native libcurl transport, pooled reusable handles, bounded buffering, and global interception.
 
 ## Goal
 
@@ -863,22 +873,31 @@ re CrossaRequest {
 
 It lowers directly to a native request operation in Crossa IR.
 
-## Initial Request Fields
+## Request Fields
 
 Required:
 
 ```text
-path
+url or path
 method
 ```
 
-Initial method required by the foundation:
+Supported methods:
 
 ```text
 GET
+POST
+PUT
+PATCH
+DELETE
+HEAD
+OPTIONS
+TRACE
+CONNECT
 ```
 
-Additional methods should be added through the networking/language specification when implemented.
+Headers, custom headers, query parameters, path-variable aliases, JSON bodies,
+and per-request timeouts are part of the implemented request plan.
 
 ## Return-Type Driven Decoding
 
@@ -919,6 +938,8 @@ A request can be represented in typed IR and executed by the native network runt
 ---
 
 # Phase 15 — Request String Interpolation
+
+> **Implementation status:** Implemented with compile-time interpolation plans, path-variable aliases, and runtime percent encoding.
 
 ## Goal
 
@@ -962,6 +983,8 @@ Path interpolation works through the same language semantics as ordinary strings
 ---
 
 # Phase 16 — Native Response Decoding
+
+> **Implementation status:** Foundation decoding is implemented for scalar, `Json`, model, and list results. Generated direct schema decoders remain a production optimization.
 
 ## Goal
 
@@ -1065,34 +1088,23 @@ The application calls generated Kotlin/Swift code while transport, parsing, stat
 
 # Phase 18 — Additional Request Capabilities
 
+> **Implementation status:** `url`, `path`, `headers`, `customHeaders`, `queryParams`, `pathVariables`, JSON `body`, and `timeout` are implemented. GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, TRACE, and CONNECT are recognized and lowered.
+
 ## Goal
 
 Expand `CrossaRequest` only as the native network module becomes ready.
 
-Potential future request properties:
+Still-planned request properties:
 
 ```text
-query
-headers
-body
-timeout
 auth
 multipart
 download
 retry
 ```
 
-Potential HTTP methods:
-
-```text
-POST
-PUT
-PATCH
-DELETE
-HEAD
-```
-
-These are planned directions, not implicitly supported syntax until documented and implemented.
+Streaming, cancellation handles, retry policy, authentication providers,
+multipart bodies, and downloads remain planned and are not implicit syntax.
 
 ---
 

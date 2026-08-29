@@ -1,0 +1,62 @@
+fun getRequest(): Json {
+    re CrossaRequest {
+        url: "https://api.example.com/resource",
+        method: GET
+    }
+}
+
+fun postRequest(): Json {
+    re CrossaRequest {
+        url: "https://api.example.com/resource",
+        method: POST
+    }
+}
+
+fun putRequest(): Json {
+    re CrossaRequest {
+        url: "https://api.example.com/resource",
+        method: PUT
+    }
+}
+
+fun patchRequest(): Json {
+    re CrossaRequest {
+        url: "https://api.example.com/resource",
+        method: PATCH
+    }
+}
+
+fun deleteRequest(): Json {
+    re CrossaRequest {
+        url: "https://api.example.com/resource",
+        method: DELETE
+    }
+}
+
+fun headRequest(): Json {
+    re CrossaRequest {
+        url: "https://api.example.com/resource",
+        method: HEAD
+    }
+}
+
+fun optionsRequest(): Json {
+    re CrossaRequest {
+        url: "https://api.example.com/resource",
+        method: OPTIONS
+    }
+}
+
+fun traceRequest(): Json {
+    re CrossaRequest {
+        url: "https://api.example.com/resource",
+        method: TRACE
+    }
+}
+
+fun connectRequest(): Json {
+    re CrossaRequest {
+        url: "https://api.example.com/resource",
+        method: CONNECT
+    }
+}

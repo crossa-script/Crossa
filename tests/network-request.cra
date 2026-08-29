@@ -1,0 +1,113 @@
+model User(
+    id: Int,
+    name: String,
+    active: Bool
+)
+
+@AsyncAfter
+fun getUser(id: Int): User {
+    re CrossaRequest {
+        url: "/users/#userId",
+        method: GET,
+        pathVariables: {
+            userId: id
+        },
+        headers: {
+            "X-Request": "get-user"
+        },
+        customHeaders: {
+            "X-Request": "custom-get-user"
+        },
+        queryParams: {
+            include: "profile",
+            enabled: true
+        },
+        timeout: 3000
+    }
+}
+
+@AsyncAfter
+fun createUser(id: Int, name: String): Json {
+    re CrossaRequest {
+        url: "http://127.0.0.1:18765/users",
+        method: POST,
+        body: {
+            id: id,
+            name: name,
+            active: true,
+            metadata: {
+                source: "crossa"
+            },
+            roles: ["developer", "tester"],
+            score: 4.5,
+            optional: null
+        }
+    }
+}
+
+fun declaredPutRequest(): Json {
+    re CrossaRequest {
+        url: "/users/8",
+        method: PUT,
+        body: {
+            active: false
+        }
+    }
+}
+
+fun declaredPatchRequest(): Json {
+    re CrossaRequest {
+        url: "/users/8",
+        method: PATCH
+    }
+}
+
+fun declaredDeleteRequest(): Json {
+    re CrossaRequest {
+        url: "/users/8",
+        method: DELETE
+    }
+}
+
+fun declaredHeadRequest(): Json {
+    re CrossaRequest {
+        url: "/users/8",
+        method: HEAD
+    }
+}
+
+fun declaredOptionsRequest(): Json {
+    re CrossaRequest {
+        url: "/users",
+        method: OPTIONS
+    }
+}
+
+fun declaredTraceRequest(): Json {
+    re CrossaRequest {
+        url: "/trace",
+        method: TRACE
+    }
+}
+
+fun declaredConnectRequest(): Json {
+    re CrossaRequest {
+        url: "http://127.0.0.1:18765/tunnel",
+        method: CONNECT
+    }
+}
+
+@Async
+fun sendBackgroundEvent() {
+    CrossaRequest {
+        url: "/events",
+        method: POST,
+        body: {
+            event: "network-ready"
+        }
+    }
+}
+
+print(getUser(7))
+print(createUser(8, "Ahmad \"Crossa\""))
+sendBackgroundEvent()

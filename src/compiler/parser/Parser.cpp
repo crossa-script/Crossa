@@ -283,6 +283,7 @@ namespace crossa::compiler::parser {
         if (match(lexer::TokenType::KeywordInt) ||
             match(lexer::TokenType::KeywordString) ||
             match(lexer::TokenType::KeywordBool) ||
+            match(lexer::TokenType::KeywordJson) ||
             match(lexer::TokenType::Identifier)) {
             return ast::TypeReference::createNamed(
                 getLexeme(previous()),
@@ -348,6 +349,12 @@ namespace crossa::compiler::parser {
     unique_ptr<ast::Expression> Parser::parseUnaryExpression() {
         if (match(lexer::TokenType::Minus)) {
             const source::SourceLocation location = getLocation(previous());
+            if (match(lexer::TokenType::DecimalLiteral)) {
+                return make_unique<ast::JsonNumberExpression>(
+                    "-" + getLexeme(previous()),
+                    location
+                );
+            }
             return make_unique<ast::UnaryExpression>(
                 ast::UnaryOperator::Negate,
                 parseUnaryExpression(),
@@ -363,6 +370,14 @@ namespace crossa::compiler::parser {
         if (match(lexer::TokenType::IntegerLiteral)) {
             const lexer::Token& token = previous();
             return make_unique<ast::IntegerLiteralExpression>(
+                getLexeme(token),
+                getLocation(token)
+            );
+        }
+
+        if (match(lexer::TokenType::DecimalLiteral)) {
+            const lexer::Token& token = previous();
+            return make_unique<ast::JsonNumberExpression>(
                 getLexeme(token),
                 getLocation(token)
             );
@@ -384,11 +399,34 @@ namespace crossa::compiler::parser {
             );
         }
 
-        if (match(lexer::TokenType::KeywordCrossaRequest)) {
-            fail(
-                previous(),
-                "CrossaRequest parsing is not implemented in this milestone."
+        if (match(lexer::TokenType::KeywordNull)) {
+            return make_unique<ast::JsonNullExpression>(
+                getLocation(previous())
             );
+        }
+
+        if (match(lexer::TokenType::KeywordCrossaRequest)) {
+            return parseCrossaRequestExpression(getLocation(previous()));
+        }
+
+        if (check(lexer::TokenType::MethodGet) ||
+            check(lexer::TokenType::MethodPost) ||
+            check(lexer::TokenType::MethodPut) ||
+            check(lexer::TokenType::MethodPatch) ||
+            check(lexer::TokenType::MethodDelete) ||
+            check(lexer::TokenType::MethodHead) ||
+            check(lexer::TokenType::MethodOptions) ||
+            check(lexer::TokenType::MethodTrace) ||
+            check(lexer::TokenType::MethodConnect)) {
+            return parseHttpMethodExpression();
+        }
+
+        if (match(lexer::TokenType::LeftBrace)) {
+            return parseJsonObjectExpression(getLocation(previous()));
+        }
+
+        if (match(lexer::TokenType::LeftBracket)) {
+            return parseJsonArrayExpression(getLocation(previous()));
         }
 
         if (match(lexer::TokenType::KeywordPrint)) {
@@ -416,6 +454,155 @@ namespace crossa::compiler::parser {
         }
 
         fail(peek(), "Expected an expression.");
+    }
+
+    // Parses a CrossaRequest builder after consuming its keyword.
+    unique_ptr<ast::Expression> Parser::parseCrossaRequestExpression(
+        source::SourceLocation location
+    ) {
+        consume(
+            lexer::TokenType::LeftBrace,
+            "Expected '{' after 'CrossaRequest'."
+        );
+        vector<ast::CrossaRequestEntry> entries;
+        if (!check(lexer::TokenType::RightBrace)) {
+            do {
+                const lexer::Token& nameToken = consume(
+                    lexer::TokenType::Identifier,
+                    "Expected a CrossaRequest entry name."
+                );
+                consume(
+                    lexer::TokenType::Colon,
+                    "Expected ':' after the CrossaRequest entry name."
+                );
+                entries.emplace_back(
+                    getLexeme(nameToken),
+                    parseExpression(),
+                    getLocation(nameToken)
+                );
+            } while (match(lexer::TokenType::Comma));
+        }
+        consume(
+            lexer::TokenType::RightBrace,
+            "Expected '}' after CrossaRequest entries."
+        );
+        return make_unique<ast::CrossaRequestExpression>(
+            std::move(entries),
+            location
+        );
+    }
+
+    // Parses a JSON object after consuming its left brace.
+    unique_ptr<ast::Expression> Parser::parseJsonObjectExpression(
+        source::SourceLocation location
+    ) {
+        vector<ast::JsonObjectEntry> entries;
+        if (!check(lexer::TokenType::RightBrace)) {
+            do {
+                const source::SourceLocation entryLocation =
+                    getLocation(peek());
+                string key = parseJsonObjectKey();
+                consume(
+                    lexer::TokenType::Colon,
+                    "Expected ':' after the JSON object key."
+                );
+                entries.emplace_back(
+                    std::move(key),
+                    parseExpression(),
+                    entryLocation
+                );
+            } while (match(lexer::TokenType::Comma));
+        }
+        consume(
+            lexer::TokenType::RightBrace,
+            "Expected '}' after the JSON object."
+        );
+        return make_unique<ast::JsonObjectExpression>(
+            std::move(entries),
+            location
+        );
+    }
+
+    // Parses a JSON array after consuming its left bracket.
+    unique_ptr<ast::Expression> Parser::parseJsonArrayExpression(
+        source::SourceLocation location
+    ) {
+        vector<unique_ptr<ast::Expression>> values;
+        if (!check(lexer::TokenType::RightBracket)) {
+            do {
+                values.push_back(parseExpression());
+            } while (match(lexer::TokenType::Comma));
+        }
+        consume(
+            lexer::TokenType::RightBracket,
+            "Expected ']' after the JSON array."
+        );
+        return make_unique<ast::JsonArrayExpression>(
+            std::move(values),
+            location
+        );
+    }
+
+    // Parses one standard HTTP method literal.
+    unique_ptr<ast::Expression> Parser::parseHttpMethodExpression() {
+        const lexer::Token& token = advance();
+        ast::HttpMethod method = ast::HttpMethod::Get;
+        switch (token.getType()) {
+            case lexer::TokenType::MethodGet:
+                method = ast::HttpMethod::Get;
+                break;
+            case lexer::TokenType::MethodPost:
+                method = ast::HttpMethod::Post;
+                break;
+            case lexer::TokenType::MethodPut:
+                method = ast::HttpMethod::Put;
+                break;
+            case lexer::TokenType::MethodPatch:
+                method = ast::HttpMethod::Patch;
+                break;
+            case lexer::TokenType::MethodDelete:
+                method = ast::HttpMethod::Delete;
+                break;
+            case lexer::TokenType::MethodHead:
+                method = ast::HttpMethod::Head;
+                break;
+            case lexer::TokenType::MethodOptions:
+                method = ast::HttpMethod::Options;
+                break;
+            case lexer::TokenType::MethodTrace:
+                method = ast::HttpMethod::Trace;
+                break;
+            case lexer::TokenType::MethodConnect:
+                method = ast::HttpMethod::Connect;
+                break;
+            default:
+                fail(token, "Expected a supported HTTP method.");
+        }
+        return make_unique<ast::HttpMethodLiteralExpression>(
+            method,
+            getLocation(token)
+        );
+    }
+
+    // Parses an identifier or static string JSON object key.
+    string Parser::parseJsonObjectKey() {
+        if (match(lexer::TokenType::Identifier)) {
+            return getLexeme(previous());
+        }
+        if (match(lexer::TokenType::StringLiteral)) {
+            const lexer::Token& token = previous();
+            const vector<ast::StringSegment> segments =
+                parseStringSegments(token);
+            string key;
+            for (const ast::StringSegment& segment : segments) {
+                if (segment.getKind() != ast::StringSegmentKind::Literal) {
+                    fail(token, "A JSON object key cannot use interpolation.");
+                }
+                key += segment.getValue();
+            }
+            return key;
+        }
+        fail(peek(), "Expected an identifier or string JSON object key.");
     }
 
     // Parses call arguments after consuming the left parenthesis.
@@ -449,26 +636,39 @@ namespace crossa::compiler::parser {
 
         const string_view content(lexeme.data() + 1, lexeme.size() - 2);
         vector<ast::StringSegment> segments;
+        string literal;
         size_t literalStart = 0;
         size_t current = 0;
 
         while (current < content.size()) {
+            if (content[current] == '\\') {
+                if (literal.empty()) {
+                    literalStart = current;
+                }
+                appendStringEscape(content, current, literal, token);
+                continue;
+            }
             if (content[current] != '#' ||
                 current + 1 >= content.size() ||
                 !isIdentifierStart(content[current + 1])) {
+                if (literal.empty()) {
+                    literalStart = current;
+                }
+                literal.push_back(content[current]);
                 ++current;
                 continue;
             }
 
-            if (current > literalStart) {
+            if (!literal.empty()) {
                 segments.emplace_back(
                     ast::StringSegmentKind::Literal,
-                    string(content.substr(literalStart, current - literalStart)),
+                    std::move(literal),
                     source::SourceLocation(
                         token.getLine(),
                         token.getColumn() + 1 + literalStart
                     )
                 );
+                literal.clear();
             }
 
             const size_t identifierStart = ++current;
@@ -484,13 +684,12 @@ namespace crossa::compiler::parser {
                     token.getColumn() + 1 + identifierStart
                 )
             );
-            literalStart = current;
         }
 
-        if (literalStart < content.size()) {
+        if (!literal.empty()) {
             segments.emplace_back(
                 ast::StringSegmentKind::Literal,
-                string(content.substr(literalStart)),
+                std::move(literal),
                 source::SourceLocation(
                     token.getLine(),
                     token.getColumn() + 1 + literalStart
@@ -499,6 +698,126 @@ namespace crossa::compiler::parser {
         }
 
         return segments;
+    }
+
+    // Decodes one source escape and advances past its complete byte sequence.
+    void Parser::appendStringEscape(
+        string_view content,
+        size_t& current,
+        string& output,
+        const lexer::Token& token
+    ) const {
+        ++current;
+        if (current >= content.size()) {
+            fail(token, "Unterminated string escape.");
+        }
+        const char escaped = content[current++];
+        switch (escaped) {
+            case '"':
+            case '\\':
+            case '/':
+            case '#':
+                output.push_back(escaped);
+                return;
+            case 'b':
+                output.push_back('\b');
+                return;
+            case 'f':
+                output.push_back('\f');
+                return;
+            case 'n':
+                output.push_back('\n');
+                return;
+            case 'r':
+                output.push_back('\r');
+                return;
+            case 't':
+                output.push_back('\t');
+                return;
+            case 'u': {
+                unsigned int codePoint = readHexCodeUnit(
+                    content,
+                    current,
+                    token
+                );
+                if (codePoint >= 0xD800 && codePoint <= 0xDBFF) {
+                    if (current + 2 > content.size() ||
+                        content[current] != '\\' ||
+                        content[current + 1] != 'u') {
+                        fail(token, "Invalid Unicode surrogate pair.");
+                    }
+                    current += 2;
+                    const unsigned int low = readHexCodeUnit(
+                        content,
+                        current,
+                        token
+                    );
+                    if (low < 0xDC00 || low > 0xDFFF) {
+                        fail(token, "Invalid Unicode surrogate pair.");
+                    }
+                    codePoint = 0x10000 +
+                        ((codePoint - 0xD800) << 10U) +
+                        (low - 0xDC00);
+                } else if (codePoint >= 0xDC00 && codePoint <= 0xDFFF) {
+                    fail(token, "Unexpected low Unicode surrogate.");
+                }
+                appendCodePoint(codePoint, output);
+                return;
+            }
+            default:
+                fail(token, "Unsupported string escape.");
+        }
+    }
+
+    // Reads one four-digit Unicode code unit from source string content.
+    unsigned int Parser::readHexCodeUnit(
+        string_view content,
+        size_t& current,
+        const lexer::Token& token
+    ) const {
+        if (current + 4 > content.size()) {
+            fail(token, "Incomplete Unicode string escape.");
+        }
+        unsigned int value = 0;
+        for (size_t index = 0; index < 4; ++index) {
+            const char digit = content[current++];
+            value <<= 4U;
+            if (digit >= '0' && digit <= '9') {
+                value += static_cast<unsigned int>(digit - '0');
+            } else if (digit >= 'a' && digit <= 'f') {
+                value += static_cast<unsigned int>(digit - 'a' + 10);
+            } else if (digit >= 'A' && digit <= 'F') {
+                value += static_cast<unsigned int>(digit - 'A' + 10);
+            } else {
+                fail(token, "Invalid hexadecimal Unicode string escape.");
+            }
+        }
+        return value;
+    }
+
+    // Appends one Unicode code point to a UTF-8 string.
+    void Parser::appendCodePoint(unsigned int codePoint, string& output) {
+        if (codePoint <= 0x7F) {
+            output.push_back(static_cast<char>(codePoint));
+        } else if (codePoint <= 0x7FF) {
+            output.push_back(static_cast<char>(0xC0 | (codePoint >> 6U)));
+            output.push_back(static_cast<char>(0x80 | (codePoint & 0x3FU)));
+        } else if (codePoint <= 0xFFFF) {
+            output.push_back(static_cast<char>(0xE0 | (codePoint >> 12U)));
+            output.push_back(static_cast<char>(
+                0x80 | ((codePoint >> 6U) & 0x3FU)
+            ));
+            output.push_back(static_cast<char>(0x80 | (codePoint & 0x3FU)));
+        } else {
+            output.push_back(static_cast<char>(0xF0 | (codePoint >> 18U)));
+            output.push_back(static_cast<char>(
+                0x80 | ((codePoint >> 12U) & 0x3FU)
+            ));
+            output.push_back(static_cast<char>(
+                0x80 | ((codePoint >> 6U) & 0x3FU)
+            ));
+            output.push_back(static_cast<char>(0x80 | (codePoint & 0x3FU)));
+        }
     }
 
     // Returns the source text represented by one token.

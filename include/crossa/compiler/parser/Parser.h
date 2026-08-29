@@ -7,7 +7,9 @@
 #include <vector>
 
 #include "crossa/compiler/ast/Declaration.h"
+#include "crossa/compiler/ast/CrossaRequestExpression.h"
 #include "crossa/compiler/ast/Expression.h"
+#include "crossa/compiler/ast/JsonExpression.h"
 #include "crossa/compiler/ast/SourceUnit.h"
 #include "crossa/compiler/ast/Statement.h"
 #include "crossa/compiler/ast/TypeReference.h"
@@ -19,7 +21,7 @@
 namespace crossa::compiler::parser {
 
 // Converts lexer tokens into a syntax-only Crossa AST.
-// parse() supports V0 declarations and top-level calls except CrossaRequest.
+// parse() owns declarations, JSON values, requests, and top-level calls.
 class Parser final {
 public:
     // Creates a parser over one token stream and its owning source file.
@@ -80,6 +82,25 @@ private:
     // Parses literals, identifiers, calls, and grouped expressions.
     [[nodiscard]] std::unique_ptr<ast::Expression> parsePrimaryExpression();
 
+    // Parses a CrossaRequest builder after consuming its keyword.
+    [[nodiscard]] std::unique_ptr<ast::Expression>
+    parseCrossaRequestExpression(source::SourceLocation location);
+
+    // Parses a JSON object after consuming its left brace.
+    [[nodiscard]] std::unique_ptr<ast::Expression>
+    parseJsonObjectExpression(source::SourceLocation location);
+
+    // Parses a JSON array after consuming its left bracket.
+    [[nodiscard]] std::unique_ptr<ast::Expression>
+    parseJsonArrayExpression(source::SourceLocation location);
+
+    // Parses one standard HTTP method literal.
+    [[nodiscard]] std::unique_ptr<ast::Expression>
+    parseHttpMethodExpression();
+
+    // Parses an identifier or static string JSON object key.
+    [[nodiscard]] std::string parseJsonObjectKey();
+
     // Parses call arguments after consuming the left parenthesis.
     [[nodiscard]] std::unique_ptr<ast::Expression> parseCallExpression(
         std::string callee,
@@ -90,6 +111,24 @@ private:
     [[nodiscard]] std::vector<ast::StringSegment> parseStringSegments(
         const lexer::Token& token
     ) const;
+
+    // Decodes one source escape and advances past its complete byte sequence.
+    void appendStringEscape(
+        std::string_view content,
+        std::size_t& current,
+        std::string& output,
+        const lexer::Token& token
+    ) const;
+
+    // Reads one four-digit Unicode code unit from source string content.
+    [[nodiscard]] unsigned int readHexCodeUnit(
+        std::string_view content,
+        std::size_t& current,
+        const lexer::Token& token
+    ) const;
+
+    // Appends one Unicode code point to a UTF-8 string.
+    static void appendCodePoint(unsigned int codePoint, std::string& output);
 
     // Returns the source text represented by one token.
     [[nodiscard]] std::string getLexeme(const lexer::Token& token) const;

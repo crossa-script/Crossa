@@ -3,7 +3,9 @@
 #include <memory>
 
 #include "crossa/compiler/ir/Program.h"
+#include "crossa/compiler/ir/IrCrossaRequestExpression.h"
 #include "crossa/compiler/semantic/TypedDeclaration.h"
+#include "crossa/compiler/semantic/TypedCrossaRequestExpression.h"
 #include "crossa/compiler/semantic/TypedExpression.h"
 #include "crossa/compiler/semantic/TypedSourceUnit.h"
 #include "crossa/compiler/semantic/TypedStatement.h"
@@ -63,6 +65,16 @@ private:
     [[nodiscard]] static std::unique_ptr<IrExpression> lowerExpression(
         const semantic::TypedExpression& expression
     );
+
+    // Lowers one optional typed expression while preserving absence.
+    [[nodiscard]] static std::unique_ptr<IrExpression> lowerOptionalExpression(
+        const semantic::TypedExpression* expression
+    );
+
+    // Maps a semantic HTTP method to the platform-neutral request method.
+    [[nodiscard]] static IrHttpMethod lowerHttpMethod(
+        semantic::SemanticHttpMethod method
+    ) noexcept;
 
     // Maps a semantic symbol owner to its IR symbol owner.
     [[nodiscard]] static IrSymbolKind lowerSymbolKind(

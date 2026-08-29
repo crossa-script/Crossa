@@ -8,12 +8,16 @@
 #include <vector>
 
 #include "crossa/compiler/ir/IrDeclaration.h"
+#include "crossa/compiler/ir/IrCrossaRequestExpression.h"
 #include "crossa/compiler/ir/IrExpression.h"
 #include "crossa/compiler/ir/IrStatement.h"
 #include "crossa/compiler/ir/Program.h"
 #include "crossa/compiler/types/SemanticType.h"
+#include "crossa/network/NetworkEngine.h"
+#include "crossa/network/response/ResponseDecoder.h"
 #include "crossa/runtime/ExecutionFrame.h"
 #include "crossa/runtime/RuntimeValue.h"
+#include "crossa/runtime/scheduler/TaskScheduler.h"
 #include "crossa/utils/Log.h"
 
 namespace crossa::runtime {
@@ -25,7 +29,10 @@ public:
     // Creates an interpreter over one immutable IR program and logger.
     IrInterpreter(
         const compiler::ir::Program& program,
-        const utils::Log& log
+        const utils::Log& log,
+        scheduler::TaskScheduler& scheduler,
+        network::NetworkEngine& networkEngine,
+        const network::NetworkConfiguration& networkConfiguration
     ) noexcept;
 
     // Initializes globals and executes top-level calls in source order.
@@ -69,6 +76,57 @@ private:
         std::size_t callDepth
     );
 
+    // Evaluates and executes one lowered native CrossaRequest plan.
+    [[nodiscard]] RuntimeValue evaluateRequest(
+        const compiler::ir::IrCrossaRequestExpression& request,
+        const ExecutionFrame& frame,
+        std::size_t callDepth
+    );
+
+    // Evaluates one string build with optional URL component encoding.
+    [[nodiscard]] std::string evaluateStringBuild(
+        const compiler::ir::IrStringBuildExpression& expression,
+        const ExecutionFrame& frame,
+        bool encodeSymbols
+    ) const;
+
+    // Evaluates one optional request map into HTTP headers.
+    [[nodiscard]] std::vector<network::HttpHeader> evaluateHeaders(
+        const compiler::ir::IrExpression* expression,
+        const ExecutionFrame& frame,
+        std::size_t callDepth
+    );
+
+    // Evaluates one optional request map into ordered query parameters.
+    [[nodiscard]] network::request::RequestSpec::QueryParameters
+    evaluateQueryParameters(
+        const compiler::ir::IrExpression* expression,
+        const ExecutionFrame& frame,
+        std::size_t callDepth
+    );
+
+    // Executes a function according to its lowered scheduling policy.
+    [[nodiscard]] RuntimeValue invokeScheduledFunction(
+        const compiler::ir::IrFunctionDeclaration& function,
+        std::vector<RuntimeValue> arguments,
+        std::size_t callDepth
+    );
+
+    // Converts one runtime scalar or Json value into an owned JSON value.
+    [[nodiscard]] static network::json::JsonValue toJsonValue(
+        const RuntimeValue& value
+    );
+
+    // Converts one scalar JSON value into request metadata text.
+    [[nodiscard]] static std::string jsonScalarToString(
+        const network::json::JsonValue& value
+    );
+
+    // Converts a lowered request method into the transport method.
+    [[nodiscard]] static network::HttpMethod resolveHttpMethod(
+        compiler::ir::IrHttpMethod method
+    ) noexcept;
+
     // Resolves one symbol read against globals or the active frame.
     [[nodiscard]] const RuntimeValue& resolveSymbol(
         const std::string& name,
@@ -88,6 +146,9 @@ private:
 
     const compiler::ir::Program& program_;
     const utils::Log& log_;
+    scheduler::TaskScheduler& scheduler_;
+    network::NetworkEngine& networkEngine_;
+    network::response::ResponseDecoder responseDecoder_;
     ExecutionFrame globals_;
     std::unordered_map<std::string, const compiler::ir::IrFunctionDeclaration*>
         functions_;

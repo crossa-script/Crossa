@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "crossa/network/json/JsonSerializer.h"
+
 using namespace std;
 
 namespace crossa::runtime {
@@ -25,6 +27,11 @@ namespace crossa::runtime {
     // Creates a runtime Bool value.
     RuntimeValue RuntimeValue::createBool(bool value) {
         return RuntimeValue(RuntimeValueKind::Bool, value);
+    }
+
+    // Creates a runtime Json value.
+    RuntimeValue RuntimeValue::createJson(network::json::JsonValue value) {
+        return RuntimeValue(RuntimeValueKind::Json, std::move(value));
     }
 
     // Returns the stored runtime value category.
@@ -56,6 +63,14 @@ namespace crossa::runtime {
         return get<bool>(value_);
     }
 
+    // Returns the stored Json value and requires a Json kind.
+    const network::json::JsonValue& RuntimeValue::getJson() const {
+        if (kind_ != RuntimeValueKind::Json) {
+            throw runtime_error("Runtime value is not Json.");
+        }
+        return get<network::json::JsonValue>(value_);
+    }
+
     // Returns a stable human-readable representation for output.
     string RuntimeValue::format() const {
         switch (kind_) {
@@ -67,6 +82,8 @@ namespace crossa::runtime {
                 return getString();
             case RuntimeValueKind::Bool:
                 return getBool() ? "true" : "false";
+            case RuntimeValueKind::Json:
+                return network::json::JsonSerializer::serialize(getJson());
         }
 
         return "Unknown";
@@ -75,7 +92,13 @@ namespace crossa::runtime {
     // Creates a runtime value from its kind and owned storage.
     RuntimeValue::RuntimeValue(
         RuntimeValueKind kind,
-        variant<monostate, int64_t, string, bool> value
+        variant<
+            monostate,
+            int64_t,
+            string,
+            bool,
+            network::json::JsonValue
+        > value
     )
         : kind_(kind), value_(std::move(value)) {}
 

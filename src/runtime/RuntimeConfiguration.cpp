@@ -1,0 +1,377 @@
+#include "crossa/runtime/RuntimeConfiguration.h"
+
+#include <charconv>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#include "crossa/compiler/ir/IrDeclaration.h"
+#include "crossa/compiler/ir/IrExpression.h"
+#include "crossa/compiler/ir/IrJsonExpression.h"
+#include "crossa/network/HttpHeader.h"
+
+using namespace std;
+
+namespace crossa::runtime {
+
+// Reads compile-time config constants and applies their native policies.
+class RuntimeConfigurationLoader final {
+public:
+    // Loads at most one config block from the supplied IR programs.
+    static RuntimeConfiguration load(
+        const compiler::ir::Program& program,
+        const compiler::ir::Program* configurationProgram
+    ) {
+        network::NetworkConfiguration networkConfiguration;
+        scheduler::SchedulerOptions defaults =
+            scheduler::SchedulerOptions::createDefault();
+        optional<size_t> workerCount;
+        optional<size_t> maximumQueuedTasks;
+        unordered_set<string> appliedKeys;
+        size_t configBlocks = 0;
+
+        if (configurationProgram != nullptr) {
+            applyProgram(
+                *configurationProgram,
+                networkConfiguration,
+                workerCount,
+                maximumQueuedTasks,
+                appliedKeys,
+                configBlocks
+            );
+        }
+        applyProgram(
+            program,
+            networkConfiguration,
+            workerCount,
+            maximumQueuedTasks,
+            appliedKeys,
+            configBlocks
+        );
+        if (configBlocks > 1) {
+            throw runtime_error(
+                "Runtime configuration failed: only one config block is allowed."
+            );
+        }
+
+        return RuntimeConfiguration(
+            std::move(networkConfiguration),
+            scheduler::SchedulerOptions(
+                workerCount.value_or(defaults.getWorkerCount()),
+                maximumQueuedTasks.value_or(
+                    defaults.getMaximumQueuedTasks()
+                )
+            )
+        );
+    }
+
+private:
+    // Applies every config declaration found in one IR program.
+    static void applyProgram(
+        const compiler::ir::Program& program,
+        network::NetworkConfiguration& networkConfiguration,
+        optional<size_t>& workerCount,
+        optional<size_t>& maximumQueuedTasks,
+        unordered_set<string>& appliedKeys,
+        size_t& configBlocks
+    ) {
+        for (const unique_ptr<compiler::ir::IrDeclaration>& declaration :
+             program.getDeclarations()) {
+            if (declaration->getKind() !=
+                compiler::ir::IrDeclarationKind::Config) {
+                continue;
+            }
+            ++configBlocks;
+            const auto& config = static_cast<
+                const compiler::ir::IrConfigDeclaration&
+            >(*declaration);
+            for (const compiler::ir::IrConfigEntry& entry :
+                 config.getEntries()) {
+                if (!appliedKeys.insert(entry.getName()).second) {
+                    throw runtime_error(
+                        "Runtime configuration contains duplicate key '" +
+                        entry.getName() + "'."
+                    );
+                }
+                applyEntry(
+                    entry,
+                    networkConfiguration,
+                    workerCount,
+                    maximumQueuedTasks
+                );
+            }
+        }
+    }
+
+    // Applies one typed config entry to networking or scheduler options.
+    static void applyEntry(
+        const compiler::ir::IrConfigEntry& entry,
+        network::NetworkConfiguration& networkConfiguration,
+        optional<size_t>& workerCount,
+        optional<size_t>& maximumQueuedTasks
+    ) {
+        const string& name = entry.getName();
+        if (name == "baseUrl") {
+            networkConfiguration.setBaseUrl(readString(entry.getValue()));
+        } else if (name == "timeoutRequest") {
+            networkConfiguration.setTimeoutMilliseconds(
+                readInt(entry.getValue())
+            );
+        } else if (name == "interceptor") {
+            applyInterceptor(entry.getValue(), networkConfiguration);
+        } else if (name == "commonHeaders") {
+            networkConfiguration.setCommonHeaders(
+                readHeaders(entry.getValue())
+            );
+        } else if (name == "workerThreads") {
+            workerCount = readSize(entry.getValue(), name);
+        } else if (name == "maxQueuedTasks") {
+            maximumQueuedTasks = readSize(entry.getValue(), name);
+        } else if (name == "maxResponseBytes") {
+            networkConfiguration.setMaximumResponseBytes(
+                readSize(entry.getValue(), name)
+            );
+        } else if (name == "maxJsonDepth") {
+            networkConfiguration.setMaximumJsonDepth(
+                readSize(entry.getValue(), name)
+            );
+        } else if (name == "followRedirects") {
+            networkConfiguration.setFollowRedirects(
+                readBool(entry.getValue())
+            );
+        }
+    }
+
+    // Reads one compile-time string expression without runtime symbols.
+    static string readString(const compiler::ir::IrExpression& expression) {
+        if (expression.getKind() !=
+            compiler::ir::IrExpressionKind::StringBuild) {
+            throw runtime_error("Config value must be a String literal.");
+        }
+        const auto& stringBuild = static_cast<
+            const compiler::ir::IrStringBuildExpression&
+        >(expression);
+        string value;
+        for (const compiler::ir::IrStringSegment& segment :
+             stringBuild.getSegments()) {
+            if (segment.getKind() !=
+                compiler::ir::IrStringSegmentKind::Literal) {
+                throw runtime_error(
+                    "Config String values cannot interpolate symbols."
+                );
+            }
+            value += segment.getValue();
+        }
+        return value;
+    }
+
+    // Reads one positive bounded size from an integer config value.
+    static size_t readSize(
+        const compiler::ir::IrExpression& expression,
+        const string& name
+    ) {
+        const int64_t value = readInt(expression);
+        if (value <= 0) {
+            throw runtime_error(
+                "Config key '" + name + "' must be positive."
+            );
+        }
+        return static_cast<size_t>(value);
+    }
+
+    // Reads one signed native integer from a config expression.
+    static int64_t readInt(const compiler::ir::IrExpression& expression) {
+        if (expression.getKind() !=
+            compiler::ir::IrExpressionKind::IntegerConstant) {
+            throw runtime_error("Config value must be an Int literal.");
+        }
+        const string& digits = static_cast<
+            const compiler::ir::IrIntegerConstantExpression&
+        >(expression).getValue();
+        int64_t value = 0;
+        const auto result = from_chars(
+            digits.data(),
+            digits.data() + digits.size(),
+            value
+        );
+        if (result.ec != errc{} ||
+            result.ptr != digits.data() + digits.size()) {
+            throw runtime_error("Config Int value is outside the native range.");
+        }
+        return value;
+    }
+
+    // Reads one Boolean config expression.
+    static bool readBool(const compiler::ir::IrExpression& expression) {
+        if (expression.getKind() !=
+            compiler::ir::IrExpressionKind::BooleanConstant) {
+            throw runtime_error("Config value must be a Bool literal.");
+        }
+        return static_cast<
+            const compiler::ir::IrBooleanConstantExpression&
+        >(expression).getValue();
+    }
+
+    // Converts one compile-time JSON-compatible expression into native JSON.
+    static network::json::JsonValue readJson(
+        const compiler::ir::IrExpression& expression
+    ) {
+        switch (expression.getKind()) {
+            case compiler::ir::IrExpressionKind::IntegerConstant:
+                return network::json::JsonValue::createNumber(
+                    static_cast<
+                        const compiler::ir::IrIntegerConstantExpression&
+                    >(expression).getValue()
+                );
+            case compiler::ir::IrExpressionKind::StringBuild:
+                return network::json::JsonValue::createString(
+                    readString(expression)
+                );
+            case compiler::ir::IrExpressionKind::BooleanConstant:
+                return network::json::JsonValue::createBoolean(
+                    readBool(expression)
+                );
+            case compiler::ir::IrExpressionKind::JsonNumber:
+                return network::json::JsonValue::createNumber(
+                    static_cast<
+                        const compiler::ir::IrJsonNumberExpression&
+                    >(expression).getValue()
+                );
+            case compiler::ir::IrExpressionKind::JsonNull:
+                return network::json::JsonValue::createNull();
+            case compiler::ir::IrExpressionKind::JsonObject: {
+                const auto& object = static_cast<
+                    const compiler::ir::IrJsonObjectExpression&
+                >(expression);
+                network::json::JsonValue::Object values;
+                values.reserve(object.getEntries().size());
+                for (const compiler::ir::IrJsonObjectEntry& entry :
+                     object.getEntries()) {
+                    values.emplace_back(
+                        entry.getKey(),
+                        readJson(entry.getValue())
+                    );
+                }
+                return network::json::JsonValue::createObject(
+                    std::move(values)
+                );
+            }
+            case compiler::ir::IrExpressionKind::JsonArray: {
+                const auto& array = static_cast<
+                    const compiler::ir::IrJsonArrayExpression&
+                >(expression);
+                network::json::JsonValue::Array values;
+                values.reserve(array.getValues().size());
+                for (const unique_ptr<compiler::ir::IrExpression>& value :
+                     array.getValues()) {
+                    values.push_back(readJson(*value));
+                }
+                return network::json::JsonValue::createArray(std::move(values));
+            }
+            default:
+                throw runtime_error(
+                    "Config JSON values must be compile-time constants."
+                );
+        }
+    }
+
+    // Converts a JSON object into validated common HTTP headers.
+    static vector<network::HttpHeader> readHeaders(
+        const compiler::ir::IrExpression& expression
+    ) {
+        const network::json::JsonValue object = readJson(expression);
+        if (object.getKind() != network::json::JsonValueKind::Object) {
+            throw runtime_error("commonHeaders must be a JSON object.");
+        }
+        vector<network::HttpHeader> headers;
+        headers.reserve(object.getObject().size());
+        for (const auto& [name, value] : object.getObject()) {
+            headers.emplace_back(name, scalarToString(value));
+        }
+        return headers;
+    }
+
+    // Applies Boolean or object interceptor configuration.
+    static void applyInterceptor(
+        const compiler::ir::IrExpression& expression,
+        network::NetworkConfiguration& configuration
+    ) {
+        if (expression.getKind() ==
+            compiler::ir::IrExpressionKind::BooleanConstant) {
+            configuration.setInterceptorEnabled(readBool(expression));
+            return;
+        }
+        const network::json::JsonValue object = readJson(expression);
+        if (object.getKind() != network::json::JsonValueKind::Object) {
+            throw runtime_error("interceptor must be Bool or a JSON object.");
+        }
+        for (const auto& [name, value] : object.getObject()) {
+            if (value.getKind() != network::json::JsonValueKind::Boolean) {
+                throw runtime_error(
+                    "Interceptor option '" + name + "' must be Bool."
+                );
+            }
+            if (name == "enabled") {
+                configuration.setInterceptorEnabled(value.getBoolean());
+            } else if (name == "logRequests") {
+                configuration.setLogRequests(value.getBoolean());
+            } else if (name == "logResponses") {
+                configuration.setLogResponses(value.getBoolean());
+            } else {
+                throw runtime_error(
+                    "Unknown interceptor option '" + name + "'."
+                );
+            }
+        }
+    }
+
+    // Converts one scalar JSON value into header text.
+    static string scalarToString(const network::json::JsonValue& value) {
+        switch (value.getKind()) {
+            case network::json::JsonValueKind::Boolean:
+                return value.getBoolean() ? "true" : "false";
+            case network::json::JsonValueKind::Number:
+                return value.getNumber();
+            case network::json::JsonValueKind::String:
+                return value.getString();
+            case network::json::JsonValueKind::Null:
+            case network::json::JsonValueKind::Array:
+            case network::json::JsonValueKind::Object:
+                throw runtime_error("HTTP header values must be scalar.");
+        }
+        throw runtime_error("Unknown JSON value in HTTP header.");
+    }
+};
+
+// Loads defaults and applies the optional main or sibling config block.
+RuntimeConfiguration RuntimeConfiguration::load(
+    const compiler::ir::Program& program,
+    const compiler::ir::Program* configurationProgram
+) {
+    return RuntimeConfigurationLoader::load(program, configurationProgram);
+}
+
+// Returns immutable native networking configuration.
+const network::NetworkConfiguration&
+RuntimeConfiguration::getNetworkConfiguration() const noexcept {
+    return networkConfiguration_;
+}
+
+// Returns immutable bounded scheduler configuration.
+const scheduler::SchedulerOptions&
+RuntimeConfiguration::getSchedulerOptions() const noexcept {
+    return schedulerOptions_;
+}
+
+// Creates one complete runtime configuration.
+RuntimeConfiguration::RuntimeConfiguration(
+    network::NetworkConfiguration networkConfiguration,
+    scheduler::SchedulerOptions schedulerOptions
+)
+    : networkConfiguration_(std::move(networkConfiguration)),
+      schedulerOptions_(std::move(schedulerOptions)) {}
+
+}

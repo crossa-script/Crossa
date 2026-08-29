@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "crossa/compiler/ir/IrDeclaration.h"
+#include "crossa/compiler/ir/IrCrossaRequestExpression.h"
 #include "crossa/compiler/ir/Program.h"
 
 namespace crossa::compiler::ir {
@@ -42,6 +43,12 @@ private:
     [[nodiscard]] static std::string formatArithmeticOperator(
         IrArithmeticOperator operation
     );
+
+    // Formats one IR HTTP method.
+    [[nodiscard]] static std::string formatHttpMethod(IrHttpMethod method);
+
+    // Escapes one string value for unambiguous single-line debug output.
+    [[nodiscard]] static std::string escapeString(const std::string& value);
 };
 
 }

@@ -4,6 +4,8 @@
 #include <string>
 #include <variant>
 
+#include "crossa/network/json/JsonValue.h"
+
 namespace crossa::runtime {
 
 // Identifies the primitive values currently executable by the native runtime.
@@ -11,7 +13,8 @@ enum class RuntimeValueKind {
     Unit,
     Int,
     String,
-    Bool
+    Bool,
+    Json
 };
 
 // Owns one runtime value produced while interpreting Crossa IR.
@@ -30,6 +33,9 @@ public:
     // Creates a runtime Bool value.
     static RuntimeValue createBool(bool value);
 
+    // Creates a runtime Json value.
+    static RuntimeValue createJson(network::json::JsonValue value);
+
     // Returns the stored runtime value category.
     [[nodiscard]] RuntimeValueKind getKind() const noexcept;
 
@@ -42,6 +48,9 @@ public:
     // Returns the stored Bool value and requires a Bool kind.
     [[nodiscard]] bool getBool() const;
 
+    // Returns the stored Json value and requires a Json kind.
+    [[nodiscard]] const network::json::JsonValue& getJson() const;
+
     // Returns a stable human-readable representation for output.
     [[nodiscard]] std::string format() const;
 
@@ -49,11 +58,23 @@ private:
     // Creates a runtime value from its kind and owned storage.
     RuntimeValue(
         RuntimeValueKind kind,
-        std::variant<std::monostate, std::int64_t, std::string, bool> value
+        std::variant<
+            std::monostate,
+            std::int64_t,
+            std::string,
+            bool,
+            network::json::JsonValue
+        > value
     );
 
     RuntimeValueKind kind_;
-    std::variant<std::monostate, std::int64_t, std::string, bool> value_;
+    std::variant<
+        std::monostate,
+        std::int64_t,
+        std::string,
+        bool,
+        network::json::JsonValue
+    > value_;
 };
 
 }

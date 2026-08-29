@@ -1,0 +1,17 @@
+config {
+    baseUrl: "https://api.example.com",
+    timeoutRequest: 30000,
+    commonHeaders: {
+        "X-Crossa-Client": "native"
+    },
+    interceptor: {
+        enabled: true,
+        logRequests: true,
+        logResponses: true
+    },
+    workerThreads: 4,
+    maxQueuedTasks: 256,
+    maxResponseBytes: 8388608,
+    maxJsonDepth: 128,
+    followRedirects: true
+}

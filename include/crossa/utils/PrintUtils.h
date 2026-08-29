@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <string>
 #include <string_view>
 
@@ -19,6 +20,7 @@ public:
     );
 
 private:
+    inline static std::mutex OutputMutex;
     inline static constexpr std::string_view ResetColor = "\033[0m";
 };
 

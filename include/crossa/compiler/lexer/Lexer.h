@@ -31,8 +31,8 @@ private:
     // Scans an identifier and resolves reserved language words.
     void scanIdentifier();
 
-    // Scans one base-10 integer literal.
-    void scanInteger();
+    // Scans one integer or JSON decimal/exponent number literal.
+    void scanNumber();
 
     // Scans one double-quoted string literal.
     void scanString();
@@ -57,6 +57,9 @@ private:
 
     // Returns the current byte without consuming it.
     [[nodiscard]] char peek() const noexcept;
+
+    // Returns the byte after the current byte without consuming it.
+    [[nodiscard]] char peekNext() const noexcept;
 
     // Resolves an identifier lexeme to its keyword or literal token type.
     [[nodiscard]] static TokenType resolveIdentifierType(

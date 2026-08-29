@@ -1,6 +1,7 @@
 #include "crossa/cli/CrossaApplication.h"
 
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -123,8 +124,71 @@ namespace crossa::cli {
         logStepCompleted(5, "Typed IR lowering", log);
 
         logStepStarted(6, "Native execution", log);
-        runtime::ExecutionEngine::execute(program, log);
+        optional<compiler::ir::Program> configurationProgram =
+            compileSiblingConfiguration(arguments.sourcePath, log);
+        runtime::ExecutionEngine::execute(
+            program,
+            configurationProgram.has_value()
+                ? &configurationProgram.value()
+                : nullptr,
+            log
+        );
         logStepCompleted(6, "Native execution", log);
+    }
+
+    // Compiles an optional sibling config.cra into declarative IR.
+    optional<compiler::ir::Program>
+    CrossaApplication::compileSiblingConfiguration(
+        const filesystem::path& sourcePath,
+        const utils::Log& log
+    ) {
+        if (sourcePath.filename() == "config.cra") {
+            return nullopt;
+        }
+        const filesystem::path configurationPath =
+            sourcePath.parent_path() / "config.cra";
+        if (!filesystem::exists(configurationPath)) {
+            log.debug("No sibling config.cra found; runtime defaults selected");
+            return nullopt;
+        }
+
+        log.debug("Compiling sibling runtime configuration: " +
+                  configurationPath.string());
+        compiler::source::SourceFile sourceFile =
+            compiler::source::SourceLoader::load(configurationPath, log);
+        const vector<compiler::lexer::Token> tokens =
+            tokenizeSource(sourceFile, log);
+        compiler::ast::SourceUnit sourceUnit =
+            parseSource(tokens, sourceFile, log);
+        compiler::semantic::TypedSourceUnit semanticModel =
+            analyzeSource(sourceUnit, sourceFile, log);
+        compiler::ir::Program program =
+            compiler::ir::IrLowerer::lower(semanticModel);
+        validateConfigurationProgram(program);
+        log.debug("Sibling runtime configuration compiled");
+        return program;
+    }
+
+    // Ensures a sibling configuration file contains only config declarations.
+    void CrossaApplication::validateConfigurationProgram(
+        const compiler::ir::Program& program
+    ) {
+        size_t configCount = 0;
+        for (const unique_ptr<compiler::ir::IrDeclaration>& declaration :
+             program.getDeclarations()) {
+            if (declaration->getKind() !=
+                compiler::ir::IrDeclarationKind::Config) {
+                throw runtime_error(
+                    "config.cra may contain only one declarative config block."
+                );
+            }
+            ++configCount;
+        }
+        if (configCount != 1) {
+            throw runtime_error(
+                "config.cra must contain exactly one config block."
+            );
+        }
     }
 
     // Tokenizes one source file and reports the lexer lifecycle.

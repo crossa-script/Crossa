@@ -8,13 +8,17 @@
 #include <vector>
 
 #include "crossa/compiler/ast/Declaration.h"
+#include "crossa/compiler/ast/CrossaRequestExpression.h"
 #include "crossa/compiler/ast/Expression.h"
+#include "crossa/compiler/ast/JsonExpression.h"
 #include "crossa/compiler/ast/SourceUnit.h"
 #include "crossa/compiler/ast/Statement.h"
 #include "crossa/compiler/ast/TypeReference.h"
 #include "crossa/compiler/semantic/SemanticScope.h"
 #include "crossa/compiler/semantic/TypedDeclaration.h"
+#include "crossa/compiler/semantic/TypedCrossaRequestExpression.h"
 #include "crossa/compiler/semantic/TypedExpression.h"
+#include "crossa/compiler/semantic/TypedJsonExpression.h"
 #include "crossa/compiler/semantic/TypedSourceUnit.h"
 #include "crossa/compiler/semantic/TypedStatement.h"
 #include "crossa/compiler/source/SourceFile.h"
@@ -150,6 +154,49 @@ private:
         const ast::BinaryExpression& expression,
         const SemanticScope& scope
     );
+
+    // Validates one JSON object and recursively types every field value.
+    [[nodiscard]] std::unique_ptr<TypedExpression> analyzeJsonObjectExpression(
+        const ast::JsonObjectExpression& expression,
+        const SemanticScope& scope
+    );
+
+    // Validates one JSON array and recursively types every item.
+    [[nodiscard]] std::unique_ptr<TypedExpression> analyzeJsonArrayExpression(
+        const ast::JsonArrayExpression& expression,
+        const SemanticScope& scope
+    );
+
+    // Validates a direct request expression against its function result type.
+    [[nodiscard]] std::unique_ptr<TypedExpression> analyzeCrossaRequestExpression(
+        const ast::CrossaRequestExpression& expression,
+        const SemanticScope& scope,
+        const types::SemanticType& responseType
+    );
+
+    // Resolves URL interpolation including explicit path-variable aliases.
+    [[nodiscard]] std::unique_ptr<TypedExpression> analyzeRequestUrl(
+        const ast::Expression& expression,
+        const ast::JsonObjectExpression* pathVariables,
+        const SemanticScope& scope
+    );
+
+    // Ensures a request map is a JSON object containing scalar values.
+    void validateRequestMap(
+        const TypedExpression& expression,
+        const std::string& fieldName
+    ) const;
+
+    // Returns one named request entry or null when it is absent.
+    [[nodiscard]] static const ast::CrossaRequestEntry* findRequestEntry(
+        const ast::CrossaRequestExpression& expression,
+        const std::string& name
+    ) noexcept;
+
+    // Converts an AST HTTP method into its semantic request method.
+    [[nodiscard]] static SemanticHttpMethod resolveHttpMethod(
+        ast::HttpMethod method
+    ) noexcept;
 
     // Resolves a syntax type reference into a complete semantic type.
     [[nodiscard]] types::SemanticType resolveType(

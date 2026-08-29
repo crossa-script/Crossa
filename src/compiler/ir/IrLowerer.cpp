@@ -3,6 +3,9 @@
 #include <stdexcept>
 #include <utility>
 
+#include "crossa/compiler/ir/IrJsonExpression.h"
+#include "crossa/compiler/semantic/TypedJsonExpression.h"
+
 using namespace std;
 
 namespace crossa::compiler::ir {
@@ -310,9 +313,106 @@ namespace crossa::compiler::ir {
                     binary.getLocation()
                 );
             }
+            case semantic::TypedExpressionKind::JsonNumber: {
+                const auto& number = static_cast<
+                    const semantic::TypedJsonNumberExpression&
+                >(expression);
+                return make_unique<IrJsonNumberExpression>(
+                    number.getValue(),
+                    number.getLocation()
+                );
+            }
+            case semantic::TypedExpressionKind::JsonNull:
+                return make_unique<IrJsonNullExpression>(
+                    expression.getLocation()
+                );
+            case semantic::TypedExpressionKind::JsonObject: {
+                const auto& object = static_cast<
+                    const semantic::TypedJsonObjectExpression&
+                >(expression);
+                vector<IrJsonObjectEntry> entries;
+                entries.reserve(object.getEntries().size());
+                for (const semantic::TypedJsonObjectEntry& entry :
+                     object.getEntries()) {
+                    entries.emplace_back(
+                        entry.getKey(),
+                        lowerExpression(entry.getValue()),
+                        entry.getLocation()
+                    );
+                }
+                return make_unique<IrJsonObjectExpression>(
+                    std::move(entries),
+                    object.getLocation()
+                );
+            }
+            case semantic::TypedExpressionKind::JsonArray: {
+                const auto& array = static_cast<
+                    const semantic::TypedJsonArrayExpression&
+                >(expression);
+                vector<unique_ptr<IrExpression>> values;
+                values.reserve(array.getValues().size());
+                for (const unique_ptr<semantic::TypedExpression>& value :
+                     array.getValues()) {
+                    values.push_back(lowerExpression(*value));
+                }
+                return make_unique<IrJsonArrayExpression>(
+                    std::move(values),
+                    array.getLocation()
+                );
+            }
+            case semantic::TypedExpressionKind::CrossaRequest: {
+                const auto& request = static_cast<
+                    const semantic::TypedCrossaRequestExpression&
+                >(expression);
+                return make_unique<IrCrossaRequestExpression>(
+                    lowerHttpMethod(request.getMethod()),
+                    lowerExpression(request.getUrl()),
+                    lowerOptionalExpression(request.getHeaders()),
+                    lowerOptionalExpression(request.getCustomHeaders()),
+                    lowerOptionalExpression(request.getQueryParams()),
+                    lowerOptionalExpression(request.getBody()),
+                    lowerOptionalExpression(request.getTimeout()),
+                    request.getType(),
+                    request.getLocation()
+                );
+            }
         }
 
         fail("Unknown typed expression kind.");
+    }
+
+    // Lowers one optional typed expression while preserving absence.
+    unique_ptr<IrExpression> IrLowerer::lowerOptionalExpression(
+        const semantic::TypedExpression* expression
+    ) {
+        return expression == nullptr ? nullptr : lowerExpression(*expression);
+    }
+
+    // Maps a semantic HTTP method to the platform-neutral request method.
+    IrHttpMethod IrLowerer::lowerHttpMethod(
+        semantic::SemanticHttpMethod method
+    ) noexcept {
+        switch (method) {
+            case semantic::SemanticHttpMethod::Get:
+                return IrHttpMethod::Get;
+            case semantic::SemanticHttpMethod::Post:
+                return IrHttpMethod::Post;
+            case semantic::SemanticHttpMethod::Put:
+                return IrHttpMethod::Put;
+            case semantic::SemanticHttpMethod::Patch:
+                return IrHttpMethod::Patch;
+            case semantic::SemanticHttpMethod::Delete:
+                return IrHttpMethod::Delete;
+            case semantic::SemanticHttpMethod::Head:
+                return IrHttpMethod::Head;
+            case semantic::SemanticHttpMethod::Options:
+                return IrHttpMethod::Options;
+            case semantic::SemanticHttpMethod::Trace:
+                return IrHttpMethod::Trace;
+            case semantic::SemanticHttpMethod::Connect:
+                return IrHttpMethod::Connect;
+        }
+        return IrHttpMethod::Get;
     }
 
     // Maps a semantic symbol owner to its IR symbol owner.

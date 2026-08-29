@@ -16,7 +16,13 @@ enum class ExpressionKind {
     BooleanLiteral,
     Call,
     Unary,
-    Binary
+    Binary,
+    JsonNumber,
+    JsonNull,
+    JsonObject,
+    JsonArray,
+    HttpMethod,
+    CrossaRequest
 };
 
 // Identifies the arithmetic unary operators supported by V0.
