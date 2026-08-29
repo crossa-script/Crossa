@@ -1,0 +1,16 @@
+model Post(
+    userId: Int,
+    id: Int,
+    title: String,
+    body: String
+)
+
+@AsyncAfter
+fun getPosts(): List<Post> {
+    re CrossaRequest {
+        url: "/posts",
+        method: GET
+    }
+}
+
+print(getPosts())
