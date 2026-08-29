@@ -1,0 +1,13 @@
+fun add(a: Int, b: Int): Int {
+    re a + b
+}
+
+fun selectValue(first: Int, second: Int, enabled: Bool): Int {
+    if (!enabled) {
+        re second
+    } else if (first >= second && enabled) {
+        re add(first, second)
+    } else {
+        re (first + second) * 2
+    }
+}

@@ -1947,6 +1947,9 @@ namespace crossa::compiler::semantic {
     optional<types::SemanticType> SemanticAnalyzer::getConfigType(
         const string& name
     ) {
+        if (name == "packageName") {
+            return types::SemanticType::createString();
+        }
         if (name == "baseUrl") {
             return types::SemanticType::createString();
         }

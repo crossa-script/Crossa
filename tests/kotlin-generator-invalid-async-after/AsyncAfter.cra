@@ -1,0 +1,4 @@
+@AsyncAfter
+fun calculate(value: Int): Int {
+    re value
+}

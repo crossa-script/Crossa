@@ -1,0 +1,34 @@
+fun calculate(value: Int): Int {
+    var negative: Int = -value
+    var quotient: Int = (value + 4) / 2
+    if (negative < 0 && quotient != value || value <= quotient && value >= negative) {
+        re quotient - negative
+    } else {
+        re value
+    }
+}
+
+fun echoLong(value: Long): Long {
+    re value
+}
+
+fun adjustRatio(value: Double): Double {
+    re value * 2.5 - 1.0
+}
+
+fun render(value: String): String {
+    var label: String = "#value!"
+    re label
+}
+
+fun invert(value: Bool): Bool {
+    re !value
+}
+
+fun matches(first: Int, second: Int): Bool {
+    re first == second
+}
+
+fun empty(): String {
+    re ""
+}

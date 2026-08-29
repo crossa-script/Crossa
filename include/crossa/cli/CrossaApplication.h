@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "crossa/compiler/ast/SourceUnit.h"
+#include "crossa/compiler/generators/kotlin/KotlinGeneratedSource.h"
 #include "crossa/compiler/ir/Program.h"
 #include "crossa/compiler/lexer/Token.h"
 #include "crossa/compiler/semantic/TypedSourceUnit.h"
@@ -24,11 +25,12 @@ public:
     static int run(int argc, char* argv[]);
 
 private:
-    // Selects whether the CLI validates, runs, or tests a source file.
+    // Selects whether the CLI validates, executes, tests, or generates a source file.
     enum class Command {
         Run,
         Check,
-        Test
+        Test,
+        GenerateKotlin
     };
 
     // Stores validated command-line options for one Crossa execution.
@@ -36,6 +38,7 @@ private:
         Command command;
         bool debugEnabled;
         std::filesystem::path sourcePath;
+        std::optional<std::filesystem::path> outputDirectory;
     };
 
     // Parses one optional CLI command name.
@@ -43,20 +46,32 @@ private:
         std::string_view argument
     ) noexcept;
 
-    // Parses supported command-line arguments into execution options.
+    // Parses supported command-line arguments into validated workflow options.
     [[nodiscard]] static std::optional<Arguments> parseArguments(
         int argc,
         char* argv[]
     );
 
-    // Loads, compiles, and executes one Crossa source file.
+    // Loads, compiles, and applies the requested workflow to one Crossa source file.
     static void executeSource(const Arguments& arguments, const utils::Log& log);
+
+    // Writes one generated Kotlin source unit into the requested output directory.
+    static void writeGeneratedKotlinSource(
+        const compiler::generators::kotlin::KotlinGeneratedSource& source,
+        const std::filesystem::path& outputDirectory,
+        const utils::Log& log
+    );
 
     // Compiles an optional sibling config.cra into declarative IR.
     [[nodiscard]] static std::optional<compiler::ir::Program>
     compileSiblingConfiguration(
         const std::filesystem::path& sourcePath,
         const utils::Log& log
+    );
+
+    // Reads the optional Kotlin package name from declarative configuration IR.
+    [[nodiscard]] static std::optional<std::string> readKotlinPackageName(
+        const std::optional<compiler::ir::Program>& configurationProgram
     );
 
     // Ensures a sibling configuration file contains only config declarations.

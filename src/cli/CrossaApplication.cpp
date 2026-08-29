@@ -1,12 +1,17 @@
 #include "crossa/cli/CrossaApplication.h"
 
 #include <exception>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 
 #include "crossa/compiler/ast/AstPrinter.h"
+#include "crossa/compiler/generators/kotlin/KotlinGenerator.h"
+#include "crossa/compiler/ir/IrDeclaration.h"
+#include "crossa/compiler/ir/IrExpression.h"
 #include "crossa/compiler/ir/IrLowerer.h"
 #include "crossa/compiler/ir/IrPrinter.h"
 #include "crossa/compiler/ir/Program.h"
@@ -28,7 +33,9 @@ namespace crossa::cli {
         const optional<Arguments> arguments = parseArguments(argc, argv);
         if (!arguments.has_value()) {
             utils::Log().error(
-                "Usage: crossa [check|run|test] [--debug] <file.cra>"
+                "Usage: crossa [check|run|test] [--debug] <file.cra>\n"
+                "       crossa generate kotlin [--debug] <file.cra> "
+                "--output <directory>"
             );
             return 1;
         }
@@ -45,7 +52,9 @@ namespace crossa::cli {
                 ? "Command selected: check"
                 : arguments->command == Command::Test
                     ? "Command selected: test"
-                    : "Command selected: run"
+                    : arguments->command == Command::GenerateKotlin
+                        ? "Command selected: generate kotlin"
+                        : "Command selected: run"
         );
 
         try {
@@ -71,11 +80,35 @@ namespace crossa::cli {
         Command command = Command::Run;
         bool commandProvided = false;
         optional<filesystem::path> sourcePath;
+        optional<filesystem::path> outputDirectory;
 
         for (int index = 1; index < argc; ++index) {
             const string_view argument(argv[index]);
             if (argument == "--debug") {
                 debugEnabled = true;
+                continue;
+            }
+
+            if (argument == "--output") {
+                if (outputDirectory.has_value() || index + 1 >= argc) {
+                    return nullopt;
+                }
+                const string_view outputArgument(argv[++index]);
+                if (outputArgument.empty() || outputArgument.front() == '-') {
+                    return nullopt;
+                }
+                outputDirectory = filesystem::path(outputArgument);
+                continue;
+            }
+
+            if (argument == "generate") {
+                if (commandProvided || sourcePath.has_value() ||
+                    index + 1 >= argc ||
+                    string_view(argv[++index]) != "kotlin") {
+                    return nullopt;
+                }
+                command = Command::GenerateKotlin;
+                commandProvided = true;
                 continue;
             }
 
@@ -101,10 +134,15 @@ namespace crossa::cli {
         if (!sourcePath.has_value()) {
             return nullopt;
         }
+        const bool generatesKotlin = command == Command::GenerateKotlin;
+        if (generatesKotlin != outputDirectory.has_value()) {
+            return nullopt;
+        }
         return Arguments{
             command,
             debugEnabled,
-            std::move(sourcePath.value())
+            std::move(sourcePath.value()),
+            std::move(outputDirectory)
         };
     }
 
@@ -123,7 +161,7 @@ namespace crossa::cli {
         return nullopt;
     }
 
-    // Loads, compiles, and optionally executes one Crossa source file.
+    // Loads, compiles, and applies the requested workflow to one Crossa source file.
     void CrossaApplication::executeSource(
         const Arguments& arguments,
         const utils::Log& log
@@ -177,18 +215,46 @@ namespace crossa::cli {
         );
         logStepCompleted(6, "Typed IR lowering", log);
 
-        const string executionStepName = arguments.command == Command::Check
-            ? "Check completion (execution skipped)"
-            : arguments.command == Command::Test
-                ? "Test execution"
-                : "Native execution";
-        logStepStarted(7, executionStepName, log);
+        string finalStepName;
+        switch (arguments.command) {
+            case Command::Check:
+                finalStepName = "Check completion (execution skipped)";
+                break;
+            case Command::Test:
+                finalStepName = "Test execution";
+                break;
+            case Command::GenerateKotlin:
+                finalStepName = "Kotlin source generation";
+                break;
+            case Command::Run:
+                finalStepName = "Native execution";
+                break;
+        }
+        logStepStarted(7, finalStepName, log);
         if (arguments.command == Command::Check) {
             log.debug(
                 "Check completed successfully; configuration and execution "
                 "were skipped"
             );
-            logStepCompleted(7, executionStepName, log);
+            logStepCompleted(7, finalStepName, log);
+            return;
+        }
+
+        if (arguments.command == Command::GenerateKotlin) {
+            const optional<compiler::ir::Program> configurationProgram =
+                compileSiblingConfiguration(sourceFile.getPath(), log);
+            compiler::generators::kotlin::KotlinGenerator generator;
+            const compiler::generators::kotlin::KotlinGeneratedSource source =
+                generator.generate(
+                    program,
+                    readKotlinPackageName(configurationProgram)
+                );
+            writeGeneratedKotlinSource(
+                source,
+                arguments.outputDirectory.value(),
+                log
+            );
+            logStepCompleted(7, finalStepName, log);
             return;
         }
 
@@ -204,7 +270,58 @@ namespace crossa::cli {
                 ? runtime::ExecutionMode::Test
                 : runtime::ExecutionMode::Run
         );
-        logStepCompleted(7, executionStepName, log);
+        logStepCompleted(7, finalStepName, log);
+    }
+
+    // Writes one generated Kotlin source unit into the requested output directory.
+    void CrossaApplication::writeGeneratedKotlinSource(
+        const compiler::generators::kotlin::KotlinGeneratedSource& source,
+        const filesystem::path& outputDirectory,
+        const utils::Log& log
+    ) {
+        error_code error;
+        filesystem::create_directories(outputDirectory, error);
+        if (error || !filesystem::is_directory(outputDirectory, error)) {
+            throw runtime_error(
+                "Unable to create Kotlin output directory: " +
+                outputDirectory.string()
+            );
+        }
+
+        const filesystem::path outputPath =
+            outputDirectory / source.getFileName();
+        filesystem::path temporaryPath = outputPath;
+        temporaryPath += ".tmp";
+        ofstream output(temporaryPath, ios::binary | ios::trunc);
+        if (!output.is_open()) {
+            throw runtime_error(
+                "Unable to write Kotlin output file: " +
+                temporaryPath.string()
+            );
+        }
+
+        output.write(
+            source.getContent().data(),
+            static_cast<streamsize>(source.getContent().size())
+        );
+        output.close();
+        if (!output) {
+            filesystem::remove(temporaryPath, error);
+            throw runtime_error(
+                "Unable to finish Kotlin output file: " +
+                temporaryPath.string()
+            );
+        }
+
+        filesystem::rename(temporaryPath, outputPath, error);
+        if (error) {
+            filesystem::remove(temporaryPath, error);
+            throw runtime_error(
+                "Unable to finalize Kotlin output file: " +
+                outputPath.string()
+            );
+        }
+        log.debug("Kotlin source generated: " + outputPath.string());
     }
 
     // Compiles an optional sibling config.cra into declarative IR.
@@ -219,11 +336,11 @@ namespace crossa::cli {
         const filesystem::path configurationPath =
             sourcePath.parent_path() / "config.cra";
         if (!filesystem::exists(configurationPath)) {
-            log.debug("No sibling config.cra found; runtime defaults selected");
+            log.debug("No sibling config.cra found");
             return nullopt;
         }
 
-        log.debug("Compiling sibling runtime configuration: " +
+        log.debug("Compiling sibling configuration: " +
                   configurationPath.string());
         compiler::source::SourceFile sourceFile =
             compiler::source::SourceLoader::load(configurationPath, log);
@@ -236,8 +353,58 @@ namespace crossa::cli {
         compiler::ir::Program program =
             compiler::ir::IrLowerer::lower(semanticModel);
         validateConfigurationProgram(program);
-        log.debug("Sibling runtime configuration compiled");
+        log.debug("Sibling configuration compiled");
         return program;
+    }
+
+    // Reads the optional Kotlin package name from declarative configuration IR.
+    optional<string> CrossaApplication::readKotlinPackageName(
+        const optional<compiler::ir::Program>& configurationProgram
+    ) {
+        if (!configurationProgram.has_value()) {
+            return nullopt;
+        }
+
+        for (const unique_ptr<compiler::ir::IrDeclaration>& declaration :
+             configurationProgram->getDeclarations()) {
+            if (declaration->getKind() !=
+                compiler::ir::IrDeclarationKind::Config) {
+                continue;
+            }
+            const auto& configuration = static_cast<
+                const compiler::ir::IrConfigDeclaration&
+            >(*declaration);
+            for (const compiler::ir::IrConfigEntry& entry :
+                 configuration.getEntries()) {
+                if (entry.getName() != "packageName") {
+                    continue;
+                }
+                if (entry.getValue().getKind() !=
+                    compiler::ir::IrExpressionKind::StringBuild) {
+                    throw runtime_error(
+                        "Kotlin config packageName must be a String literal."
+                    );
+                }
+                const auto& stringBuild = static_cast<
+                    const compiler::ir::IrStringBuildExpression&
+                >(entry.getValue());
+                string packageName;
+                for (const compiler::ir::IrStringSegment& segment :
+                     stringBuild.getSegments()) {
+                    if (segment.getKind() !=
+                        compiler::ir::IrStringSegmentKind::Literal) {
+                        throw runtime_error(
+                            "Kotlin config packageName cannot interpolate "
+                            "symbols."
+                        );
+                    }
+                    packageName += segment.getValue();
+                }
+                return packageName;
+            }
+        }
+
+        return nullopt;
     }
 
     // Ensures a sibling configuration file contains only config declarations.

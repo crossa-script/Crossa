@@ -1340,7 +1340,7 @@ Validation belongs to semantic analysis.
 
 # 25. `config.cra`
 
-Networking/runtime configuration:
+Declarative runtime and generation configuration:
 
 ```cra
 config {
@@ -1410,6 +1410,7 @@ config {
 Recognized keys:
 
 ```text
+packageName: String Kotlin package for generated source files
 baseUrl: String
 timeoutRequest: Int
 commonHeaders: Json object with scalar values
@@ -1435,6 +1436,12 @@ telemetry: Json object
 ```text
 milliseconds
 ```
+
+`packageName` is used only by `crossa generate kotlin`. When present, every
+generated Kotlin file starts with `package <packageName>`. It must be a literal,
+dot-separated sequence of ASCII identifier segments, such as
+`com.example.crossa`; interpolation is not allowed. Native execution ignores
+this generation-only key.
 
 Interceptor logging options are:
 
@@ -2679,13 +2686,19 @@ Supported commands:
 crossa check UsersController.cra
 crossa run UsersController.cra
 crossa test UsersController.cra
+crossa generate kotlin UsersController.cra --output generated/
 ```
 
 `check` loads the complete import graph and runs parsing, semantic analysis, and
 typed IR lowering without loading `config.cra` or executing any function or
-request. `run` and `test` continue through native execution. The command is
-optional for compatibility, so `crossa UsersController.cra` is equivalent to
-`crossa run UsersController.cra`.
+request. `generate kotlin` also stops after lowering, then passes the typed IR
+to the Kotlin backend and writes `UsersController.kt` into the requested output
+directory. It compiles a sibling `config.cra` only to read its optional
+generation-only `packageName`; it does not initialize runtime configuration,
+execute functions, or implement runtime-backed behavior in Kotlin. `run` and
+`test` continue through native execution. The command is optional for
+compatibility, so `crossa UsersController.cra` is equivalent to `crossa run
+UsersController.cra`.
 
 Execution must still pass through:
 

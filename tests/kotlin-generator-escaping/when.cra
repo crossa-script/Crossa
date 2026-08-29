@@ -1,0 +1,12 @@
+fun when(value: Int): Int {
+    re value
+}
+
+fun callKeyword(value: Int): Int {
+    re when(value)
+}
+
+fun render(value: String): String {
+    var when: String = "$#value"
+    re when
+}

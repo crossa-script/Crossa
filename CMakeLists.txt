@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.22)
 
 project(Crossa LANGUAGES CXX)
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
 option(
     CROSSA_ENABLE_NETWORK_INTEGRATION
     "Enable integration tests that call JSONPlaceholder"
@@ -32,6 +30,13 @@ add_executable(
     include/crossa/compiler/ast/AstPrinter.h
     include/crossa/compiler/parser/Parser.h
     include/crossa/compiler/project/ProjectLinker.h
+    include/crossa/compiler/generators/kotlin/KotlinGeneratedSource.h
+    include/crossa/compiler/generators/kotlin/KotlinGenerator.h
+    include/crossa/compiler/generators/kotlin/KotlinIdentifierEscaper.h
+    include/crossa/compiler/generators/kotlin/KotlinExpressionEmitter.h
+    include/crossa/compiler/generators/kotlin/KotlinSourceWriter.h
+    include/crossa/compiler/generators/kotlin/KotlinStatementEmitter.h
+    include/crossa/compiler/generators/kotlin/KotlinTypeMapper.h
     include/crossa/compiler/ir/IrExpression.h
     include/crossa/compiler/ir/IrStatement.h
     include/crossa/compiler/ir/IrDeclaration.h
@@ -73,6 +78,13 @@ add_executable(
     src/compiler/ast/AstPrinter.cpp
     src/compiler/parser/Parser.cpp
     src/compiler/project/ProjectLinker.cpp
+    src/compiler/generators/kotlin/KotlinGeneratedSource.cpp
+    src/compiler/generators/kotlin/KotlinGenerator.cpp
+    src/compiler/generators/kotlin/KotlinIdentifierEscaper.cpp
+    src/compiler/generators/kotlin/KotlinExpressionEmitter.cpp
+    src/compiler/generators/kotlin/KotlinSourceWriter.cpp
+    src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
+    src/compiler/generators/kotlin/KotlinTypeMapper.cpp
     src/compiler/ir/IrExpression.cpp
     src/compiler/ir/IrStatement.cpp
     src/compiler/ir/IrDeclaration.cpp
@@ -218,6 +230,13 @@ add_executable(
     src/compiler/ast/JsonExpression.cpp
     src/compiler/parser/Parser.cpp
     src/compiler/project/ProjectLinker.cpp
+    src/compiler/generators/kotlin/KotlinGeneratedSource.cpp
+    src/compiler/generators/kotlin/KotlinGenerator.cpp
+    src/compiler/generators/kotlin/KotlinIdentifierEscaper.cpp
+    src/compiler/generators/kotlin/KotlinExpressionEmitter.cpp
+    src/compiler/generators/kotlin/KotlinSourceWriter.cpp
+    src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
+    src/compiler/generators/kotlin/KotlinTypeMapper.cpp
     src/compiler/types/SemanticType.cpp
     src/compiler/semantic/SemanticScope.cpp
     src/compiler/semantic/TypedExpression.cpp
@@ -270,8 +289,15 @@ set_tests_properties(
 add_test(
     NAME crossa_local_network_integration_test
     COMMAND
-        ${Python3_EXECUTABLE}
-        ${CMAKE_SOURCE_DIR}/tests/run-local-network-tests.py
+        bash
+        ${CMAKE_SOURCE_DIR}/scripts/run-local-network-tests.sh
+        $<TARGET_FILE:crossa>
+)
+add_test(
+    NAME crossa_kotlin_generator_test_suite
+    COMMAND
+        bash
+        ${CMAKE_SOURCE_DIR}/scripts/run-kotlin-generator-tests.sh
         $<TARGET_FILE:crossa>
 )
 add_test(
@@ -310,6 +336,7 @@ set_tests_properties(
     crossa_script_test
     crossa_conditionals_test
     crossa_local_network_integration_test
+    crossa_kotlin_generator_test_suite
     crossa_check_nested_project_test
     crossa_explicit_run_test
     crossa_explicit_test_command_test

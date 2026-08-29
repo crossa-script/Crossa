@@ -4,6 +4,11 @@ Crossa uses two test layers:
 
 - `crossa_language_tests` is a dependency-free C++ unit-test executable covering lexer tokens, parser/AST, semantic types and diagnostics, IR lowering, and recursive project linking.
 - `crossa_runtime_tests` covers native result state, typed response decoding, structured errors, scheduler cancellation, and shutdown behavior.
+- `crossa_kotlin_generator_test_suite` invokes `generate kotlin` against golden
+  fixtures for scalar types, operators, control flow, `@Sync`, `Unit`,
+  `print`, identifier/string escaping, parameter wrapping, and configured
+  packages. It also verifies clear rejection of invalid packages,
+  `CrossaRequest`, `@Async`, `@AsyncAfter`, models, and `List<T>`.
 - CTest runs the real `crossa` executable against `test.cra`, imported scripts,
   nested project fixtures, explicit `check`, `run`, and `test` commands, and
   expected CLI failures, plus the local HTTP integration harness.
@@ -21,9 +26,10 @@ Run the complete local suite from the repository root:
 ./test.sh
 ```
 
-When CMake is installed, `test.sh` configures `build/`, builds all targets, and runs CTest. When CMake is unavailable, it uses the native C++ compiler and still runs both unit-test executables plus the CLI integration fixtures.
+When CMake is installed, `test.sh` configures `build/`, builds all targets, and runs CTest. When CMake is unavailable, it uses the native C++ compiler and still runs both unit-test executables plus the CLI integration fixtures. Shell scripts under `scripts/` run the Kotlin generator and local networking integration suites; the local server requires `socat`.
 
-GitHub Actions runs the same script on every push and pull request through:
+GitHub Actions runs this complete suite, including
+`crossa_kotlin_generator_test_suite`, on every push and pull request through:
 
 ```text
 .github/workflows/ci.yml

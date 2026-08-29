@@ -1,0 +1,6 @@
+fun fetch(): Json {
+    re CrossaRequest {
+        url: "https://example.test/users",
+        method: GET
+    }
+}

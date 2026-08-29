@@ -1,0 +1,14 @@
+fun notify(message: String) {
+    print(message)
+}
+
+@Sync
+fun choose(first: Int, second: Int, third: Int): Int {
+    if (first > second) {
+        re first
+    } else if (second > third) {
+        re second
+    } else {
+        re third
+    }
+}

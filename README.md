@@ -113,7 +113,15 @@ Use explicit commands when the intent should be clear:
 ./build/crossa check examples/imports/runPosts.cra
 ./build/crossa run file.cra
 ./build/crossa test file.cra
+./build/crossa generate kotlin tests/kotlin-generator/Math.cra --output generated/
 ```
+
+`generate kotlin` stops after typed IR lowering and writes one deterministic
+`<SourceIdentity>.kt` file to the requested output directory. When the source
+directory has a `config.cra` with `packageName: "com.example.app"`, the
+generated file begins with that Kotlin package directive. It supports only the
+pure Kotlin IR backend; runtime-backed operations such as `CrossaRequest` fail
+explicitly rather than generating platform networking code.
 
 The command is optional for backward compatibility, so `crossa file.cra` is
 equivalent to `crossa run file.cra`.

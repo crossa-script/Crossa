@@ -641,6 +641,15 @@ model User(
 
 # Phase 10 — Kotlin and Swift Pure-Code Generators
 
+> **Implementation status:** The Kotlin pure-code backend emits deterministic
+> source-unit classes for synchronous pure IR functions using scalar `Int`,
+> `Long`, `Double`, `String`, and `Bool` values. It supports locals, returns,
+> arithmetic, pure calls, conditionals, comparisons, boolean operators, and
+> Kotlin keyword escaping. A literal `config.cra` `packageName` is emitted as
+> the package directive for Kotlin source. Runtime-backed IR, including
+> `CrossaRequest`, and non-pure execution policies are explicitly rejected
+> pending native binding generation. Swift generation remains unimplemented.
+
 ## Goal
 
 Generate deterministic platform source for the supported pure-language subset.

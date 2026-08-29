@@ -99,6 +99,13 @@ elif command -v c++ >/dev/null 2>&1; then
         src/compiler/ast/JsonExpression.cpp
         src/compiler/parser/Parser.cpp
         src/compiler/project/ProjectLinker.cpp
+        src/compiler/generators/kotlin/KotlinGeneratedSource.cpp
+        src/compiler/generators/kotlin/KotlinGenerator.cpp
+        src/compiler/generators/kotlin/KotlinIdentifierEscaper.cpp
+        src/compiler/generators/kotlin/KotlinExpressionEmitter.cpp
+        src/compiler/generators/kotlin/KotlinSourceWriter.cpp
+        src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
+        src/compiler/generators/kotlin/KotlinTypeMapper.cpp
         src/compiler/types/SemanticType.cpp
         src/compiler/semantic/SemanticScope.cpp
         src/compiler/semantic/TypedExpression.cpp
@@ -167,11 +174,12 @@ assertExecutionFails \
     "Assertion failed: intentional assertion failure" \
     ./build/crossa test tests/test-runner/failure.cra
 
-if ! command -v python3 >/dev/null 2>&1; then
-    printf '%s\n' 'Test failed: python3 is required for local network integration.' >&2
+if ! command -v socat >/dev/null 2>&1; then
+    printf '%s\n' 'Test failed: socat is required for local network integration.' >&2
     exit 1
 fi
-python3 tests/run-local-network-tests.py ./build/crossa
+bash scripts/run-kotlin-generator-tests.sh ./build/crossa
+bash scripts/run-local-network-tests.sh ./build/crossa
 
 if [[ "${CROSSA_RUN_NETWORK_INTEGRATION:-0}" == "1" ]]; then
     ./build/crossa run tests/network-jsonplaceholder.cra
