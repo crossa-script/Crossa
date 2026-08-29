@@ -50,6 +50,7 @@ public:
             verifyParserAst();
             verifyParserImportPosition();
             verifySemanticModel();
+            verifyNumericTypes();
             verifySemanticFailure();
             verifyIrLowering();
             verifyProjectLinking();
@@ -170,8 +171,8 @@ private:
     static void verifyLexerTokens() {
         const filesystem::path sourcePath = "lexer.cra";
         const string content =
-            "import #models.cra# fun re var model config print assert Int String "
-            "Bool List Json null true false GET POST PUT PATCH DELETE HEAD "
+            "import #models.cra# fun re var model config print assert Int Long "
+            "Double String Bool List Json null true false GET POST PUT PATCH DELETE HEAD "
             "OPTIONS TRACE CONNECT @Sync @Async @AsyncAfter ( ) { } [ ] "
             "< > : , = + - * /";
         source::SourceFile sourceFile(sourcePath, content);
@@ -190,6 +191,10 @@ private:
                 "Lexer did not recognize CONNECT method token.");
         require(countToken(tokens, lexer::TokenType::KeywordAssert) == 1,
                 "Lexer did not recognize assert keyword.");
+        require(countToken(tokens, lexer::TokenType::KeywordLong) == 1,
+                "Lexer did not recognize Long keyword.");
+        require(countToken(tokens, lexer::TokenType::KeywordDouble) == 1,
+                "Lexer did not recognize Double keyword.");
         require(tokens.back().getType() == lexer::TokenType::EndOfFile,
                 "Lexer did not append EndOfFile.");
     }
@@ -272,6 +277,50 @@ private:
             );
         require(function.getReturnType().format() == "Int",
                 "Semantic analysis did not resolve function return type.");
+    }
+
+    // Verifies Long and Double flow through semantic analysis and IR lowering.
+    static void verifyNumericTypes() {
+        const filesystem::path sourcePath = "numeric-types.cra";
+        const source::SourceFile sourceFile(
+            sourcePath,
+            "model Metric(id: Long, score: Double)\n"
+            "fun addLong(a: Long, b: Long): Long { re a + b }\n"
+            "fun addDouble(a: Double, b: Double): Double { re a + b }\n"
+            "var total: Long = 9000000000\n"
+            "var score: Double = 12.5\n"
+        );
+        lexer::Lexer lexer(sourceFile);
+        const vector<lexer::Token> tokens = lexer.tokenize();
+        parser::Parser parser(tokens, sourceFile);
+        ast::SourceUnit sourceUnit = parser.parse();
+        semantic::SemanticAnalyzer analyzer(sourceUnit, sourceFile);
+        const semantic::TypedSourceUnit model = analyzer.analyze();
+        const ir::Program program = ir::IrLowerer::lower(model);
+
+        const auto& metric = static_cast<
+            const semantic::TypedModelDeclaration&>(
+                *model.getDeclarations().at(0)
+            );
+        require(metric.getFields().at(0).getType().format() == "Long",
+                "Semantic analysis did not resolve Long model fields.");
+        require(metric.getFields().at(1).getType().format() == "Double",
+                "Semantic analysis did not resolve Double model fields.");
+        const auto& total = static_cast<const ir::IrVariableDeclaration&>(
+            *program.getDeclarations().at(3)
+        );
+        require(total.getType().format() == "Long",
+                "IR lowering did not preserve Long variable type.");
+        require(total.getInitializer().getType().format() == "Long",
+                "IR lowering did not preserve Long literal type.");
+        const auto& score = static_cast<const ir::IrVariableDeclaration&>(
+            *program.getDeclarations().at(4)
+        );
+        require(score.getType().format() == "Double",
+                "IR lowering did not preserve Double variable type.");
+        require(score.getInitializer().getKind() ==
+                    ir::IrExpressionKind::DoubleConstant,
+                "IR lowering did not produce a Double constant.");
     }
 
     // Verifies semantic diagnostics for unresolved types.

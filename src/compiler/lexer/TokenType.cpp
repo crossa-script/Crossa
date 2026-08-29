@@ -37,6 +37,10 @@ namespace crossa::compiler::lexer {
                 return "KeywordAssert";
             case TokenType::KeywordInt:
                 return "KeywordInt";
+            case TokenType::KeywordLong:
+                return "KeywordLong";
+            case TokenType::KeywordDouble:
+                return "KeywordDouble";
             case TokenType::KeywordString:
                 return "KeywordString";
             case TokenType::KeywordBool:

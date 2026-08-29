@@ -226,6 +226,12 @@ private:
                         const compiler::ir::IrIntegerConstantExpression&
                     >(expression).getValue()
                 );
+            case compiler::ir::IrExpressionKind::DoubleConstant:
+                return network::json::JsonValue::createNumber(
+                    static_cast<
+                        const compiler::ir::IrDoubleConstantExpression&
+                    >(expression).getValue()
+                );
             case compiler::ir::IrExpressionKind::StringBuild:
                 return network::json::JsonValue::createString(
                     readString(expression)

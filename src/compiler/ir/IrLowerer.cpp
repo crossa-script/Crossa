@@ -226,6 +226,17 @@ namespace crossa::compiler::ir {
                     >(expression);
                 return make_unique<IrIntegerConstantExpression>(
                     literal.getValue(),
+                    literal.getType(),
+                    literal.getLocation()
+                );
+            }
+            case semantic::TypedExpressionKind::DecimalLiteral: {
+                const auto& literal =
+                    static_cast<
+                        const semantic::TypedDecimalLiteralExpression&
+                    >(expression);
+                return make_unique<IrDoubleConstantExpression>(
+                    literal.getValue(),
                     literal.getLocation()
                 );
             }

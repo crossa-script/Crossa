@@ -125,6 +125,13 @@ private:
         const SemanticScope& scope
     );
 
+    // Resolves one expression with an optional contextual expected type.
+    [[nodiscard]] std::unique_ptr<TypedExpression> analyzeExpression(
+        const ast::Expression& expression,
+        const SemanticScope& scope,
+        const types::SemanticType* expectedType
+    );
+
     // Resolves one identifier expression to a visible value symbol.
     [[nodiscard]] std::unique_ptr<TypedExpression> analyzeIdentifierExpression(
         const ast::IdentifierExpression& expression,
@@ -146,13 +153,15 @@ private:
     // Validates one unary arithmetic expression.
     [[nodiscard]] std::unique_ptr<TypedExpression> analyzeUnaryExpression(
         const ast::UnaryExpression& expression,
-        const SemanticScope& scope
+        const SemanticScope& scope,
+        const types::SemanticType* expectedType
     );
 
     // Validates one binary arithmetic expression.
     [[nodiscard]] std::unique_ptr<TypedExpression> analyzeBinaryExpression(
         const ast::BinaryExpression& expression,
-        const SemanticScope& scope
+        const SemanticScope& scope,
+        const types::SemanticType* expectedType
     );
 
     // Validates one JSON object and recursively types every field value.
@@ -217,6 +226,11 @@ private:
     [[nodiscard]] static std::optional<types::SemanticType> getConfigType(
         const std::string& name
     );
+
+    // Returns whether this type can participate in arithmetic expressions.
+    [[nodiscard]] static bool isNumericType(
+        const types::SemanticType& type
+    ) noexcept;
 
     // Throws a deterministic source-aware semantic diagnostic.
     [[noreturn]] void fail(

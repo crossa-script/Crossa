@@ -98,17 +98,35 @@ namespace crossa::compiler::semantic {
     // Creates a typed integer literal while preserving its source digits.
     TypedIntegerLiteralExpression::TypedIntegerLiteralExpression(
         string value,
+        types::SemanticType type,
         source::SourceLocation location
     )
         : TypedExpression(
               TypedExpressionKind::IntegerLiteral,
-              types::SemanticType::createInt(),
+              std::move(type),
               location
           ),
           value_(std::move(value)) {}
 
     // Returns the source digits of this integer literal.
     const string& TypedIntegerLiteralExpression::getValue() const noexcept {
+        return value_;
+    }
+
+    // Creates a typed decimal literal while preserving its source text.
+    TypedDecimalLiteralExpression::TypedDecimalLiteralExpression(
+        string value,
+        source::SourceLocation location
+    )
+        : TypedExpression(
+              TypedExpressionKind::DecimalLiteral,
+              types::SemanticType::createDouble(),
+              location
+          ),
+          value_(std::move(value)) {}
+
+    // Returns the source text of this decimal literal.
+    const string& TypedDecimalLiteralExpression::getValue() const noexcept {
         return value_;
     }
 

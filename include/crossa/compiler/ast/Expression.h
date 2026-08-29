@@ -12,6 +12,7 @@ namespace crossa::compiler::ast {
 enum class ExpressionKind {
     Identifier,
     IntegerLiteral,
+    DecimalLiteral,
     StringLiteral,
     BooleanLiteral,
     Call,
@@ -123,6 +124,23 @@ public:
     );
 
     // Returns the source digits of this integer literal.
+    [[nodiscard]] const std::string& getValue() const noexcept;
+
+private:
+    std::string value_;
+};
+
+// Preserves one decimal literal before runtime conversion.
+// getValue() exposes the source number text without platform conversion.
+class DecimalLiteralExpression final : public Expression {
+public:
+    // Creates a decimal literal from its source number text.
+    DecimalLiteralExpression(
+        std::string value,
+        source::SourceLocation location
+    );
+
+    // Returns the source text of this decimal literal.
     [[nodiscard]] const std::string& getValue() const noexcept;
 
 private:

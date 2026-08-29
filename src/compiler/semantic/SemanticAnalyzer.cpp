@@ -272,7 +272,8 @@ namespace crossa::compiler::semantic {
 
         unique_ptr<TypedExpression> initializer = analyzeExpression(
             declaration.getInitializer(),
-            globalScope_
+            globalScope_,
+            &symbol->getType()
         );
         if (initializer->getType() != symbol->getType()) {
             fail(
@@ -604,7 +605,8 @@ namespace crossa::compiler::semantic {
                           )
                         : analyzeExpression(
                               returnStatement.getExpression(),
-                              scope
+                              scope,
+                              &returnType
                           );
                 if (expression->getType() != returnType) {
                     fail(
@@ -664,7 +666,8 @@ namespace crossa::compiler::semantic {
         types::SemanticType type = resolveType(statement.getType());
         unique_ptr<TypedExpression> initializer = analyzeExpression(
             statement.getInitializer(),
-            scope
+            scope,
+            &type
         );
         if (initializer->getType() != type) {
             fail(
@@ -701,6 +704,15 @@ namespace crossa::compiler::semantic {
         const ast::Expression& expression,
         const SemanticScope& scope
     ) {
+        return analyzeExpression(expression, scope, nullptr);
+    }
+
+    // Resolves one expression with an optional contextual expected type.
+    unique_ptr<TypedExpression> SemanticAnalyzer::analyzeExpression(
+        const ast::Expression& expression,
+        const SemanticScope& scope,
+        const types::SemanticType* expectedType
+    ) {
         switch (expression.getKind()) {
             case ast::ExpressionKind::Identifier:
                 return analyzeIdentifierExpression(
@@ -710,7 +722,30 @@ namespace crossa::compiler::semantic {
             case ast::ExpressionKind::IntegerLiteral: {
                 const auto& literal =
                     static_cast<const ast::IntegerLiteralExpression&>(expression);
+                if (expectedType != nullptr &&
+                    expectedType->getKind() ==
+                        types::SemanticTypeKind::Double) {
+                    return make_unique<TypedDecimalLiteralExpression>(
+                        literal.getValue(),
+                        expression.getLocation()
+                    );
+                }
                 return make_unique<TypedIntegerLiteralExpression>(
+                    literal.getValue(),
+                    expectedType != nullptr &&
+                            expectedType->getKind() ==
+                                types::SemanticTypeKind::Long
+                        ? types::SemanticType::createLong()
+                        : types::SemanticType::createInt(),
+                    expression.getLocation()
+                );
+            }
+            case ast::ExpressionKind::DecimalLiteral: {
+                const auto& literal =
+                    static_cast<const ast::DecimalLiteralExpression&>(
+                        expression
+                    );
+                return make_unique<TypedDecimalLiteralExpression>(
                     literal.getValue(),
                     expression.getLocation()
                 );
@@ -736,12 +771,14 @@ namespace crossa::compiler::semantic {
             case ast::ExpressionKind::Unary:
                 return analyzeUnaryExpression(
                     static_cast<const ast::UnaryExpression&>(expression),
-                    scope
+                    scope,
+                    expectedType
                 );
             case ast::ExpressionKind::Binary:
                 return analyzeBinaryExpression(
                     static_cast<const ast::BinaryExpression&>(expression),
-                    scope
+                    scope,
+                    expectedType
                 );
             case ast::ExpressionKind::JsonNumber: {
                 const auto& number =
@@ -866,14 +903,13 @@ namespace crossa::compiler::semantic {
         const ast::CallExpression& expression,
         const SemanticScope& scope
     ) {
-        vector<unique_ptr<TypedExpression>> arguments;
-        arguments.reserve(expression.getArguments().size());
-        for (const unique_ptr<ast::Expression>& argument :
-             expression.getArguments()) {
-            arguments.push_back(analyzeExpression(*argument, scope));
-        }
-
         if (expression.getCallee() == "print") {
+            vector<unique_ptr<TypedExpression>> arguments;
+            arguments.reserve(expression.getArguments().size());
+            for (const unique_ptr<ast::Expression>& argument :
+                 expression.getArguments()) {
+                arguments.push_back(analyzeExpression(*argument, scope));
+            }
             if (arguments.size() != 1) {
                 fail(
                     expression.getLocation(),
@@ -900,6 +936,12 @@ namespace crossa::compiler::semantic {
         }
 
         if (expression.getCallee() == "assert") {
+            vector<unique_ptr<TypedExpression>> arguments;
+            arguments.reserve(expression.getArguments().size());
+            for (const unique_ptr<ast::Expression>& argument :
+                 expression.getArguments()) {
+                arguments.push_back(analyzeExpression(*argument, scope));
+            }
             if (arguments.empty() || arguments.size() > 2) {
                 fail(
                     expression.getLocation(),
@@ -945,14 +987,27 @@ namespace crossa::compiler::semantic {
         }
 
         const FunctionSignature& signature = signatureIterator->second;
-        if (arguments.size() != signature.getParameterTypes().size()) {
+        if (expression.getArguments().size() !=
+            signature.getParameterTypes().size()) {
             fail(
                 expression.getLocation(),
                 "CRA3009",
                 "Function '" + expression.getCallee() + "' expects " +
                 to_string(signature.getParameterTypes().size()) +
-                " arguments but received " + to_string(arguments.size()) + "."
+                " arguments but received " +
+                to_string(expression.getArguments().size()) + "."
             );
+        }
+
+        vector<unique_ptr<TypedExpression>> arguments;
+        arguments.reserve(expression.getArguments().size());
+        for (size_t index = 0; index < expression.getArguments().size();
+             ++index) {
+            arguments.push_back(analyzeExpression(
+                *expression.getArguments()[index],
+                scope,
+                &signature.getParameterTypes()[index]
+            ));
         }
 
         for (size_t index = 0; index < arguments.size(); ++index) {
@@ -982,25 +1037,28 @@ namespace crossa::compiler::semantic {
     // Validates one unary arithmetic expression.
     unique_ptr<TypedExpression> SemanticAnalyzer::analyzeUnaryExpression(
         const ast::UnaryExpression& expression,
-        const SemanticScope& scope
+        const SemanticScope& scope,
+        const types::SemanticType* expectedType
     ) {
         unique_ptr<TypedExpression> operand = analyzeExpression(
             expression.getOperand(),
-            scope
+            scope,
+            expectedType
         );
-        if (operand->getType().getKind() != types::SemanticTypeKind::Int) {
+        if (!isNumericType(operand->getType())) {
             fail(
                 operand->getLocation(),
                 "CRA3011",
-                "Unary '-' requires Int but received '" +
+                "Unary '-' requires a numeric operand but received '" +
                 operand->getType().format() + "'."
             );
         }
 
+        types::SemanticType resultType = operand->getType();
         return make_unique<TypedUnaryExpression>(
             TypedUnaryOperator::Negate,
             std::move(operand),
-            types::SemanticType::createInt(),
+            std::move(resultType),
             expression.getLocation()
         );
     }
@@ -1008,23 +1066,34 @@ namespace crossa::compiler::semantic {
     // Validates one binary arithmetic expression.
     unique_ptr<TypedExpression> SemanticAnalyzer::analyzeBinaryExpression(
         const ast::BinaryExpression& expression,
-        const SemanticScope& scope
+        const SemanticScope& scope,
+        const types::SemanticType* expectedType
     ) {
         unique_ptr<TypedExpression> left = analyzeExpression(
             expression.getLeft(),
-            scope
+            scope,
+            expectedType
         );
         unique_ptr<TypedExpression> right = analyzeExpression(
             expression.getRight(),
-            scope
+            scope,
+            expectedType
         );
-        if (left->getType().getKind() != types::SemanticTypeKind::Int ||
-            right->getType().getKind() != types::SemanticTypeKind::Int) {
+        if (!isNumericType(left->getType()) || !isNumericType(right->getType())) {
             fail(
                 expression.getLocation(),
                 "CRA3012",
-                "Arithmetic operators require Int operands but received '" +
+                "Arithmetic operators require numeric operands but received '" +
                 left->getType().format() + "' and '" +
+                right->getType().format() + "'."
+            );
+        }
+        if (left->getType() != right->getType()) {
+            fail(
+                expression.getLocation(),
+                "CRA3012",
+                "Arithmetic operands must have the same numeric type but "
+                "received '" + left->getType().format() + "' and '" +
                 right->getType().format() + "'."
             );
         }
@@ -1045,11 +1114,12 @@ namespace crossa::compiler::semantic {
                 break;
         }
 
+        types::SemanticType resultType = left->getType();
         return make_unique<TypedBinaryExpression>(
             std::move(left),
             operation,
             std::move(right),
-            types::SemanticType::createInt(),
+            std::move(resultType),
             expression.getLocation()
         );
     }
@@ -1367,12 +1437,15 @@ namespace crossa::compiler::semantic {
             }
             const types::SemanticTypeKind kind = symbol->getType().getKind();
             if (kind != types::SemanticTypeKind::Int &&
+                kind != types::SemanticTypeKind::Long &&
+                kind != types::SemanticTypeKind::Double &&
                 kind != types::SemanticTypeKind::String &&
                 kind != types::SemanticTypeKind::Bool) {
                 fail(
                     segment.getLocation(),
                     "CRA7009",
-                    "Request path variables require Int, String, or Bool."
+                    "Request path variables require Int, Long, Double, "
+                    "String, or Bool."
                 );
             }
             segments.emplace_back(
@@ -1499,6 +1572,12 @@ namespace crossa::compiler::semantic {
         if (name == "Int") {
             return types::SemanticType::createInt();
         }
+        if (name == "Long") {
+            return types::SemanticType::createLong();
+        }
+        if (name == "Double") {
+            return types::SemanticType::createDouble();
+        }
         if (name == "String") {
             return types::SemanticType::createString();
         }
@@ -1588,6 +1667,15 @@ namespace crossa::compiler::semantic {
         }
 
         return nullopt;
+    }
+
+    // Returns whether this type can participate in arithmetic expressions.
+    bool SemanticAnalyzer::isNumericType(
+        const types::SemanticType& type
+    ) noexcept {
+        return type.getKind() == types::SemanticTypeKind::Int ||
+               type.getKind() == types::SemanticTypeKind::Long ||
+               type.getKind() == types::SemanticTypeKind::Double;
     }
 
     // Throws a deterministic source-aware semantic diagnostic.

@@ -31,8 +31,8 @@ interceptor: {
 ```
 
 Successful `2xx` responses are decoded from the containing function's logical
-return type. `String` receives the bounded raw response body; `Int` and `Bool`
-require matching JSON scalars; `Json` receives any JSON value; model and list
+return type. `String` receives the bounded raw response body; `Int`, `Long`,
+`Double`, and `Bool` require matching JSON scalars; `Json` receives any JSON value; model and list
 results are decoded recursively against the lowered IR schema. Known models and
 lists become immutable native `NativeModel` and `NativeList` values; their
 temporary generic JSON DOM is released after construction. Only an explicit

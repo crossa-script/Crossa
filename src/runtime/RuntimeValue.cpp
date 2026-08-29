@@ -1,5 +1,7 @@
 #include "crossa/runtime/RuntimeValue.h"
 
+#include <array>
+#include <charconv>
 #include <stdexcept>
 #include <utility>
 
@@ -19,6 +21,16 @@ namespace crossa::runtime {
     // Creates a runtime Int value.
     RuntimeValue RuntimeValue::createInt(int64_t value) {
         return RuntimeValue(RuntimeValueKind::Int, value);
+    }
+
+    // Creates a runtime Long value.
+    RuntimeValue RuntimeValue::createLong(int64_t value) {
+        return RuntimeValue(RuntimeValueKind::Long, value);
+    }
+
+    // Creates a runtime Double value.
+    RuntimeValue RuntimeValue::createDouble(double value) {
+        return RuntimeValue(RuntimeValueKind::Double, value);
     }
 
     // Creates a runtime String value.
@@ -63,6 +75,22 @@ namespace crossa::runtime {
             throw runtime_error("Runtime value is not Int.");
         }
         return get<int64_t>(value_);
+    }
+
+    // Returns the stored Long value and requires a Long kind.
+    int64_t RuntimeValue::getLong() const {
+        if (kind_ != RuntimeValueKind::Long) {
+            throw runtime_error("Runtime value is not Long.");
+        }
+        return get<int64_t>(value_);
+    }
+
+    // Returns the stored Double value and requires a Double kind.
+    double RuntimeValue::getDouble() const {
+        if (kind_ != RuntimeValueKind::Double) {
+            throw runtime_error("Runtime value is not Double.");
+        }
+        return get<double>(value_);
     }
 
     // Returns the stored String value and requires a String kind.
@@ -112,6 +140,10 @@ namespace crossa::runtime {
                 return "Unit";
             case RuntimeValueKind::Int:
                 return to_string(getInt());
+            case RuntimeValueKind::Long:
+                return to_string(getLong());
+            case RuntimeValueKind::Double:
+                return formatDouble(getDouble());
             case RuntimeValueKind::String:
                 return getString();
             case RuntimeValueKind::Bool:
@@ -137,6 +169,10 @@ namespace crossa::runtime {
                 return "null";
             case RuntimeValueKind::Int:
                 return to_string(getInt());
+            case RuntimeValueKind::Long:
+                return to_string(getLong());
+            case RuntimeValueKind::Double:
+                return formatDouble(getDouble());
             case RuntimeValueKind::String:
                 return network::json::JsonSerializer::serialize(
                     network::json::JsonValue::createString(getString())
@@ -174,6 +210,20 @@ namespace crossa::runtime {
             }
         }
         return "null";
+    }
+
+    // Formats a Double value with stable compact text.
+    string RuntimeValue::formatDouble(double value) {
+        array<char, 64> buffer{};
+        const auto result = to_chars(
+            buffer.data(),
+            buffer.data() + buffer.size(),
+            value
+        );
+        if (result.ec != errc{}) {
+            throw runtime_error("Unable to format Double value.");
+        }
+        return string(buffer.data(), result.ptr);
     }
 
 }

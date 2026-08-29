@@ -14,6 +14,7 @@ namespace crossa::compiler::semantic {
 enum class TypedExpressionKind {
     Identifier,
     IntegerLiteral,
+    DecimalLiteral,
     StringLiteral,
     BooleanLiteral,
     Call,
@@ -140,16 +141,33 @@ private:
     ValueSymbolKind symbolKind_;
 };
 
-// Represents one source integer literal with the resolved Int type.
+// Represents one source integer literal with the resolved Int or Long type.
 class TypedIntegerLiteralExpression final : public TypedExpression {
 public:
     // Creates a typed integer literal while preserving its source digits.
     TypedIntegerLiteralExpression(
         std::string value,
+        types::SemanticType type,
         source::SourceLocation location
     );
 
     // Returns the source digits of this integer literal.
+    [[nodiscard]] const std::string& getValue() const noexcept;
+
+private:
+    std::string value_;
+};
+
+// Represents one source decimal literal with the resolved Double type.
+class TypedDecimalLiteralExpression final : public TypedExpression {
+public:
+    // Creates a typed decimal literal while preserving its source text.
+    TypedDecimalLiteralExpression(
+        std::string value,
+        source::SourceLocation location
+    );
+
+    // Returns the source text of this decimal literal.
     [[nodiscard]] const std::string& getValue() const noexcept;
 
 private:

@@ -149,6 +149,13 @@ private:
         std::int64_t right
     );
 
+    // Evaluates a floating-point arithmetic operation.
+    [[nodiscard]] static double evaluateDoubleArithmetic(
+        double left,
+        compiler::ir::IrArithmeticOperator operation,
+        double right
+    );
+
     // Raises a deterministic runtime execution failure.
     [[noreturn]] static void fail(const std::string& message);
 

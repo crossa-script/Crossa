@@ -49,6 +49,18 @@ private:
         const std::string& path
     );
 
+    // Converts one JSON integer number into a native Long.
+    [[nodiscard]] static std::int64_t parseLong(
+        const json::JsonValue& value,
+        const std::string& path
+    );
+
+    // Converts one JSON number into a native Double.
+    [[nodiscard]] static double parseDouble(
+        const json::JsonValue& value,
+        const std::string& path
+    );
+
     const compiler::ir::Program& program_;
     std::size_t maximumBytes_;
     std::size_t maximumDepth_;

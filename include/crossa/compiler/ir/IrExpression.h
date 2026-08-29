@@ -14,6 +14,7 @@ namespace crossa::compiler::ir {
 enum class IrExpressionKind {
     ReadSymbol,
     IntegerConstant,
+    DoubleConstant,
     StringBuild,
     BooleanConstant,
     Call,
@@ -136,10 +137,27 @@ public:
     // Creates an integer constant while preserving source digits.
     IrIntegerConstantExpression(
         std::string value,
+        types::SemanticType type,
         source::SourceLocation location
     );
 
     // Returns the source integer digits.
+    [[nodiscard]] const std::string& getValue() const noexcept;
+
+private:
+    std::string value_;
+};
+
+// Represents a Double constant instruction.
+class IrDoubleConstantExpression final : public IrExpression {
+public:
+    // Creates a Double constant while preserving source text.
+    IrDoubleConstantExpression(
+        std::string value,
+        source::SourceLocation location
+    );
+
+    // Returns the source decimal text.
     [[nodiscard]] const std::string& getValue() const noexcept;
 
 private:

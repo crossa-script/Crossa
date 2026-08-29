@@ -9,6 +9,8 @@ namespace crossa::compiler::types {
 enum class SemanticTypeKind {
     Unit,
     Int,
+    Long,
+    Double,
     String,
     Bool,
     Json,
@@ -37,6 +39,12 @@ public:
 
     // Creates the built-in Int type.
     [[nodiscard]] static SemanticType createInt();
+
+    // Creates the built-in Long type.
+    [[nodiscard]] static SemanticType createLong();
+
+    // Creates the built-in Double type.
+    [[nodiscard]] static SemanticType createDouble();
 
     // Creates the built-in String type.
     [[nodiscard]] static SemanticType createString();

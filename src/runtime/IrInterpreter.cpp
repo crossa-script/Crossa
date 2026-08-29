@@ -1,6 +1,7 @@
 #include "crossa/runtime/IrInterpreter.h"
 
 #include <charconv>
+#include <cstdlib>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -231,9 +232,28 @@ namespace crossa::runtime {
                     value
                 );
                 if (result.ec != errc{} || result.ptr != digits.data() + digits.size()) {
-                    fail("Integer literal is outside the native Int range.");
+                    fail("Integer literal is outside the native integer range.");
+                }
+                if (literal.getType().getKind() ==
+                    compiler::types::SemanticTypeKind::Long) {
+                    return RuntimeValue::createLong(value);
                 }
                 return RuntimeValue::createInt(value);
+            }
+            case compiler::ir::IrExpressionKind::DoubleConstant: {
+                const auto& literal =
+                    static_cast<const compiler::ir::IrDoubleConstantExpression&>(
+                        expression
+                    );
+                size_t processed = 0;
+                try {
+                    const double value = stod(literal.getValue(), &processed);
+                    if (processed == literal.getValue().size()) {
+                        return RuntimeValue::createDouble(value);
+                    }
+                } catch (const exception&) {
+                }
+                fail("Double literal is invalid.");
             }
             case compiler::ir::IrExpressionKind::StringBuild: {
                 const auto& stringBuild =
@@ -298,35 +318,75 @@ namespace crossa::runtime {
             case compiler::ir::IrExpressionKind::Unary: {
                 const auto& unary =
                     static_cast<const compiler::ir::IrUnaryExpression&>(expression);
-                const int64_t value = evaluate(
+                const RuntimeValue value = evaluate(
                     unary.getOperand(),
                     frame,
                     callDepth
-                ).getInt();
-                return RuntimeValue::createInt(
-                    evaluateArithmetic(
-                        0,
-                        unary.getOperator(),
-                        value
-                    )
                 );
+                if (expression.getType().getKind() ==
+                    compiler::types::SemanticTypeKind::Double) {
+                    return RuntimeValue::createDouble(
+                        evaluateDoubleArithmetic(
+                            0.0,
+                            unary.getOperator(),
+                            value.getDouble()
+                        )
+                    );
+                }
+                const int64_t integerValue =
+                    value.getKind() == RuntimeValueKind::Long
+                        ? value.getLong()
+                        : value.getInt();
+                const int64_t result = evaluateArithmetic(
+                    0,
+                    unary.getOperator(),
+                    integerValue
+                );
+                return expression.getType().getKind() ==
+                        compiler::types::SemanticTypeKind::Long
+                    ? RuntimeValue::createLong(result)
+                    : RuntimeValue::createInt(result);
             }
             case compiler::ir::IrExpressionKind::Binary: {
                 const auto& binary =
                     static_cast<const compiler::ir::IrBinaryExpression&>(expression);
-                const int64_t left = evaluate(
+                const RuntimeValue left = evaluate(
                     binary.getLeft(),
                     frame,
                     callDepth
-                ).getInt();
-                const int64_t right = evaluate(
+                );
+                const RuntimeValue right = evaluate(
                     binary.getRight(),
                     frame,
                     callDepth
-                ).getInt();
-                return RuntimeValue::createInt(
-                    evaluateArithmetic(left, binary.getOperator(), right)
                 );
+                if (expression.getType().getKind() ==
+                    compiler::types::SemanticTypeKind::Double) {
+                    return RuntimeValue::createDouble(
+                        evaluateDoubleArithmetic(
+                            left.getDouble(),
+                            binary.getOperator(),
+                            right.getDouble()
+                        )
+                    );
+                }
+                const int64_t leftInteger =
+                    left.getKind() == RuntimeValueKind::Long
+                        ? left.getLong()
+                        : left.getInt();
+                const int64_t rightInteger =
+                    right.getKind() == RuntimeValueKind::Long
+                        ? right.getLong()
+                        : right.getInt();
+                const int64_t result = evaluateArithmetic(
+                    leftInteger,
+                    binary.getOperator(),
+                    rightInteger
+                );
+                return expression.getType().getKind() ==
+                        compiler::types::SemanticTypeKind::Long
+                    ? RuntimeValue::createLong(result)
+                    : RuntimeValue::createInt(result);
             }
             case compiler::ir::IrExpressionKind::JsonNumber:
                 return RuntimeValue::createJson(
@@ -616,6 +676,14 @@ namespace crossa::runtime {
                 return network::json::JsonValue::createNumber(
                     to_string(value.getInt())
                 );
+            case RuntimeValueKind::Long:
+                return network::json::JsonValue::createNumber(
+                    to_string(value.getLong())
+                );
+            case RuntimeValueKind::Double:
+                return network::json::JsonValue::createNumber(
+                    value.format()
+                );
             case RuntimeValueKind::String:
                 return network::json::JsonValue::createString(
                     value.getString()
@@ -731,13 +799,13 @@ namespace crossa::runtime {
             case compiler::ir::IrArithmeticOperator::Add:
                 if ((right > 0 && left > maximum - right) ||
                     (right < 0 && left < minimum - right)) {
-                    fail("Int addition overflow.");
+                    fail("Integer addition overflow.");
                 }
                 return left + right;
             case compiler::ir::IrArithmeticOperator::Subtract:
                 if ((right < 0 && left > maximum + right) ||
                     (right > 0 && left < minimum + right)) {
-                    fail("Int subtraction overflow.");
+                    fail("Integer subtraction overflow.");
                 }
                 return left - right;
             case compiler::ir::IrArithmeticOperator::Multiply:
@@ -746,21 +814,21 @@ namespace crossa::runtime {
                 }
                 if ((left == -1 && right == minimum) ||
                     (right == -1 && left == minimum)) {
-                    fail("Int multiplication overflow.");
+                    fail("Integer multiplication overflow.");
                 }
                 if (left > 0) {
                     if (right > 0 && left > maximum / right) {
-                        fail("Int multiplication overflow.");
+                        fail("Integer multiplication overflow.");
                     }
                     if (right < 0 && right < minimum / left) {
-                        fail("Int multiplication overflow.");
+                        fail("Integer multiplication overflow.");
                     }
                 } else {
                     if (right > 0 && left < minimum / right) {
-                        fail("Int multiplication overflow.");
+                        fail("Integer multiplication overflow.");
                     }
                     if (right < 0 && left < maximum / right) {
-                        fail("Int multiplication overflow.");
+                        fail("Integer multiplication overflow.");
                     }
                 }
                 return left * right;
@@ -769,17 +837,41 @@ namespace crossa::runtime {
                     fail("Division by zero.");
                 }
                 if (left == minimum && right == -1) {
-                    fail("Int division overflow.");
+                    fail("Integer division overflow.");
                 }
                 return left / right;
             case compiler::ir::IrArithmeticOperator::Negate:
                 if (right == minimum) {
-                    fail("Int negation overflow.");
+                    fail("Integer negation overflow.");
                 }
                 return -right;
         }
 
         fail("Unknown IR arithmetic operation.");
+    }
+
+    // Evaluates a floating-point arithmetic operation.
+    double IrInterpreter::evaluateDoubleArithmetic(
+        double left,
+        compiler::ir::IrArithmeticOperator operation,
+        double right
+    ) {
+        switch (operation) {
+            case compiler::ir::IrArithmeticOperator::Add:
+                return left + right;
+            case compiler::ir::IrArithmeticOperator::Subtract:
+                return left - right;
+            case compiler::ir::IrArithmeticOperator::Multiply:
+                return left * right;
+            case compiler::ir::IrArithmeticOperator::Divide:
+                if (right == 0.0) {
+                    fail("Division by zero.");
+                }
+                return left / right;
+            case compiler::ir::IrArithmeticOperator::Negate:
+                return -right;
+        }
+        return 0.0;
     }
 
     // Raises a deterministic runtime execution failure.

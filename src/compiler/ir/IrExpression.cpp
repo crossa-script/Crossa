@@ -89,17 +89,35 @@ namespace crossa::compiler::ir {
     // Creates an integer constant while preserving source digits.
     IrIntegerConstantExpression::IrIntegerConstantExpression(
         string value,
+        types::SemanticType type,
         source::SourceLocation location
     )
         : IrExpression(
               IrExpressionKind::IntegerConstant,
-              types::SemanticType::createInt(),
+              std::move(type),
               location
           ),
           value_(std::move(value)) {}
 
     // Returns the source integer digits.
     const string& IrIntegerConstantExpression::getValue() const noexcept {
+        return value_;
+    }
+
+    // Creates a Double constant while preserving source text.
+    IrDoubleConstantExpression::IrDoubleConstantExpression(
+        string value,
+        source::SourceLocation location
+    )
+        : IrExpression(
+              IrExpressionKind::DoubleConstant,
+              types::SemanticType::createDouble(),
+              location
+          ),
+          value_(std::move(value)) {}
+
+    // Returns the source decimal text.
+    const string& IrDoubleConstantExpression::getValue() const noexcept {
         return value_;
     }
 

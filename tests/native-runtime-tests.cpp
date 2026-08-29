@@ -88,7 +88,8 @@ private:
         network::response::ResponseDecoder decoder(program, 4096, 32);
         runtime::RequestHandle requestHandle;
         runtime::RuntimeValue value = decoder.decode(
-            "[{\"userId\":1,\"id\":2,\"title\":\"hello\",\"body\":\"world\"}]",
+            "[{\"userId\":1,\"id\":9000000000,\"rating\":4.75,"
+            "\"title\":\"hello\",\"body\":\"world\"}]",
             compiler::types::SemanticType::createList(
                 compiler::types::SemanticType::createModel("Post")
             ),
@@ -107,9 +108,21 @@ private:
         const runtime::RuntimeValue* title = post.getModel().getField("title");
         require(title != nullptr && title->getString() == "hello",
                 "NativeModel field was not decoded into a typed value.");
+        const runtime::RuntimeValue* id = post.getModel().getField("id");
+        require(id != nullptr &&
+                    id->getKind() == runtime::RuntimeValueKind::Long &&
+                    id->getLong() == 9000000000,
+                "NativeModel Long field was not decoded into a typed value.");
+        const runtime::RuntimeValue* rating =
+            post.getModel().getField("rating");
+        require(rating != nullptr &&
+                    rating->getKind() == runtime::RuntimeValueKind::Double &&
+                    rating->getDouble() == 4.75,
+                "NativeModel Double field was not decoded into a typed value.");
         require(
             value.format() ==
-                "[{\"userId\":1,\"id\":2,\"title\":\"hello\",\"body\":\"world\"}]",
+                "[{\"userId\":1,\"id\":9000000000,\"rating\":4.75,"
+                "\"title\":\"hello\",\"body\":\"world\"}]",
             "Typed native result formatting is not deterministic."
         );
     }
@@ -242,7 +255,12 @@ private:
         );
         fields.emplace_back(
             "id",
-            compiler::types::SemanticType::createInt(),
+            compiler::types::SemanticType::createLong(),
+            location
+        );
+        fields.emplace_back(
+            "rating",
+            compiler::types::SemanticType::createDouble(),
             location
         );
         fields.emplace_back(

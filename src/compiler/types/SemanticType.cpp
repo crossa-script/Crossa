@@ -40,6 +40,16 @@ namespace crossa::compiler::types {
         return SemanticType(SemanticTypeKind::Int, "", nullptr);
     }
 
+    // Creates the built-in Long type.
+    SemanticType SemanticType::createLong() {
+        return SemanticType(SemanticTypeKind::Long, "", nullptr);
+    }
+
+    // Creates the built-in Double type.
+    SemanticType SemanticType::createDouble() {
+        return SemanticType(SemanticTypeKind::Double, "", nullptr);
+    }
+
     // Creates the built-in String type.
     SemanticType SemanticType::createString() {
         return SemanticType(SemanticTypeKind::String, "", nullptr);
@@ -95,6 +105,10 @@ namespace crossa::compiler::types {
                 return "Unit";
             case SemanticTypeKind::Int:
                 return "Int";
+            case SemanticTypeKind::Long:
+                return "Long";
+            case SemanticTypeKind::Double:
+                return "Double";
             case SemanticTypeKind::String:
                 return "String";
             case SemanticTypeKind::Bool:

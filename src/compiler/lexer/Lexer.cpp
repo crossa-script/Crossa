@@ -351,6 +351,12 @@ namespace crossa::compiler::lexer {
         if (lexeme == "Int") {
             return TokenType::KeywordInt;
         }
+        if (lexeme == "Long") {
+            return TokenType::KeywordLong;
+        }
+        if (lexeme == "Double") {
+            return TokenType::KeywordDouble;
+        }
         if (lexeme == "String") {
             return TokenType::KeywordString;
         }

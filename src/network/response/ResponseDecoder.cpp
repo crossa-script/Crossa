@@ -1,6 +1,7 @@
 #include "crossa/network/response/ResponseDecoder.h"
 
 #include <charconv>
+#include <cstdlib>
 #include <exception>
 
 #include "crossa/compiler/ir/IrDeclaration.h"
@@ -80,6 +81,14 @@ namespace crossa::network::response {
             case SemanticTypeKind::Int:
                 return runtime::RuntimeValue::createInt(
                     parseInteger(value, path)
+                );
+            case SemanticTypeKind::Long:
+                return runtime::RuntimeValue::createLong(
+                    parseLong(value, path)
+                );
+            case SemanticTypeKind::Double:
+                return runtime::RuntimeValue::createDouble(
+                    parseDouble(value, path)
                 );
             case SemanticTypeKind::String:
                 if (value.getKind() != JsonValueKind::String) {
@@ -232,6 +241,42 @@ namespace crossa::network::response {
             );
         }
         return result;
+    }
+
+    // Converts one JSON integer number into a native Long.
+    int64_t ResponseDecoder::parseLong(
+        const json::JsonValue& value,
+        const string& path
+    ) {
+        return parseInteger(value, path);
+    }
+
+    // Converts one JSON number into a native Double.
+    double ResponseDecoder::parseDouble(
+        const json::JsonValue& value,
+        const string& path
+    ) {
+        if (value.getKind() != json::JsonValueKind::Number) {
+            throw runtime::CrossaException(
+                runtime::CrossaError::responseTypeMismatch(
+                    path + " must be a JSON number."
+                )
+            );
+        }
+        const string& number = value.getNumber();
+        size_t processed = 0;
+        try {
+            const double result = stod(number, &processed);
+            if (processed == number.size()) {
+                return result;
+            }
+        } catch (const exception&) {
+        }
+        throw runtime::CrossaException(
+            runtime::CrossaError::responseTypeMismatch(
+                path + " must fit the Crossa Double range."
+            )
+        );
     }
 
 }

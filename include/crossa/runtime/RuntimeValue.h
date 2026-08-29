@@ -16,6 +16,8 @@ class NativeModel;
 enum class RuntimeValueKind {
     Unit,
     Int,
+    Long,
+    Double,
     String,
     Bool,
     Json,
@@ -32,6 +34,12 @@ public:
 
     // Creates a runtime Int value.
     static RuntimeValue createInt(std::int64_t value);
+
+    // Creates a runtime Long value.
+    static RuntimeValue createLong(std::int64_t value);
+
+    // Creates a runtime Double value.
+    static RuntimeValue createDouble(double value);
 
     // Creates a runtime String value.
     static RuntimeValue createString(std::string value);
@@ -53,6 +61,12 @@ public:
 
     // Returns the stored Int value and requires an Int kind.
     [[nodiscard]] std::int64_t getInt() const;
+
+    // Returns the stored Long value and requires a Long kind.
+    [[nodiscard]] std::int64_t getLong() const;
+
+    // Returns the stored Double value and requires a Double kind.
+    [[nodiscard]] double getDouble() const;
 
     // Returns the stored String value and requires a String kind.
     [[nodiscard]] const std::string& getString() const;
@@ -76,6 +90,7 @@ private:
     using Storage = std::variant<
         std::monostate,
         std::int64_t,
+        double,
         std::string,
         bool,
         network::json::JsonValue,
@@ -88,6 +103,9 @@ private:
 
     // Formats this value as valid JSON for nested native values.
     [[nodiscard]] std::string formatJson() const;
+
+    // Formats a Double value with stable compact text.
+    [[nodiscard]] static std::string formatDouble(double value);
 
     RuntimeValueKind kind_;
     Storage value_;

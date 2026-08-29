@@ -342,6 +342,8 @@ namespace crossa::compiler::parser {
         }
 
         if (match(lexer::TokenType::KeywordInt) ||
+            match(lexer::TokenType::KeywordLong) ||
+            match(lexer::TokenType::KeywordDouble) ||
             match(lexer::TokenType::KeywordString) ||
             match(lexer::TokenType::KeywordBool) ||
             match(lexer::TokenType::KeywordJson) ||
@@ -411,8 +413,22 @@ namespace crossa::compiler::parser {
         if (match(lexer::TokenType::Minus)) {
             const source::SourceLocation location = getLocation(previous());
             if (match(lexer::TokenType::DecimalLiteral)) {
-                return make_unique<ast::JsonNumberExpression>(
-                    "-" + getLexeme(previous()),
+                return make_unique<ast::UnaryExpression>(
+                    ast::UnaryOperator::Negate,
+                    make_unique<ast::DecimalLiteralExpression>(
+                        getLexeme(previous()),
+                        getLocation(previous())
+                    ),
+                    location
+                );
+            }
+            if (match(lexer::TokenType::IntegerLiteral)) {
+                return make_unique<ast::UnaryExpression>(
+                    ast::UnaryOperator::Negate,
+                    make_unique<ast::IntegerLiteralExpression>(
+                        getLexeme(previous()),
+                        getLocation(previous())
+                    ),
                     location
                 );
             }
@@ -438,7 +454,7 @@ namespace crossa::compiler::parser {
 
         if (match(lexer::TokenType::DecimalLiteral)) {
             const lexer::Token& token = previous();
-            return make_unique<ast::JsonNumberExpression>(
+            return make_unique<ast::DecimalLiteralExpression>(
                 getLexeme(token),
                 getLocation(token)
             );

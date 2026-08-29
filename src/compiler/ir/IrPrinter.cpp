@@ -136,6 +136,9 @@ namespace crossa::compiler::ir {
             case IrExpressionKind::IntegerConstant:
                 return static_cast<const IrIntegerConstantExpression&>(expression)
                     .getValue();
+            case IrExpressionKind::DoubleConstant:
+                return static_cast<const IrDoubleConstantExpression&>(expression)
+                    .getValue();
             case IrExpressionKind::StringBuild: {
                 const auto& stringBuild =
                     static_cast<const IrStringBuildExpression&>(expression);

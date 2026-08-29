@@ -72,6 +72,19 @@ namespace crossa::compiler::ast {
         return value_;
     }
 
+    // Creates a decimal literal from its source number text.
+    DecimalLiteralExpression::DecimalLiteralExpression(
+        string value,
+        source::SourceLocation location
+    )
+        : Expression(ExpressionKind::DecimalLiteral, location),
+          value_(std::move(value)) {}
+
+    // Returns the source text of this decimal literal.
+    const string& DecimalLiteralExpression::getValue() const noexcept {
+        return value_;
+    }
+
     // Creates a string expression from parsed literal and identifier segments.
     StringLiteralExpression::StringLiteralExpression(
         vector<StringSegment> segments,
