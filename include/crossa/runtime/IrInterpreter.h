@@ -69,6 +69,12 @@ private:
         std::size_t callDepth
     );
 
+    [[nodiscard]] std::optional<RuntimeValue> executeStatements(
+        const std::vector<std::unique_ptr<compiler::ir::IrStatement>>& statements,
+        ExecutionFrame& frame,
+        std::size_t callDepth
+    );
+
     // Executes one IR statement in the current function frame.
     [[nodiscard]] std::optional<RuntimeValue> executeStatement(
         const compiler::ir::IrStatement& statement,
@@ -154,6 +160,12 @@ private:
         double left,
         compiler::ir::IrArithmeticOperator operation,
         double right
+    );
+
+    [[nodiscard]] static bool evaluateComparison(
+        const RuntimeValue& left,
+        compiler::ir::IrArithmeticOperator operation,
+        const RuntimeValue& right
     );
 
     // Raises a deterministic runtime execution failure.

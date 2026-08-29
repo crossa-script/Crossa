@@ -63,6 +63,13 @@ private:
     // Parses one function-body statement.
     [[nodiscard]] std::unique_ptr<ast::Statement> parseStatement();
 
+    [[nodiscard]] std::unique_ptr<ast::Statement> parseIfStatement(
+        source::SourceLocation location
+    );
+
+    [[nodiscard]] std::vector<std::unique_ptr<ast::Statement>>
+    parseBlockStatements();
+
     // Parses a local variable after consuming the var keyword.
     [[nodiscard]] std::unique_ptr<ast::Statement> parseVariableStatement();
 
@@ -71,6 +78,10 @@ private:
 
     // Parses one expression using arithmetic precedence.
     [[nodiscard]] std::unique_ptr<ast::Expression> parseExpression();
+
+    [[nodiscard]] std::unique_ptr<ast::Expression> parseEqualityExpression();
+
+    [[nodiscard]] std::unique_ptr<ast::Expression> parseComparisonExpression();
 
     // Parses addition and subtraction expressions.
     [[nodiscard]] std::unique_ptr<ast::Expression> parseAdditiveExpression();

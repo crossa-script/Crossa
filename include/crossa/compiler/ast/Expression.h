@@ -36,7 +36,13 @@ enum class BinaryOperator {
     Add,
     Subtract,
     Multiply,
-    Divide
+    Divide,
+    Equal,
+    NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual
 };
 
 // Distinguishes literal text from interpolated identifiers in strings.

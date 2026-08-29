@@ -262,6 +262,8 @@ var
 model
 config
 import
+if
+else
 ```
 
 Language builtin:
@@ -787,6 +789,42 @@ Semantic analysis must reject:
 
 ---
 
+# 14.2 Conditional Statements
+
+Crossa supports block-based conditional statements:
+
+```cra
+if (condition) {
+    statements
+} else if (anotherCondition) {
+    statements
+} else {
+    statements
+}
+```
+
+The condition must have type `Bool`. Each branch has its own lexical scope;
+local variables declared in a branch are not visible outside that branch or in
+its sibling branches. `else if` is parsed as a nested conditional branch and
+is evaluated in order. At most one branch executes.
+
+Comparison operators are available for conditional expressions:
+
+```text
+==
+!=
+<
+<=
+>
+>=
+```
+
+Equality supports values of the same scalar type (`Int`, `Long`, `Double`,
+`String`, or `Bool`). Ordering supports values of the same numeric type.
+Comparison expressions always produce `Bool`.
+
+---
+
 # 15. Function Calls
 
 Normal call syntax:
@@ -842,6 +880,17 @@ Initial arithmetic operators:
 -
 *
 /
+```
+
+Conditional comparison operators are evaluated after arithmetic expressions and
+before equality expressions. The precedence order is:
+
+```text
+1. Parentheses
+2. * /
+3. + -
+4. < <= > >=
+5. == !=
 ```
 
 Precedence:
@@ -1988,15 +2037,27 @@ config_entry           = identifier, ":", expression ;
 
 block                  = "{", { statement }, "}" ;
 
-statement              = return_statement
+statement              = if_statement
+                       | return_statement
                        | variable_declaration
                        | expression_statement ;
+
+if_statement           = "if", "(", expression, ")", block,
+                         { "else", "if", "(", expression, ")", block },
+                         [ "else", block ] ;
 
 return_statement       = "re", expression ;
 
 expression_statement   = expression ;
 
-expression             = additive_expression ;
+expression             = equality_expression ;
+
+equality_expression    = comparison_expression,
+                         { ("==" | "!="), comparison_expression } ;
+
+comparison_expression  = additive_expression,
+                         { ("<" | "<=" | ">" | ">="),
+                           additive_expression } ;
 
 additive_expression    = multiplicative_expression,
                          { ("+" | "-"),
@@ -2491,7 +2552,6 @@ cancelled async operation is delivered as `CrossaState<T>::Cancelled`, not as
 The initial foundation does not automatically include:
 
 ```text
-if / else
 for
 while
 switch / when
@@ -2976,7 +3036,7 @@ Do not invent these during unrelated tasks:
 - source-level cancellation syntax,
 - nullable syntax,
 - enum syntax,
-- control-flow syntax,
+- additional control-flow syntax such as loops or switch/when,
 - packages and visibility syntax beyond filename imports,
 - visibility,
 - model mutability,

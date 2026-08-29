@@ -33,7 +33,13 @@ enum class IrArithmeticOperator {
     Subtract,
     Multiply,
     Divide,
-    Negate
+    Negate,
+    Equal,
+    NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual
 };
 
 // Identifies the owner of a symbol read in an IR expression.

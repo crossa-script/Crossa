@@ -76,4 +76,28 @@ namespace crossa::compiler::ast {
         return *initializer_;
     }
 
+    IfStatement::IfStatement(
+        unique_ptr<Expression> condition,
+        vector<unique_ptr<Statement>> thenStatements,
+        optional<vector<unique_ptr<Statement>>> elseStatements,
+        source::SourceLocation location
+    )
+        : Statement(StatementKind::If, location),
+          condition_(std::move(condition)),
+          thenStatements_(std::move(thenStatements)),
+          elseStatements_(std::move(elseStatements)) {}
+
+    const Expression& IfStatement::getCondition() const noexcept {
+        return *condition_;
+    }
+
+    const vector<unique_ptr<Statement>>&
+    IfStatement::getThenStatements() const noexcept {
+        return thenStatements_;
+    }
+
+    const vector<unique_ptr<Statement>>* IfStatement::getElseStatements() const noexcept {
+        return elseStatements_.has_value() ? &elseStatements_.value() : nullptr;
+    }
+
 }

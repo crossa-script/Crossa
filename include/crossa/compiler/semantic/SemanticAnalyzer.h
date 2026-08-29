@@ -119,6 +119,13 @@ private:
         SemanticScope& scope
     );
 
+    [[nodiscard]] std::unique_ptr<TypedStatement> analyzeIfStatement(
+        const ast::IfStatement& statement,
+        SemanticScope& scope,
+        const types::SemanticType& returnType,
+        bool& hasReturn
+    );
+
     // Resolves and converts one AST expression in the provided lexical scope.
     [[nodiscard]] std::unique_ptr<TypedExpression> analyzeExpression(
         const ast::Expression& expression,

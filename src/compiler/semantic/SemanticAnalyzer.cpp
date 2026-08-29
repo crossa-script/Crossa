@@ -666,12 +666,79 @@ namespace crossa::compiler::semantic {
                     static_cast<const ast::VariableStatement&>(statement),
                     scope
                 );
+            case ast::StatementKind::If:
+                return analyzeIfStatement(
+                    static_cast<const ast::IfStatement&>(statement),
+                    scope,
+                    returnType,
+                    hasReturn
+                );
         }
 
         fail(
             statement.getLocation(),
             "CRA9004",
             "Unknown AST statement kind."
+        );
+    }
+
+    unique_ptr<TypedStatement> SemanticAnalyzer::analyzeIfStatement(
+        const ast::IfStatement& statement,
+        SemanticScope& scope,
+        const types::SemanticType& returnType,
+        bool& hasReturn
+    ) {
+        unique_ptr<TypedExpression> condition = analyzeExpression(
+            statement.getCondition(),
+            scope
+        );
+        if (condition->getType().getKind() != types::SemanticTypeKind::Bool) {
+            fail(
+                statement.getCondition().getLocation(),
+                "CRA3013",
+                "An if condition must be Bool but received '" +
+                condition->getType().format() + "'."
+            );
+        }
+
+        vector<unique_ptr<TypedStatement>> thenStatements;
+        SemanticScope thenScope(&scope);
+        bool thenReturns = false;
+        for (const unique_ptr<ast::Statement>& nestedStatement :
+             statement.getThenStatements()) {
+            thenStatements.push_back(analyzeStatement(
+                *nestedStatement,
+                thenScope,
+                returnType,
+                thenReturns
+            ));
+        }
+
+        optional<vector<unique_ptr<TypedStatement>>> elseStatements;
+        bool elseReturns = false;
+        if (const vector<unique_ptr<ast::Statement>>* branch =
+                statement.getElseStatements();
+            branch != nullptr) {
+            vector<unique_ptr<TypedStatement>> typedElseStatements;
+            SemanticScope elseScope(&scope);
+            for (const unique_ptr<ast::Statement>& nestedStatement : *branch) {
+                typedElseStatements.push_back(analyzeStatement(
+                    *nestedStatement,
+                    elseScope,
+                    returnType,
+                    elseReturns
+                ));
+            }
+            elseStatements.emplace(std::move(typedElseStatements));
+        }
+
+        hasReturn = thenReturns && elseReturns &&
+            statement.getElseStatements() != nullptr;
+        return make_unique<TypedIfStatement>(
+            std::move(condition),
+            std::move(thenStatements),
+            std::move(elseStatements),
+            statement.getLocation()
         );
     }
 
@@ -1096,6 +1163,73 @@ namespace crossa::compiler::semantic {
             scope,
             expectedType
         );
+        TypedBinaryOperator operation = TypedBinaryOperator::Add;
+        switch (expression.getOperator()) {
+            case ast::BinaryOperator::Add:
+                operation = TypedBinaryOperator::Add;
+                break;
+            case ast::BinaryOperator::Subtract:
+                operation = TypedBinaryOperator::Subtract;
+                break;
+            case ast::BinaryOperator::Multiply:
+                operation = TypedBinaryOperator::Multiply;
+                break;
+            case ast::BinaryOperator::Divide:
+                operation = TypedBinaryOperator::Divide;
+                break;
+            case ast::BinaryOperator::Equal:
+                operation = TypedBinaryOperator::Equal;
+                break;
+            case ast::BinaryOperator::NotEqual:
+                operation = TypedBinaryOperator::NotEqual;
+                break;
+            case ast::BinaryOperator::Less:
+                operation = TypedBinaryOperator::Less;
+                break;
+            case ast::BinaryOperator::LessEqual:
+                operation = TypedBinaryOperator::LessEqual;
+                break;
+            case ast::BinaryOperator::Greater:
+                operation = TypedBinaryOperator::Greater;
+                break;
+            case ast::BinaryOperator::GreaterEqual:
+                operation = TypedBinaryOperator::GreaterEqual;
+                break;
+        }
+
+        const bool equality = expression.getOperator() == ast::BinaryOperator::Equal ||
+            expression.getOperator() == ast::BinaryOperator::NotEqual;
+        const bool comparison = equality ||
+            expression.getOperator() == ast::BinaryOperator::Less ||
+            expression.getOperator() == ast::BinaryOperator::LessEqual ||
+            expression.getOperator() == ast::BinaryOperator::Greater ||
+            expression.getOperator() == ast::BinaryOperator::GreaterEqual;
+        if (comparison) {
+            const bool sameType = left->getType() == right->getType();
+            const bool scalarEquality = equality &&
+                (left->getType().getKind() == types::SemanticTypeKind::Bool ||
+                 left->getType().getKind() == types::SemanticTypeKind::String ||
+                 isNumericType(left->getType()));
+            const bool numericComparison = !equality &&
+                isNumericType(left->getType());
+            if (!sameType || (!scalarEquality && !numericComparison)) {
+                fail(
+                    expression.getLocation(),
+                    "CRA3014",
+                    "Comparison operands are incompatible: '" +
+                    left->getType().format() + "' and '" +
+                    right->getType().format() + "'."
+                );
+            }
+            return make_unique<TypedBinaryExpression>(
+                std::move(left),
+                operation,
+                std::move(right),
+                types::SemanticType::createBool(),
+                expression.getLocation()
+            );
+        }
+
         if (!isNumericType(left->getType()) || !isNumericType(right->getType())) {
             fail(
                 expression.getLocation(),
@@ -1113,22 +1247,6 @@ namespace crossa::compiler::semantic {
                 "received '" + left->getType().format() + "' and '" +
                 right->getType().format() + "'."
             );
-        }
-
-        TypedBinaryOperator operation = TypedBinaryOperator::Add;
-        switch (expression.getOperator()) {
-            case ast::BinaryOperator::Add:
-                operation = TypedBinaryOperator::Add;
-                break;
-            case ast::BinaryOperator::Subtract:
-                operation = TypedBinaryOperator::Subtract;
-                break;
-            case ast::BinaryOperator::Multiply:
-                operation = TypedBinaryOperator::Multiply;
-                break;
-            case ast::BinaryOperator::Divide:
-                operation = TypedBinaryOperator::Divide;
-                break;
         }
 
         types::SemanticType resultType = left->getType();

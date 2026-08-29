@@ -120,6 +120,24 @@ namespace crossa::compiler::ir {
                        local.getType().format() + " = " +
                        formatExpression(local.getInitializer());
             }
+            case IrStatementKind::If: {
+                const auto& conditional = static_cast<const IrIfStatement&>(statement);
+                string result = indentation + "IR If " +
+                    formatExpression(conditional.getCondition());
+                for (const unique_ptr<IrStatement>& nested :
+                     conditional.getThenStatements()) {
+                    result += "\n" + formatStatement(*nested, indentation + "  ");
+                }
+                if (const vector<unique_ptr<IrStatement>>* branch =
+                        conditional.getElseStatements();
+                    branch != nullptr) {
+                    result += "\n" + indentation + "IR Else";
+                    for (const unique_ptr<IrStatement>& nested : *branch) {
+                        result += "\n" + formatStatement(*nested, indentation + "  ");
+                    }
+                }
+                return result;
+            }
         }
 
         return indentation + "IR Unknown statement";
@@ -248,6 +266,18 @@ namespace crossa::compiler::ir {
                 return "Divide";
             case IrArithmeticOperator::Negate:
                 return "Negate";
+            case IrArithmeticOperator::Equal:
+                return "Equal";
+            case IrArithmeticOperator::NotEqual:
+                return "NotEqual";
+            case IrArithmeticOperator::Less:
+                return "Less";
+            case IrArithmeticOperator::LessEqual:
+                return "LessEqual";
+            case IrArithmeticOperator::Greater:
+                return "Greater";
+            case IrArithmeticOperator::GreaterEqual:
+                return "GreaterEqual";
         }
         return "Unknown";
     }

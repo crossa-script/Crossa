@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include "crossa/compiler/ir/Program.h"
 #include "crossa/compiler/ir/IrCrossaRequestExpression.h"
@@ -59,6 +60,11 @@ private:
     // Lowers one typed statement into an IR instruction.
     [[nodiscard]] static std::unique_ptr<IrStatement> lowerStatement(
         const semantic::TypedStatement& statement
+    );
+
+    [[nodiscard]] static std::vector<std::unique_ptr<IrStatement>>
+    lowerStatements(
+        const std::vector<std::unique_ptr<semantic::TypedStatement>>& statements
     );
 
     // Lowers one typed expression recursively into IR instructions.

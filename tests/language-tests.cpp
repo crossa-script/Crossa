@@ -48,6 +48,7 @@ public:
         try {
             verifyLexerTokens();
             verifyParserAst();
+            verifyConditionals();
             verifyParserImportPosition();
             verifySemanticModel();
             verifyNumericTypes();
@@ -171,10 +172,10 @@ private:
     static void verifyLexerTokens() {
         const filesystem::path sourcePath = "lexer.cra";
         const string content =
-            "import #models.cra# fun re var model config print assert Int Long "
+            "import #models.cra# fun re if else var model config print assert Int Long "
             "Double String Bool List Json null true false GET POST PUT PATCH DELETE HEAD "
             "OPTIONS TRACE CONNECT @Sync @Async @AsyncAfter ( ) { } [ ] "
-            "< > : , = + - * /";
+            "< > <= >= : , = == != + - * /";
         source::SourceFile sourceFile(sourcePath, content);
         lexer::Lexer lexer(sourceFile);
         const vector<lexer::Token> tokens = lexer.tokenize();
@@ -191,12 +192,99 @@ private:
                 "Lexer did not recognize CONNECT method token.");
         require(countToken(tokens, lexer::TokenType::KeywordAssert) == 1,
                 "Lexer did not recognize assert keyword.");
+        require(countToken(tokens, lexer::TokenType::KeywordIf) == 1,
+                "Lexer did not recognize if keyword.");
+        require(countToken(tokens, lexer::TokenType::KeywordElse) == 1,
+                "Lexer did not recognize else keyword.");
+        require(countToken(tokens, lexer::TokenType::EqualEqual) == 1,
+                "Lexer did not recognize equality operator.");
+        require(countToken(tokens, lexer::TokenType::BangEqual) == 1,
+                "Lexer did not recognize inequality operator.");
+        require(countToken(tokens, lexer::TokenType::LessEqual) == 1,
+                "Lexer did not recognize less-than-or-equal operator.");
+        require(countToken(tokens, lexer::TokenType::GreaterEqual) == 1,
+                "Lexer did not recognize greater-than-or-equal operator.");
         require(countToken(tokens, lexer::TokenType::KeywordLong) == 1,
                 "Lexer did not recognize Long keyword.");
         require(countToken(tokens, lexer::TokenType::KeywordDouble) == 1,
                 "Lexer did not recognize Double keyword.");
         require(tokens.back().getType() == lexer::TokenType::EndOfFile,
                 "Lexer did not append EndOfFile.");
+    }
+
+    static void verifyConditionals() {
+        const filesystem::path sourcePath = "conditionals.cra";
+        const source::SourceFile sourceFile(
+            sourcePath,
+            "fun classify(value: Int): String {\n"
+            "    if (value > 10) { re \"high\" }\n"
+            "    else if (value == 10) { re \"equal\" }\n"
+            "    else { re \"low\" }\n"
+            "}\n"
+            "fun choose(flag: Bool): Int {\n"
+            "    if (flag) { var selected: Int = 1 re selected }\n"
+            "    else { re 2 }\n"
+            "}\n"
+        );
+        lexer::Lexer lexer(sourceFile);
+        const vector<lexer::Token> tokens = lexer.tokenize();
+        parser::Parser parser(tokens, sourceFile);
+        ast::SourceUnit sourceUnit = parser.parse();
+        const auto& classify = static_cast<const ast::FunctionDeclaration&>(
+            *sourceUnit.getDeclarations().at(0)
+        );
+        require(classify.getStatements().at(0)->getKind() == ast::StatementKind::If,
+                "Parser did not create an if statement.");
+        const auto& conditional = static_cast<const ast::IfStatement&>(
+            *classify.getStatements().at(0)
+        );
+        require(conditional.getElseStatements() != nullptr,
+                "Parser did not preserve the else branch.");
+        require(conditional.getElseStatements()->at(0)->getKind() ==
+                    ast::StatementKind::If,
+                "Parser did not preserve the else-if chain.");
+
+        semantic::SemanticAnalyzer analyzer(sourceUnit, sourceFile);
+        const semantic::TypedSourceUnit model = analyzer.analyze();
+        const auto& typedClassify = static_cast<
+            const semantic::TypedFunctionDeclaration&>(
+                *model.getDeclarations().at(0)
+            );
+        const auto& typedConditional = static_cast<
+            const semantic::TypedIfStatement&>(
+                *typedClassify.getStatements().at(0)
+            );
+        require(typedConditional.getCondition().getType().getKind() ==
+                    compiler::types::SemanticTypeKind::Bool,
+                "Semantic analysis did not type the if condition as Bool.");
+
+        const ir::Program program = ir::IrLowerer::lower(model);
+        const auto& irClassify = static_cast<const ir::IrFunctionDeclaration&>(
+            *program.getDeclarations().at(0)
+        );
+        require(irClassify.getStatements().at(0)->getKind() == ir::IrStatementKind::If,
+                "IR lowering did not create an if instruction.");
+
+        const source::SourceFile invalidConditionFile(
+            "invalid-condition.cra",
+            "fun broken(): Int { if (1) { re 1 } else { re 2 } }\n"
+        );
+        lexer::Lexer invalidLexer(invalidConditionFile);
+        const vector<lexer::Token> invalidTokens = invalidLexer.tokenize();
+        parser::Parser invalidParser(invalidTokens, invalidConditionFile);
+        ast::SourceUnit invalidSource = invalidParser.parse();
+        semantic::SemanticAnalyzer invalidAnalyzer(
+            invalidSource,
+            invalidConditionFile
+        );
+        try {
+            (void)invalidAnalyzer.analyze();
+        } catch (const exception& error) {
+            require(string(error.what()).find("must be Bool") != string::npos,
+                    "Semantic analysis did not reject a non-Bool condition.");
+            return;
+        }
+        throw runtime_error("Semantic analysis accepted a non-Bool condition.");
     }
 
     // Verifies imports, grouped models, interpolation, and function AST nodes.

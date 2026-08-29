@@ -197,9 +197,36 @@ namespace crossa::compiler::ir {
                     statement.getLocation()
                 );
             }
+            case semantic::TypedStatementKind::If: {
+                const auto& conditional = static_cast<
+                    const semantic::TypedIfStatement&>(statement);
+                optional<vector<unique_ptr<IrStatement>>> elseStatements;
+                if (const vector<unique_ptr<semantic::TypedStatement>>* branch =
+                        conditional.getElseStatements();
+                    branch != nullptr) {
+                    elseStatements.emplace(lowerStatements(*branch));
+                }
+                return make_unique<IrIfStatement>(
+                    lowerExpression(conditional.getCondition()),
+                    lowerStatements(conditional.getThenStatements()),
+                    std::move(elseStatements),
+                    statement.getLocation()
+                );
+            }
         }
 
         fail("Unknown typed statement kind.");
+    }
+
+    vector<unique_ptr<IrStatement>> IrLowerer::lowerStatements(
+        const vector<unique_ptr<semantic::TypedStatement>>& statements
+    ) {
+        vector<unique_ptr<IrStatement>> lowered;
+        lowered.reserve(statements.size());
+        for (const unique_ptr<semantic::TypedStatement>& statement : statements) {
+            lowered.push_back(lowerStatement(*statement));
+        }
+        return lowered;
     }
 
     // Lowers one typed expression recursively into IR instructions.
@@ -492,6 +519,18 @@ namespace crossa::compiler::ir {
                 return IrArithmeticOperator::Multiply;
             case semantic::TypedBinaryOperator::Divide:
                 return IrArithmeticOperator::Divide;
+            case semantic::TypedBinaryOperator::Equal:
+                return IrArithmeticOperator::Equal;
+            case semantic::TypedBinaryOperator::NotEqual:
+                return IrArithmeticOperator::NotEqual;
+            case semantic::TypedBinaryOperator::Less:
+                return IrArithmeticOperator::Less;
+            case semantic::TypedBinaryOperator::LessEqual:
+                return IrArithmeticOperator::LessEqual;
+            case semantic::TypedBinaryOperator::Greater:
+                return IrArithmeticOperator::Greater;
+            case semantic::TypedBinaryOperator::GreaterEqual:
+                return IrArithmeticOperator::GreaterEqual;
         }
 
         return IrArithmeticOperator::Add;

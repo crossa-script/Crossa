@@ -1,7 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "crossa/compiler/ir/IrExpression.h"
 
@@ -11,7 +13,8 @@ namespace crossa::compiler::ir {
 enum class IrStatementKind {
     Return,
     Evaluate,
-    Local
+    Local,
+    If
 };
 
 // Provides the polymorphic base for typed platform-neutral IR statements.
@@ -94,6 +97,29 @@ private:
     std::string name_;
     types::SemanticType type_;
     std::unique_ptr<IrExpression> initializer_;
+};
+
+class IrIfStatement final : public IrStatement {
+public:
+    IrIfStatement(
+        std::unique_ptr<IrExpression> condition,
+        std::vector<std::unique_ptr<IrStatement>> thenStatements,
+        std::optional<std::vector<std::unique_ptr<IrStatement>>> elseStatements,
+        source::SourceLocation location
+    );
+
+    [[nodiscard]] const IrExpression& getCondition() const noexcept;
+
+    [[nodiscard]] const std::vector<std::unique_ptr<IrStatement>>&
+    getThenStatements() const noexcept;
+
+    [[nodiscard]] const std::vector<std::unique_ptr<IrStatement>>*
+    getElseStatements() const noexcept;
+
+private:
+    std::unique_ptr<IrExpression> condition_;
+    std::vector<std::unique_ptr<IrStatement>> thenStatements_;
+    std::optional<std::vector<std::unique_ptr<IrStatement>>> elseStatements_;
 };
 
 }

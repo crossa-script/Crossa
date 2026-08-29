@@ -142,6 +142,7 @@ fi
 ./build/crossa run tests/import-project/entry/runImports.cra
 ./build/crossa run tests/import-project/entry/runImports.cra
 ./build/crossa test tests/test-runner/pass.cra
+./build/crossa test tests/conditionals.cra
 ./build/crossa tests/import-project/entry/runImports.cra --debug
 ./build/crossa tests/import-project/entry/runDiamondImports.cra --debug
 ./build/crossa examples/imports/repositories/postsRepository.cra --debug

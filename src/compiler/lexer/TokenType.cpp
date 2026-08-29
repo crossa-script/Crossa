@@ -25,6 +25,10 @@ namespace crossa::compiler::lexer {
                 return "KeywordFun";
             case TokenType::KeywordRe:
                 return "KeywordRe";
+            case TokenType::KeywordIf:
+                return "KeywordIf";
+            case TokenType::KeywordElse:
+                return "KeywordElse";
             case TokenType::KeywordVar:
                 return "KeywordVar";
             case TokenType::KeywordModel:
@@ -99,6 +103,14 @@ namespace crossa::compiler::lexer {
                 return "Comma";
             case TokenType::Equal:
                 return "Equal";
+            case TokenType::EqualEqual:
+                return "EqualEqual";
+            case TokenType::BangEqual:
+                return "BangEqual";
+            case TokenType::LessEqual:
+                return "LessEqual";
+            case TokenType::GreaterEqual:
+                return "GreaterEqual";
             case TokenType::Plus:
                 return "Plus";
             case TokenType::Minus:

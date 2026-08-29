@@ -48,6 +48,8 @@ Initial language concepts:
 ```text
 fun
 re
+if
+else
 var
 print
 model
@@ -219,6 +221,8 @@ Boolean literals
 
 fun
 re
+if
+else
 var
 print
 model
@@ -244,6 +248,8 @@ GET
 :
 ,
 =
+==
+!=
 +
 -
 *
@@ -288,6 +294,8 @@ Parse the initial language into a syntax-only AST.
 - `CrossaRequest`.
 - Request properties.
 - Interpolated strings.
+- `if`, `else if`, and `else` conditional statements.
+- Comparison expressions used by conditional statements.
 
 ## Important Rule
 
@@ -367,7 +375,7 @@ Crossa resolves scalars, models, and `List<T>` consistently across all targets.
 
 # Phase 5 — Semantic Analysis
 
-> **Implementation status:** Implemented for resolved types, scopes, calls, returns, models, config, execution policies, interpolation, JSON values, and `CrossaRequest` validation.
+> **Implementation status:** Implemented for resolved types, scopes, calls, returns, conditional branches, comparison expressions, models, config, execution policies, interpolation, JSON values, and `CrossaRequest` validation.
 
 ## Goal
 
@@ -437,6 +445,7 @@ Lower valid language semantics into platform-neutral Crossa IR.
 - Request path plan.
 - Request method.
 - Expected response type.
+- Conditional branch instructions.
 
 ## Example
 
@@ -1193,7 +1202,6 @@ Candidates may eventually include:
 nullable types
 additional collections
 enums
-if / else
 error-handling syntax
 packages or visibility beyond filename imports
 visibility

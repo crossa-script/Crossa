@@ -148,19 +148,34 @@ namespace crossa::runtime {
         ExecutionFrame& frame,
         size_t callDepth
     ) {
-        for (const unique_ptr<compiler::ir::IrStatement>& statement :
-             function.getStatements()) {
+        const optional<RuntimeValue> result = executeStatements(
+            function.getStatements(),
+            frame,
+            callDepth
+        );
+        if (result.has_value()) {
+            return *result;
+        }
+
+        return RuntimeValue::createUnit();
+    }
+
+    optional<RuntimeValue> IrInterpreter::executeStatements(
+        const vector<unique_ptr<compiler::ir::IrStatement>>& statements,
+        ExecutionFrame& frame,
+        size_t callDepth
+    ) {
+        for (const unique_ptr<compiler::ir::IrStatement>& statement : statements) {
             const optional<RuntimeValue> result = executeStatement(
                 *statement,
                 frame,
                 callDepth
             );
             if (result.has_value()) {
-                return *result;
+                return result;
             }
         }
-
-        return RuntimeValue::createUnit();
+        return nullopt;
     }
 
     // Executes one IR statement in the current function frame.
@@ -199,6 +214,24 @@ namespace crossa::runtime {
                     fail("Duplicate runtime local '" + local.getName() + "'.");
                 }
                 return nullopt;
+            }
+            case compiler::ir::IrStatementKind::If: {
+                const auto& conditional = static_cast<
+                    const compiler::ir::IrIfStatement&>(statement);
+                const RuntimeValue condition = evaluate(
+                    conditional.getCondition(),
+                    frame,
+                    callDepth
+                );
+                const vector<unique_ptr<compiler::ir::IrStatement>>* branch =
+                    condition.getBool()
+                        ? &conditional.getThenStatements()
+                        : conditional.getElseStatements();
+                if (branch == nullptr) {
+                    return nullopt;
+                }
+                ExecutionFrame branchFrame(frame.getRequestHandle(), &frame);
+                return executeStatements(*branch, branchFrame, callDepth);
             }
         }
 
@@ -360,6 +393,14 @@ namespace crossa::runtime {
                     frame,
                     callDepth
                 );
+                if (expression.getType().getKind() ==
+                    compiler::types::SemanticTypeKind::Bool) {
+                    return RuntimeValue::createBool(evaluateComparison(
+                        left,
+                        binary.getOperator(),
+                        right
+                    ));
+                }
                 if (expression.getType().getKind() ==
                     compiler::types::SemanticTypeKind::Double) {
                     return RuntimeValue::createDouble(
@@ -926,6 +967,13 @@ namespace crossa::runtime {
                     fail("Integer negation overflow.");
                 }
                 return -right;
+            case compiler::ir::IrArithmeticOperator::Equal:
+            case compiler::ir::IrArithmeticOperator::NotEqual:
+            case compiler::ir::IrArithmeticOperator::Less:
+            case compiler::ir::IrArithmeticOperator::LessEqual:
+            case compiler::ir::IrArithmeticOperator::Greater:
+            case compiler::ir::IrArithmeticOperator::GreaterEqual:
+                fail("Comparison operation used as arithmetic.");
         }
 
         fail("Unknown IR arithmetic operation.");
@@ -951,8 +999,66 @@ namespace crossa::runtime {
                 return left / right;
             case compiler::ir::IrArithmeticOperator::Negate:
                 return -right;
+            case compiler::ir::IrArithmeticOperator::Equal:
+            case compiler::ir::IrArithmeticOperator::NotEqual:
+            case compiler::ir::IrArithmeticOperator::Less:
+            case compiler::ir::IrArithmeticOperator::LessEqual:
+            case compiler::ir::IrArithmeticOperator::Greater:
+            case compiler::ir::IrArithmeticOperator::GreaterEqual:
+                fail("Comparison operation used as arithmetic.");
         }
         return 0.0;
+    }
+
+    bool IrInterpreter::evaluateComparison(
+        const RuntimeValue& left,
+        compiler::ir::IrArithmeticOperator operation,
+        const RuntimeValue& right
+    ) {
+        const bool equal = [&]() {
+            switch (left.getKind()) {
+                case RuntimeValueKind::Int:
+                    return left.getInt() == right.getInt();
+                case RuntimeValueKind::Long:
+                    return left.getLong() == right.getLong();
+                case RuntimeValueKind::Double:
+                    return left.getDouble() == right.getDouble();
+                case RuntimeValueKind::String:
+                    return left.getString() == right.getString();
+                case RuntimeValueKind::Bool:
+                    return left.getBool() == right.getBool();
+                default:
+                    fail("Unsupported comparison value.");
+            }
+        }();
+        if (operation == compiler::ir::IrArithmeticOperator::Equal) {
+            return equal;
+        }
+        if (operation == compiler::ir::IrArithmeticOperator::NotEqual) {
+            return !equal;
+        }
+
+        const bool less = [&]() {
+            if (left.getKind() == RuntimeValueKind::Double) {
+                return left.getDouble() < right.getDouble();
+            }
+            if (left.getKind() == RuntimeValueKind::Long) {
+                return left.getLong() < right.getLong();
+            }
+            return left.getInt() < right.getInt();
+        }();
+        switch (operation) {
+            case compiler::ir::IrArithmeticOperator::Less:
+                return less;
+            case compiler::ir::IrArithmeticOperator::LessEqual:
+                return less || equal;
+            case compiler::ir::IrArithmeticOperator::Greater:
+                return !less && !equal;
+            case compiler::ir::IrArithmeticOperator::GreaterEqual:
+                return !less;
+            default:
+                fail("Unknown IR comparison operation.");
+        }
     }
 
     // Raises a deterministic runtime execution failure.

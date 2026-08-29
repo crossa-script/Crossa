@@ -81,4 +81,29 @@ namespace crossa::compiler::semantic {
         return *initializer_;
     }
 
+    TypedIfStatement::TypedIfStatement(
+        unique_ptr<TypedExpression> condition,
+        vector<unique_ptr<TypedStatement>> thenStatements,
+        optional<vector<unique_ptr<TypedStatement>>> elseStatements,
+        source::SourceLocation location
+    )
+        : TypedStatement(TypedStatementKind::If, location),
+          condition_(std::move(condition)),
+          thenStatements_(std::move(thenStatements)),
+          elseStatements_(std::move(elseStatements)) {}
+
+    const TypedExpression& TypedIfStatement::getCondition() const noexcept {
+        return *condition_;
+    }
+
+    const vector<unique_ptr<TypedStatement>>&
+    TypedIfStatement::getThenStatements() const noexcept {
+        return thenStatements_;
+    }
+
+    const vector<unique_ptr<TypedStatement>>*
+    TypedIfStatement::getElseStatements() const noexcept {
+        return elseStatements_.has_value() ? &elseStatements_.value() : nullptr;
+    }
+
 }

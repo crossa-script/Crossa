@@ -74,10 +74,10 @@ namespace crossa::compiler::lexer {
                 addToken(TokenType::RightBracket);
                 return;
             case '<':
-                addToken(TokenType::LeftAngle);
+                addToken(match('=') ? TokenType::LessEqual : TokenType::LeftAngle);
                 return;
             case '>':
-                addToken(TokenType::RightAngle);
+                addToken(match('=') ? TokenType::GreaterEqual : TokenType::RightAngle);
                 return;
             case ':':
                 addToken(TokenType::Colon);
@@ -86,7 +86,13 @@ namespace crossa::compiler::lexer {
                 addToken(TokenType::Comma);
                 return;
             case '=':
-                addToken(TokenType::Equal);
+                addToken(match('=') ? TokenType::EqualEqual : TokenType::Equal);
+                return;
+            case '!':
+                if (!match('=')) {
+                    fail("Unexpected character '!'.");
+                }
+                addToken(TokenType::BangEqual);
                 return;
             case '+':
                 addToken(TokenType::Plus);
@@ -332,6 +338,12 @@ namespace crossa::compiler::lexer {
         }
         if (lexeme == "re") {
             return TokenType::KeywordRe;
+        }
+        if (lexeme == "if") {
+            return TokenType::KeywordIf;
+        }
+        if (lexeme == "else") {
+            return TokenType::KeywordElse;
         }
         if (lexeme == "var") {
             return TokenType::KeywordVar;

@@ -80,8 +80,8 @@ Crossa does not generate separate Retrofit, Ktor, OkHttp, or URLSession implemen
 
 - [Technical Architecture](ARCHITECTURE.md) — system boundaries and engineering rules.
 - [Agent Instructions](AGENTS.md) — repository workflow and coding-agent requirements.
-- [Language Foundation](language-foundation.md) — current `.cra` syntax and semantics.
-- [Language Roadmap](language-roadmap.md) — implementation order and milestones.
+- [Language Foundation](docs/language/language-foundation.md) — current `.cra` syntax and semantics.
+- [Language Roadmap](docs/language/language-roadmap.md) — implementation order and milestones.
 - [Project Blueprint](CROSSA_PROJECT_BLUEPRINT.md) — broader product direction; current architecture and language documents take precedence where the blueprint is outdated.
 
 ## Development

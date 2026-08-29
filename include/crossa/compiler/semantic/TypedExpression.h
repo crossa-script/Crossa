@@ -44,7 +44,13 @@ enum class TypedBinaryOperator {
     Add,
     Subtract,
     Multiply,
-    Divide
+    Divide,
+    Equal,
+    NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual
 };
 
 // Distinguishes static string content from resolved symbol reads.

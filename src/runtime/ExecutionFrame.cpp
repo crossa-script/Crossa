@@ -7,8 +7,11 @@ using namespace std;
 namespace crossa::runtime {
 
     // Creates a frame that propagates one native cancellation handle.
-    ExecutionFrame::ExecutionFrame(RequestHandle requestHandle)
-        : requestHandle_(std::move(requestHandle)) {}
+    ExecutionFrame::ExecutionFrame(
+        RequestHandle requestHandle,
+        const ExecutionFrame* parent
+    )
+        : requestHandle_(std::move(requestHandle)), parent_(parent) {}
 
     // Declares a value in the current frame and rejects duplicate names.
     bool ExecutionFrame::declare(const string& name, RuntimeValue value) {
@@ -18,7 +21,10 @@ namespace crossa::runtime {
     // Resolves a value in the current frame.
     const RuntimeValue* ExecutionFrame::resolve(const string& name) const noexcept {
         const auto iterator = values_.find(name);
-        return iterator == values_.end() ? nullptr : &iterator->second;
+        if (iterator != values_.end()) {
+            return &iterator->second;
+        }
+        return parent_ == nullptr ? nullptr : parent_->resolve(name);
     }
 
     // Returns the request handle inherited by work in this frame.

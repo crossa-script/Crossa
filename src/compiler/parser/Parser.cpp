@@ -188,11 +188,7 @@ namespace crossa::compiler::parser {
         }
 
         consume(lexer::TokenType::LeftBrace, "Expected '{' before the function body.");
-        vector<unique_ptr<ast::Statement>> statements;
-        while (!check(lexer::TokenType::RightBrace) && !isAtEnd()) {
-            statements.push_back(parseStatement());
-        }
-        consume(lexer::TokenType::RightBrace, "Expected '}' after the function body.");
+        vector<unique_ptr<ast::Statement>> statements = parseBlockStatements();
 
         return make_unique<ast::FunctionDeclaration>(
             getLexeme(nameToken),
@@ -301,6 +297,9 @@ namespace crossa::compiler::parser {
         if (match(lexer::TokenType::KeywordVar)) {
             return parseVariableStatement();
         }
+        if (match(lexer::TokenType::KeywordIf)) {
+            return parseIfStatement(getLocation(previous()));
+        }
 
         unique_ptr<ast::Expression> expression = parseExpression();
         const source::SourceLocation location = expression->getLocation();
@@ -308,6 +307,44 @@ namespace crossa::compiler::parser {
             std::move(expression),
             location
         );
+    }
+
+    unique_ptr<ast::Statement> Parser::parseIfStatement(
+        source::SourceLocation location
+    ) {
+        consume(lexer::TokenType::LeftParen, "Expected '(' after 'if'.");
+        unique_ptr<ast::Expression> condition = parseExpression();
+        consume(lexer::TokenType::RightParen, "Expected ')' after the if condition.");
+        consume(lexer::TokenType::LeftBrace, "Expected '{' after the if condition.");
+        vector<unique_ptr<ast::Statement>> thenStatements = parseBlockStatements();
+
+        optional<vector<unique_ptr<ast::Statement>>> elseStatements;
+        if (match(lexer::TokenType::KeywordElse)) {
+            if (match(lexer::TokenType::KeywordIf)) {
+                vector<unique_ptr<ast::Statement>> nestedIf;
+                nestedIf.push_back(parseIfStatement(getLocation(previous())));
+                elseStatements.emplace(std::move(nestedIf));
+            } else {
+                consume(lexer::TokenType::LeftBrace, "Expected '{' after 'else'.");
+                elseStatements.emplace(parseBlockStatements());
+            }
+        }
+
+        return make_unique<ast::IfStatement>(
+            std::move(condition),
+            std::move(thenStatements),
+            std::move(elseStatements),
+            location
+        );
+    }
+
+    vector<unique_ptr<ast::Statement>> Parser::parseBlockStatements() {
+        vector<unique_ptr<ast::Statement>> statements;
+        while (!check(lexer::TokenType::RightBrace) && !isAtEnd()) {
+            statements.push_back(parseStatement());
+        }
+        consume(lexer::TokenType::RightBrace, "Expected '}' after the block.");
+        return statements;
     }
 
     // Parses a local variable after consuming the var keyword.
@@ -359,7 +396,60 @@ namespace crossa::compiler::parser {
 
     // Parses one expression using arithmetic precedence.
     unique_ptr<ast::Expression> Parser::parseExpression() {
-        return parseAdditiveExpression();
+        return parseEqualityExpression();
+    }
+
+    unique_ptr<ast::Expression> Parser::parseEqualityExpression() {
+        unique_ptr<ast::Expression> expression = parseComparisonExpression();
+        while (check(lexer::TokenType::EqualEqual) ||
+               check(lexer::TokenType::BangEqual)) {
+            const lexer::Token& operatorToken = advance();
+            const ast::BinaryOperator operation =
+                operatorToken.getType() == lexer::TokenType::EqualEqual
+                    ? ast::BinaryOperator::Equal
+                    : ast::BinaryOperator::NotEqual;
+            expression = make_unique<ast::BinaryExpression>(
+                std::move(expression),
+                operation,
+                parseComparisonExpression(),
+                getLocation(operatorToken)
+            );
+        }
+        return expression;
+    }
+
+    unique_ptr<ast::Expression> Parser::parseComparisonExpression() {
+        unique_ptr<ast::Expression> expression = parseAdditiveExpression();
+        while (check(lexer::TokenType::LeftAngle) ||
+               check(lexer::TokenType::RightAngle) ||
+               check(lexer::TokenType::LessEqual) ||
+               check(lexer::TokenType::GreaterEqual)) {
+            const lexer::Token& operatorToken = advance();
+            ast::BinaryOperator operation = ast::BinaryOperator::Less;
+            switch (operatorToken.getType()) {
+                case lexer::TokenType::LeftAngle:
+                    operation = ast::BinaryOperator::Less;
+                    break;
+                case lexer::TokenType::RightAngle:
+                    operation = ast::BinaryOperator::Greater;
+                    break;
+                case lexer::TokenType::LessEqual:
+                    operation = ast::BinaryOperator::LessEqual;
+                    break;
+                case lexer::TokenType::GreaterEqual:
+                    operation = ast::BinaryOperator::GreaterEqual;
+                    break;
+                default:
+                    fail(operatorToken, "Expected a comparison operator.");
+            }
+            expression = make_unique<ast::BinaryExpression>(
+                std::move(expression),
+                operation,
+                parseAdditiveExpression(),
+                getLocation(operatorToken)
+            );
+        }
+        return expression;
     }
 
     // Parses addition and subtraction expressions.

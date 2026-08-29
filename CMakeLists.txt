@@ -247,6 +247,10 @@ target_link_libraries(crossa_language_tests PRIVATE Threads::Threads)
 add_test(NAME crossa_language_tests COMMAND crossa_language_tests)
 add_test(NAME crossa_script_test COMMAND crossa test.cra)
 add_test(
+    NAME crossa_conditionals_test
+    COMMAND crossa test tests/conditionals.cra
+)
+add_test(
     NAME crossa_test_runner_pass_test
     COMMAND crossa test tests/test-runner/pass.cra
 )
@@ -304,6 +308,7 @@ add_test(
 )
 set_tests_properties(
     crossa_script_test
+    crossa_conditionals_test
     crossa_local_network_integration_test
     crossa_check_nested_project_test
     crossa_explicit_run_test

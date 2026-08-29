@@ -1,7 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "crossa/compiler/semantic/TypedExpression.h"
 #include "crossa/compiler/source/SourceLocation.h"
@@ -13,7 +15,8 @@ namespace crossa::compiler::semantic {
 enum class TypedStatementKind {
     Return,
     Expression,
-    Variable
+    Variable,
+    If
 };
 
 // Provides the polymorphic base for typed semantic statements.
@@ -96,6 +99,29 @@ private:
     std::string name_;
     types::SemanticType type_;
     std::unique_ptr<TypedExpression> initializer_;
+};
+
+class TypedIfStatement final : public TypedStatement {
+public:
+    TypedIfStatement(
+        std::unique_ptr<TypedExpression> condition,
+        std::vector<std::unique_ptr<TypedStatement>> thenStatements,
+        std::optional<std::vector<std::unique_ptr<TypedStatement>>> elseStatements,
+        source::SourceLocation location
+    );
+
+    [[nodiscard]] const TypedExpression& getCondition() const noexcept;
+
+    [[nodiscard]] const std::vector<std::unique_ptr<TypedStatement>>&
+    getThenStatements() const noexcept;
+
+    [[nodiscard]] const std::vector<std::unique_ptr<TypedStatement>>*
+    getElseStatements() const noexcept;
+
+private:
+    std::unique_ptr<TypedExpression> condition_;
+    std::vector<std::unique_ptr<TypedStatement>> thenStatements_;
+    std::optional<std::vector<std::unique_ptr<TypedStatement>>> elseStatements_;
 };
 
 }

@@ -13,7 +13,10 @@ namespace crossa::runtime {
 class ExecutionFrame final {
 public:
     // Creates a frame that propagates one native cancellation handle.
-    explicit ExecutionFrame(RequestHandle requestHandle = RequestHandle());
+    explicit ExecutionFrame(
+        RequestHandle requestHandle = RequestHandle(),
+        const ExecutionFrame* parent = nullptr
+    );
 
     // Declares a value in the current frame and rejects duplicate names.
     [[nodiscard]] bool declare(
@@ -31,6 +34,7 @@ public:
 
 private:
     RequestHandle requestHandle_;
+    const ExecutionFrame* parent_;
     std::unordered_map<std::string, RuntimeValue> values_;
 };
 

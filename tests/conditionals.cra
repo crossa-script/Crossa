@@ -1,0 +1,24 @@
+fun classify(value: Int): String {
+    if (value > 10) {
+        re "high"
+    } else if (value == 10) {
+        re "equal"
+    } else {
+        re "low"
+    }
+}
+
+fun choose(flag: Bool): Int {
+    if (flag) {
+        var selected: Int = 1
+        re selected
+    } else {
+        re 2
+    }
+}
+
+assert(classify(11) == "high")
+assert(classify(10) == "equal")
+assert(classify(3) == "low")
+assert(choose(true) == 1)
+assert(choose(false) == 2)

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "crossa/compiler/ast/Expression.h"
 #include "crossa/compiler/ast/TypeReference.h"
@@ -12,7 +14,8 @@ namespace crossa::compiler::ast {
 enum class StatementKind {
     Return,
     Expression,
-    Variable
+    Variable,
+    If
 };
 
 // Provides the polymorphic base for Crossa function-body statements.
@@ -99,6 +102,29 @@ private:
     std::string name_;
     TypeReference type_;
     std::unique_ptr<Expression> initializer_;
+};
+
+class IfStatement final : public Statement {
+public:
+    IfStatement(
+        std::unique_ptr<Expression> condition,
+        std::vector<std::unique_ptr<Statement>> thenStatements,
+        std::optional<std::vector<std::unique_ptr<Statement>>> elseStatements,
+        source::SourceLocation location
+    );
+
+    [[nodiscard]] const Expression& getCondition() const noexcept;
+
+    [[nodiscard]] const std::vector<std::unique_ptr<Statement>>&
+    getThenStatements() const noexcept;
+
+    [[nodiscard]] const std::vector<std::unique_ptr<Statement>>*
+    getElseStatements() const noexcept;
+
+private:
+    std::unique_ptr<Expression> condition_;
+    std::vector<std::unique_ptr<Statement>> thenStatements_;
+    std::optional<std::vector<std::unique_ptr<Statement>>> elseStatements_;
 };
 
 }
