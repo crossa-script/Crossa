@@ -1,6 +1,7 @@
 #include "crossa/network/NetworkConfiguration.h"
 
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 #include "crossa/network/utils/UrlUtils.h"
@@ -15,6 +16,8 @@ namespace crossa::network {
           interceptorEnabled_(true),
           logRequests_(true),
           logResponses_(true),
+          logHeaders_(false),
+          logBody_(false),
           followRedirects_(true),
           maximumResponseBytes_(8U * 1024U * 1024U),
           maximumJsonDepth_(128) {}
@@ -67,6 +70,28 @@ namespace crossa::network {
     // Enables privacy-aware response lifecycle logs.
     void NetworkConfiguration::setLogResponses(bool enabled) noexcept {
         logResponses_ = enabled;
+    }
+
+    // Enables or disables request and response header logging.
+    void NetworkConfiguration::setLogHeaders(bool enabled) noexcept {
+        logHeaders_ = enabled;
+    }
+
+    // Enables or disables request and response body logging.
+    void NetworkConfiguration::setLogBody(bool enabled) noexcept {
+        logBody_ = enabled;
+    }
+
+    // Replaces header names that must never appear in logs.
+    void NetworkConfiguration::setExcludedLogHeaders(vector<string> headers) {
+        for (const string& header : headers) {
+            if (header.empty() || header.find(':') != string::npos ||
+                header.find('\r') != string::npos ||
+                header.find('\n') != string::npos) {
+                throw invalid_argument("Invalid excluded log header name.");
+            }
+        }
+        excludedLogHeaders_ = std::move(headers);
     }
 
     // Enables or disables bounded HTTP redirect following.
@@ -124,6 +149,22 @@ namespace crossa::network {
     // Returns whether response lifecycle logging is enabled.
     bool NetworkConfiguration::shouldLogResponses() const noexcept {
         return logResponses_;
+    }
+
+    // Returns whether request and response headers may be logged.
+    bool NetworkConfiguration::shouldLogHeaders() const noexcept {
+        return logHeaders_;
+    }
+
+    // Returns whether request and response bodies may be logged.
+    bool NetworkConfiguration::shouldLogBody() const noexcept {
+        return logBody_;
+    }
+
+    // Returns case-insensitive header names excluded from logs.
+    const vector<string>&
+    NetworkConfiguration::getExcludedLogHeaders() const noexcept {
+        return excludedLogHeaders_;
     }
 
     // Returns whether redirects may be followed.

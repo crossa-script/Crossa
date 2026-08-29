@@ -486,7 +486,10 @@ namespace crossa::compiler::semantic {
                 const unordered_set<string> supportedOptions{
                     "enabled",
                     "logRequests",
-                    "logResponses"
+                    "logResponses",
+                    "logHeaders",
+                    "logBody",
+                    "excludedHeaders"
                 };
                 for (const TypedJsonObjectEntry& option :
                      interceptor.getEntries()) {
@@ -497,6 +500,32 @@ namespace crossa::compiler::semantic {
                             "Unknown interceptor option '" +
                             option.getKey() + "'."
                         );
+                    }
+                    if (option.getKey() == "excludedHeaders") {
+                        if (option.getValue().getKind() !=
+                            TypedExpressionKind::JsonArray) {
+                            fail(
+                                option.getLocation(),
+                                "CRA5011",
+                                "Interceptor excludedHeaders expects an array."
+                            );
+                        }
+                        const auto& excludedHeaders = static_cast<
+                            const TypedJsonArrayExpression&
+                        >(option.getValue());
+                        for (const unique_ptr<TypedExpression>& header :
+                             excludedHeaders.getValues()) {
+                            if (header->getType().getKind() !=
+                                types::SemanticTypeKind::String) {
+                                fail(
+                                    header->getLocation(),
+                                    "CRA5012",
+                                    "Interceptor excludedHeaders values "
+                                    "must be String."
+                                );
+                            }
+                        }
+                        continue;
                     }
                     if (option.getValue().getType().getKind() !=
                         types::SemanticTypeKind::Bool) {

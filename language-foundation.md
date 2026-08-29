@@ -1287,7 +1287,10 @@ config {
     interceptor: {
         enabled: true,
         logRequests: true,
-        logResponses: true
+        logResponses: true,
+        logHeaders: false,
+        logBody: false,
+        excludedHeaders: ["Authorization", "Cookie", "Set-Cookie"]
     },
     workerThreads: 4,
     maxQueuedTasks: 256,
@@ -1316,6 +1319,21 @@ followRedirects: Bool
 ```text
 milliseconds
 ```
+
+Interceptor logging options are:
+
+```text
+enabled: Bool
+logRequests: Bool
+logResponses: Bool
+logHeaders: Bool
+logBody: Bool
+excludedHeaders: Json array of String names
+```
+
+`logHeaders` and `logBody` default to `false`. `excludedHeaders` is matched
+case-insensitively and prevents the selected header values from appearing in
+request or response logs.
 
 Unknown keys are compile errors.
 

@@ -12,7 +12,23 @@ Request header precedence is:
 
 Absolute `http://` and `https://` URLs bypass `baseUrl`. Other values require `baseUrl` and are joined with one slash boundary. Query and path values are percent encoded.
 
-The configured interceptor observes every request. It appends common headers and can emit privacy-aware debug lifecycle events without logging header values or response bodies.
+The configured interceptor observes every request. It appends common headers and
+can emit debug lifecycle events. `logHeaders` and `logBody` independently
+control request and response values and default to `false`. When header logging
+is enabled, `excludedHeaders` removes matching names case-insensitively from
+both request and response logs. Header and body values are never logged unless
+their corresponding options are enabled.
+
+```cra
+interceptor: {
+    enabled: true,
+    logRequests: true,
+    logResponses: true,
+    logHeaders: true,
+    logBody: false,
+    excludedHeaders: ["Authorization", "Cookie", "Set-Cookie"]
+}
+```
 
 Successful `2xx` responses are decoded from the containing function's logical
 return type. `String` receives the bounded raw response body; `Int` and `Bool`

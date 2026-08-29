@@ -302,6 +302,7 @@ add_test(
 )
 set_tests_properties(
     crossa_script_test
+    crossa_local_network_integration_test
     crossa_check_nested_project_test
     crossa_explicit_run_test
     crossa_explicit_test_command_test

@@ -35,7 +35,7 @@ namespace crossa::network {
             return;
         }
         if (configuration_.shouldLogRequests()) {
-            log_.debug(
+            string message =
                 "Network request started: method=" +
                 string(HttpMethodUtils::toString(request.getMethod())) +
                 " url=" + utils::UrlUtils::stripQuery(request.getUrl()) +
@@ -44,8 +44,15 @@ namespace crossa::network {
                     request.getBody().has_value()
                         ? request.getBody()->size()
                         : 0
-                )
-            );
+                );
+            if (configuration_.shouldLogHeaders()) {
+                message += " headerValues=" +
+                    formatHeaders(request.getHeaders());
+            }
+            if (configuration_.shouldLogBody() && request.getBody().has_value()) {
+                message += " body=" + *request.getBody();
+            }
+            log_.debug(message);
         }
     }
 
@@ -58,12 +65,18 @@ namespace crossa::network {
             !configuration_.shouldLogResponses()) {
             return;
         }
-        log_.debug(
+        string message =
             "Network request completed: url=" +
             utils::UrlUtils::stripQuery(request.getUrl()) +
             " status=" + to_string(response.getStatusCode()) +
-            " responseBytes=" + to_string(response.getBody().size())
-        );
+            " responseBytes=" + to_string(response.getBody().size());
+        if (configuration_.shouldLogHeaders()) {
+            message += " headerValues=" + formatHeaders(response.getHeaders());
+        }
+        if (configuration_.shouldLogBody()) {
+            message += " body=" + response.getBody();
+        }
+        log_.debug(message);
     }
 
     // Reports a sanitized request failure for the global interception path.
@@ -79,6 +92,55 @@ namespace crossa::network {
             utils::UrlUtils::stripQuery(request.getUrl()) +
             " error=" + message
         );
+    }
+
+    // Formats headers while excluding configured sensitive names.
+    string NetworkInterceptor::formatHeaders(
+        const vector<HttpHeader>& headers
+    ) const {
+        string result = "[";
+        bool first = true;
+        for (const HttpHeader& header : headers) {
+            bool excluded = false;
+            for (const string& excludedName :
+                 configuration_.getExcludedLogHeaders()) {
+                if (headerNamesEqual(header.getName(), excludedName)) {
+                    excluded = true;
+                    break;
+                }
+            }
+            if (excluded) {
+                continue;
+            }
+            if (!first) {
+                result += ", ";
+            }
+            first = false;
+            result += header.getName() + "=" + header.getValue();
+        }
+        return result + "]";
+    }
+
+    // Compares two header names without ASCII case sensitivity.
+    bool NetworkInterceptor::headerNamesEqual(
+        const string& left,
+        const string& right
+    ) noexcept {
+        if (left.size() != right.size()) {
+            return false;
+        }
+        for (size_t index = 0; index < left.size(); ++index) {
+            const char leftValue = left[index] >= 'A' && left[index] <= 'Z'
+                ? static_cast<char>(left[index] - 'A' + 'a')
+                : left[index];
+            const char rightValue = right[index] >= 'A' && right[index] <= 'Z'
+                ? static_cast<char>(right[index] - 'A' + 'a')
+                : right[index];
+            if (leftValue != rightValue) {
+                return false;
+            }
+        }
+        return true;
     }
 
 }

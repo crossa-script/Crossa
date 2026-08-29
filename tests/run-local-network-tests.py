@@ -97,9 +97,14 @@ class MockRequestHandler(BaseHTTPRequestHandler):
             return
 
 
-def run_case(binary, fixture, expected_status=0, expected_text=None):
+def run_case(
+    binary, fixture, expected_status=0, expected_text=None, debug=False
+):
+    arguments = [binary, "test", str(fixture)]
+    if debug:
+        arguments.append("--debug")
     result = subprocess.run(
-        [binary, "test", str(fixture)],
+        arguments,
         capture_output=True,
         text=True,
         check=False,
@@ -113,6 +118,7 @@ def run_case(binary, fixture, expected_status=0, expected_text=None):
         raise RuntimeError(
             f"{fixture.name} did not contain '{expected_text}': {output}"
         )
+    return output
 
 
 def main():
@@ -126,7 +132,19 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        run_case(sys.argv[1], root / "tests/local-network/request.cra")
+        local_output = run_case(
+            sys.argv[1], root / "tests/local-network/request.cra", debug=True
+        )
+        network_logs = "\n".join(
+            line for line in local_output.splitlines()
+            if "Network request" in line
+        )
+        if "headerValues=" not in network_logs:
+            raise RuntimeError("Enabled header logging did not appear.")
+        if "body=" not in network_logs:
+            raise RuntimeError("Enabled body logging did not appear.")
+        if "secret-token" in network_logs:
+            raise RuntimeError("Excluded Authorization header appeared in logs.")
         run_case(
             sys.argv[1],
             root / "tests/local-network/http-error.cra",

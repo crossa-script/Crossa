@@ -309,6 +309,29 @@ private:
             throw runtime_error("interceptor must be Bool or a JSON object.");
         }
         for (const auto& [name, value] : object.getObject()) {
+            if (name == "excludedHeaders") {
+                if (value.getKind() != network::json::JsonValueKind::Array) {
+                    throw runtime_error(
+                        "Interceptor excludedHeaders must be an array."
+                    );
+                }
+                vector<string> excludedHeaders;
+                excludedHeaders.reserve(value.getArray().size());
+                for (const network::json::JsonValue& header :
+                     value.getArray()) {
+                    if (header.getKind() !=
+                        network::json::JsonValueKind::String) {
+                        throw runtime_error(
+                            "Interceptor excludedHeaders values must be String."
+                        );
+                    }
+                    excludedHeaders.push_back(header.getString());
+                }
+                configuration.setExcludedLogHeaders(
+                    std::move(excludedHeaders)
+                );
+                continue;
+            }
             if (value.getKind() != network::json::JsonValueKind::Boolean) {
                 throw runtime_error(
                     "Interceptor option '" + name + "' must be Bool."
@@ -320,6 +343,10 @@ private:
                 configuration.setLogRequests(value.getBoolean());
             } else if (name == "logResponses") {
                 configuration.setLogResponses(value.getBoolean());
+            } else if (name == "logHeaders") {
+                configuration.setLogHeaders(value.getBoolean());
+            } else if (name == "logBody") {
+                configuration.setLogBody(value.getBoolean());
             } else {
                 throw runtime_error(
                     "Unknown interceptor option '" + name + "'."

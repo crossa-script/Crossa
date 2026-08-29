@@ -11,7 +11,8 @@ fun getPost(): Post {
         url: "/posts/1",
         method: GET,
         headers: {
-            "X-Crossa-Request": "get"
+            "X-Crossa-Request": "get",
+            "Authorization": "secret-token"
         },
         customHeaders: {
             "X-Crossa-Custom": "enabled"

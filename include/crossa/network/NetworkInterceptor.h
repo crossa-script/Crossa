@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "crossa/network/NetworkConfiguration.h"
 #include "crossa/network/request/PreparedRequest.h"
@@ -35,6 +36,17 @@ public:
     ) const;
 
 private:
+    // Formats headers while excluding configured sensitive names.
+    [[nodiscard]] std::string formatHeaders(
+        const std::vector<HttpHeader>& headers
+    ) const;
+
+    // Compares two header names without ASCII case sensitivity.
+    [[nodiscard]] static bool headerNamesEqual(
+        const std::string& left,
+        const std::string& right
+    ) noexcept;
+
     const NetworkConfiguration& configuration_;
     const utils::Log& log_;
 };

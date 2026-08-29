@@ -34,6 +34,15 @@ public:
     // Enables privacy-aware response lifecycle logs.
     void setLogResponses(bool enabled) noexcept;
 
+    // Enables or disables request and response header logging.
+    void setLogHeaders(bool enabled) noexcept;
+
+    // Enables or disables request and response body logging.
+    void setLogBody(bool enabled) noexcept;
+
+    // Replaces header names that must never appear in logs.
+    void setExcludedLogHeaders(std::vector<std::string> headers);
+
     // Enables or disables bounded HTTP redirect following.
     void setFollowRedirects(bool enabled) noexcept;
 
@@ -61,6 +70,16 @@ public:
     // Returns whether response lifecycle logging is enabled.
     [[nodiscard]] bool shouldLogResponses() const noexcept;
 
+    // Returns whether request and response headers may be logged.
+    [[nodiscard]] bool shouldLogHeaders() const noexcept;
+
+    // Returns whether request and response bodies may be logged.
+    [[nodiscard]] bool shouldLogBody() const noexcept;
+
+    // Returns case-insensitive header names excluded from logs.
+    [[nodiscard]] const std::vector<std::string>&
+    getExcludedLogHeaders() const noexcept;
+
     // Returns whether redirects may be followed.
     [[nodiscard]] bool shouldFollowRedirects() const noexcept;
 
@@ -77,6 +96,9 @@ private:
     bool interceptorEnabled_;
     bool logRequests_;
     bool logResponses_;
+    bool logHeaders_;
+    bool logBody_;
+    std::vector<std::string> excludedLogHeaders_;
     bool followRedirects_;
     std::size_t maximumResponseBytes_;
     std::size_t maximumJsonDepth_;

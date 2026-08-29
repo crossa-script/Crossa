@@ -7,7 +7,10 @@ config {
     interceptor: {
         enabled: true,
         logRequests: true,
-        logResponses: true
+        logResponses: true,
+        logHeaders: false,
+        logBody: false,
+        excludedHeaders: ["Authorization", "Cookie", "Set-Cookie"]
     },
     workerThreads: 4,
     maxQueuedTasks: 256,
