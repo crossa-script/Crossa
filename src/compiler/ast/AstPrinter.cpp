@@ -53,6 +53,8 @@ namespace crossa::compiler::ast {
                 return "AST Config entries=" +
                        to_string(config.getEntries().size());
             }
+            case DeclarationKind::Expression:
+                return "AST Top-level expression";
         }
 
         return "AST Unknown declaration";

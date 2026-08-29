@@ -474,6 +474,8 @@ The IR must not depend on Kotlin or Swift.
 
 # Phase 7 — Native Expression Execution
 
+> **Implementation status:** The first scalar IR interpreter is implemented for `Int`, `String`, `Bool`, `Unit`, arithmetic, locals, function calls, `print`, and top-level call execution. Model/List runtime values and async scheduling remain future work.
+
 ## Goal
 
 Execute simple non-network `.cra` expressions through C++.

@@ -54,6 +54,8 @@ namespace crossa::compiler::semantic {
                 return "Semantic Config entries=" +
                        to_string(config.getEntries().size());
             }
+            case TypedDeclarationKind::Expression:
+                return "Semantic Top-level call";
         }
 
         return "Semantic Unknown declaration";

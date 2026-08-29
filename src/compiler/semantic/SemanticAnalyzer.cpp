@@ -231,6 +231,10 @@ namespace crossa::compiler::semantic {
                 return analyzeConfigDeclaration(
                     static_cast<const ast::ConfigDeclaration&>(declaration)
                 );
+            case ast::DeclarationKind::Expression:
+                return analyzeExpressionDeclaration(
+                    static_cast<const ast::ExpressionDeclaration&>(declaration)
+                );
         }
 
         fail(
@@ -457,6 +461,26 @@ namespace crossa::compiler::semantic {
 
         return make_unique<TypedConfigDeclaration>(
             std::move(entries),
+            declaration.getLocation()
+        );
+    }
+
+    // Validates and converts one top-level executable expression.
+    unique_ptr<TypedDeclaration>
+    SemanticAnalyzer::analyzeExpressionDeclaration(
+        const ast::ExpressionDeclaration& declaration
+    ) {
+        if (declaration.getExpression().getKind() !=
+            ast::ExpressionKind::Call) {
+            fail(
+                declaration.getLocation(),
+                "CRA2008",
+                "A top-level executable expression must be a function call."
+            );
+        }
+
+        return make_unique<TypedExpressionDeclaration>(
+            analyzeExpression(declaration.getExpression(), globalScope_),
             declaration.getLocation()
         );
     }
@@ -920,6 +944,8 @@ namespace crossa::compiler::semantic {
                 return &static_cast<const ast::FunctionDeclaration&>(declaration)
                             .getName();
             case ast::DeclarationKind::Config:
+                return nullptr;
+            case ast::DeclarationKind::Expression:
                 return nullptr;
         }
 

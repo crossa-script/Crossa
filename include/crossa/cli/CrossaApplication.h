@@ -35,7 +35,7 @@ private:
         char* argv[]
     );
 
-    // Loads, tokenizes, and executes one Crossa source file.
+    // Loads, compiles, and executes one Crossa source file.
     static void executeSource(const Arguments& arguments, const utils::Log& log);
 
     // Tokenizes one source file and reports the lexer lifecycle.

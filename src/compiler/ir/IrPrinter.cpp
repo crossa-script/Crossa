@@ -84,6 +84,15 @@ namespace crossa::compiler::ir {
                 }
                 break;
             }
+            case IrDeclarationKind::Expression: {
+                const auto& expression =
+                    static_cast<const IrExpressionDeclaration&>(declaration);
+                summaries.push_back(
+                    "IR Top-level Evaluate " +
+                    formatExpression(expression.getExpression())
+                );
+                break;
+            }
         }
         return summaries;
     }

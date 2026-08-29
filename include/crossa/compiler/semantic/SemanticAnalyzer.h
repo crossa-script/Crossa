@@ -95,6 +95,12 @@ private:
         const ast::ConfigDeclaration& declaration
     );
 
+    // Validates and converts one top-level executable expression.
+    [[nodiscard]] std::unique_ptr<TypedDeclaration>
+    analyzeExpressionDeclaration(
+        const ast::ExpressionDeclaration& declaration
+    );
+
     // Validates and converts one function-body statement.
     [[nodiscard]] std::unique_ptr<TypedStatement> analyzeStatement(
         const ast::Statement& statement,

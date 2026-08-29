@@ -52,6 +52,12 @@ namespace crossa::compiler::ir {
                         declaration
                     )
                 );
+            case semantic::TypedDeclarationKind::Expression:
+                return lowerExpressionDeclaration(
+                    static_cast<const semantic::TypedExpressionDeclaration&>(
+                        declaration
+                    )
+                );
         }
 
         fail("Unknown typed declaration kind.");
@@ -139,6 +145,16 @@ namespace crossa::compiler::ir {
 
         return make_unique<IrConfigDeclaration>(
             std::move(entries),
+            declaration.getLocation()
+        );
+    }
+
+    // Lowers one typed top-level executable expression.
+    unique_ptr<IrDeclaration> IrLowerer::lowerExpressionDeclaration(
+        const semantic::TypedExpressionDeclaration& declaration
+    ) {
+        return make_unique<IrExpressionDeclaration>(
+            lowerExpression(declaration.getExpression()),
             declaration.getLocation()
         );
     }

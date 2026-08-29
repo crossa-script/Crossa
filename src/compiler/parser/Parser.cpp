@@ -62,7 +62,12 @@ namespace crossa::compiler::parser {
             return parseConfigDeclaration();
         }
 
-        fail(peek(), "Expected a top-level declaration.");
+        unique_ptr<ast::Expression> expression = parseExpression();
+        const source::SourceLocation location = expression->getLocation();
+        return make_unique<ast::ExpressionDeclaration>(
+            std::move(expression),
+            location
+        );
     }
 
     // Parses a function preceded by one execution annotation.

@@ -742,6 +742,10 @@ Function overloading is not part of V0.
 
 A source/project scope should not declare ambiguous functions with the same callable identity.
 
+At the top level, a function call is an executable entry point. Function
+declarations are not invoked merely because they exist; only calls written in
+the source execute during direct script execution.
+
 ---
 
 # 16. Expressions
@@ -774,6 +778,9 @@ Precedence:
 ```
 
 The parser builds the expression tree before code generation.
+
+Top-level executable expressions are restricted to function calls. Their
+results are discarded unless another call, such as `print`, consumes them.
 
 ---
 
@@ -1670,7 +1677,11 @@ declaration            = annotated_function
                        | function_declaration
                        | variable_declaration
                        | model_declaration
-                       | config_declaration ;
+                       | config_declaration
+                       | top_level_expression_statement ;
+
+top_level_expression_statement
+                       = function_call ;
 
 annotated_function     = execution_annotation,
                          function_declaration ;
@@ -2240,6 +2251,10 @@ lower
 execute
 ```
 
+Declarations are compiled but remain inert during direct execution. Top-level
+function calls execute in source order after validation and lowering. A call's
+result is discarded unless it is passed to `print`.
+
 No unsafe "execute unvalidated source text" shortcut is allowed.
 
 ---
@@ -2418,6 +2433,8 @@ Input:
 fun add(a: Int, b: Int): Int {
     re a + b
 }
+
+print(add(1, 2))
 ```
 
 Crossa must be able to:
@@ -2428,7 +2445,7 @@ Crossa must be able to:
 4. build AST,
 5. resolve types,
 6. lower to IR,
-7. execute `add(1, 2)` natively as `3`,
+7. execute `print(add(1, 2))` natively and print `3`,
 8. generate deterministic Kotlin,
 9. generate deterministic Swift.
 

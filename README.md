@@ -6,9 +6,9 @@ Crossa is not a general-purpose programming language or another platform network
 
 ## Project Status
 
-> **Foundation phase:** Crossa currently contains its architecture and language specifications, source loading, the CRA Language V0 lexer, a syntax-only AST/parser, semantic analysis, a typed semantic model, and the first platform-neutral IR lowering pass. The production runtime, AAR, and XCFramework pipelines are not yet implemented.
+> **Foundation phase:** Crossa currently contains its architecture and language specifications, source loading, the CRA Language V0 lexer, a syntax-only AST/parser, semantic analysis, a typed semantic model, the first platform-neutral IR lowering pass, and a scalar native IR interpreter. The production runtime, AAR, and XCFramework pipelines are not yet implemented.
 
-The frontend currently validates variables, models, config blocks, functions, execution policies, calls, returns, arithmetic, lexical scopes, `List<T>`, and interpolated strings, then lowers them to platform-neutral IR. `CrossaRequest` remains tokenized but intentionally fails parsing until its native request milestone.
+The frontend currently validates variables, models, config blocks, functions, execution policies, top-level calls, returns, arithmetic, lexical scopes, `List<T>`, and interpolated strings, then lowers them to platform-neutral IR. The native interpreter executes top-level calls in source order; declarations without calls are only compiled. `CrossaRequest` remains tokenized but intentionally fails parsing until its native request milestone.
 
 The first production runtime module will be Networking. Future modules may include WebSockets, raw and binary sockets, Database, Streaming, Cache, Compression, Cryptography, File Transport, and Telemetry.
 
@@ -91,7 +91,7 @@ cmake --build build
 ./build/crossa test.cra
 ```
 
-The current executable accepts one `.cra` source file, validates its extension, tokenizes, parses, semantically validates, and lowers its content to platform-neutral IR before passing it to the execution engine. Normal execution only displays errors:
+The current executable accepts one `.cra` source file, validates its extension, tokenizes, parses, semantically validates, and lowers its content to platform-neutral IR before passing it to the native execution engine. It initializes global scalar declarations and executes top-level calls in source order. Normal execution only displays errors:
 
 ```sh
 ./build/crossa test.cra
@@ -101,6 +101,20 @@ Use `--debug` to display every current Crossa execution step, emitted token, par
 
 ```sh
 ./build/crossa --debug test.cra
+```
+
+Put a call in the `.cra` file to execute it through the native IR interpreter:
+
+```cra
+fun add(a: Int, b: Int): Int {
+    re a + b
+}
+
+print(add(1, 2))
+```
+
+```sh
+./build/crossa test.cra
 ```
 
 To configure, build, and run the debug test in one command:

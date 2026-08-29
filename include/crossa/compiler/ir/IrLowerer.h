@@ -48,6 +48,12 @@ private:
         const semantic::TypedConfigDeclaration& declaration
     );
 
+    // Lowers one typed top-level executable expression.
+    [[nodiscard]] static std::unique_ptr<IrDeclaration>
+    lowerExpressionDeclaration(
+        const semantic::TypedExpressionDeclaration& declaration
+    );
+
     // Lowers one typed statement into an IR instruction.
     [[nodiscard]] static std::unique_ptr<IrStatement> lowerStatement(
         const semantic::TypedStatement& statement

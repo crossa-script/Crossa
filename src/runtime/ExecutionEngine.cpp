@@ -1,5 +1,7 @@
 #include "crossa/runtime/ExecutionEngine.h"
 
+#include "crossa/runtime/IrInterpreter.h"
+
 using namespace std;
 
 namespace crossa::runtime {
@@ -19,6 +21,8 @@ namespace crossa::runtime {
             "Executing Crossa source: " +
                 program.getSourcePath().string()
         );
+        IrInterpreter interpreter(program, log);
+        interpreter.execute();
         log.debug("Execution engine completed");
     }
 

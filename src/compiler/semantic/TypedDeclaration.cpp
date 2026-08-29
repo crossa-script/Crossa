@@ -215,4 +215,18 @@ namespace crossa::compiler::semantic {
         return entries_;
     }
 
+    // Creates a typed top-level expression declaration.
+    TypedExpressionDeclaration::TypedExpressionDeclaration(
+        unique_ptr<TypedExpression> expression,
+        source::SourceLocation location
+    )
+        : TypedDeclaration(TypedDeclarationKind::Expression, location),
+          expression_(std::move(expression)) {}
+
+    // Returns the validated top-level expression.
+    const TypedExpression&
+    TypedExpressionDeclaration::getExpression() const noexcept {
+        return *expression_;
+    }
+
 }

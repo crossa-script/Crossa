@@ -34,3 +34,5 @@ fun runBackgroundTask() {
 fun calculateTotal(a: Int, b: Int): Int {
     re a + b
 }
+
+print(add(1, 2))

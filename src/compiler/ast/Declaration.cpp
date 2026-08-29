@@ -201,4 +201,17 @@ namespace crossa::compiler::ast {
         return entries_;
     }
 
+    // Creates a top-level expression declaration.
+    ExpressionDeclaration::ExpressionDeclaration(
+        unique_ptr<Expression> expression,
+        source::SourceLocation location
+    )
+        : Declaration(DeclarationKind::Expression, location),
+          expression_(std::move(expression)) {}
+
+    // Returns the top-level expression to execute.
+    const Expression& ExpressionDeclaration::getExpression() const noexcept {
+        return *expression_;
+    }
+
 }

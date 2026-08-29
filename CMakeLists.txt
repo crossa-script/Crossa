@@ -34,6 +34,9 @@ add_executable(
     include/crossa/compiler/semantic/SemanticAnalyzer.h
     include/crossa/compiler/semantic/SemanticModelPrinter.h
     include/crossa/compiler/ir/Program.h
+    include/crossa/runtime/RuntimeValue.h
+    include/crossa/runtime/ExecutionFrame.h
+    include/crossa/runtime/IrInterpreter.h
     include/crossa/runtime/ExecutionEngine.h
     src/main.cpp
     src/cli/CrossaApplication.cpp
@@ -64,6 +67,9 @@ add_executable(
     src/compiler/semantic/SemanticAnalyzer.cpp
     src/compiler/semantic/SemanticModelPrinter.cpp
     src/compiler/ir/Program.cpp
+    src/runtime/RuntimeValue.cpp
+    src/runtime/ExecutionFrame.cpp
+    src/runtime/IrInterpreter.cpp
     src/runtime/ExecutionEngine.cpp
     src/utils/Log.cpp
     src/utils/PrintUtils.cpp

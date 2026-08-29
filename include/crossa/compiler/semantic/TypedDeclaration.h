@@ -16,7 +16,8 @@ enum class TypedDeclarationKind {
     Variable,
     Model,
     Function,
-    Config
+    Config,
+    Expression
 };
 
 // Defines the validated execution policy attached to a function.
@@ -230,6 +231,23 @@ public:
 
 private:
     std::vector<TypedConfigEntry> entries_;
+};
+
+// Represents one validated top-level executable expression.
+// Its result is evaluated only when the native program executes this unit.
+class TypedExpressionDeclaration final : public TypedDeclaration {
+public:
+    // Creates a typed top-level expression declaration.
+    TypedExpressionDeclaration(
+        std::unique_ptr<TypedExpression> expression,
+        source::SourceLocation location
+    );
+
+    // Returns the validated top-level expression.
+    [[nodiscard]] const TypedExpression& getExpression() const noexcept;
+
+private:
+    std::unique_ptr<TypedExpression> expression_;
 };
 
 }

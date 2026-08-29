@@ -13,7 +13,8 @@ enum class IrDeclarationKind {
     Variable,
     Model,
     Function,
-    Config
+    Config,
+    Expression
 };
 
 // Defines scheduling policy on a lowered function.
@@ -225,6 +226,23 @@ public:
 
 private:
     std::vector<IrConfigEntry> entries_;
+};
+
+// Represents one top-level executable call in the platform-neutral IR.
+// Declarations remain inert; this node is evaluated in source order.
+class IrExpressionDeclaration final : public IrDeclaration {
+public:
+    // Creates a top-level expression instruction.
+    IrExpressionDeclaration(
+        std::unique_ptr<IrExpression> expression,
+        source::SourceLocation location
+    );
+
+    // Returns the lowered top-level expression.
+    [[nodiscard]] const IrExpression& getExpression() const noexcept;
+
+private:
+    std::unique_ptr<IrExpression> expression_;
 };
 
 }

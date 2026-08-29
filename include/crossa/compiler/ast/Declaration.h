@@ -16,7 +16,8 @@ enum class DeclarationKind {
     Variable,
     Model,
     Function,
-    Config
+    Config,
+    Expression
 };
 
 // Identifies a function's optional execution-policy annotation.
@@ -232,6 +233,23 @@ public:
 
 private:
     std::vector<ConfigEntry> entries_;
+};
+
+// Represents one top-level executable expression such as print(add(1, 2)).
+// Its expression is executed only after all declarations have been compiled.
+class ExpressionDeclaration final : public Declaration {
+public:
+    // Creates a top-level expression declaration.
+    ExpressionDeclaration(
+        std::unique_ptr<Expression> expression,
+        source::SourceLocation location
+    );
+
+    // Returns the top-level expression to execute.
+    [[nodiscard]] const Expression& getExpression() const noexcept;
+
+private:
+    std::unique_ptr<Expression> expression_;
 };
 
 }

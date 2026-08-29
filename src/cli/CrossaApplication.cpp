@@ -25,7 +25,9 @@ namespace crossa::cli {
     int CrossaApplication::run(int argc, char* argv[]) {
         const optional<Arguments> arguments = parseArguments(argc, argv);
         if (!arguments.has_value()) {
-            utils::Log().error("Usage: crossa [--debug] <file.cra>");
+            utils::Log().error(
+                "Usage: crossa [--debug] <file.cra>"
+            );
             return 1;
         }
 
@@ -52,19 +54,33 @@ namespace crossa::cli {
         int argc,
         char* argv[]
     ) {
-        if (argc == 2 && string_view(argv[1]) != "--debug") {
-            return Arguments{false, argv[1]};
+        if (argc < 2) {
+            return nullopt;
         }
 
-        if (argc == 3 && string_view(argv[1]) == "--debug") {
-            return Arguments{true, argv[2]};
+        bool debugEnabled = false;
+        optional<filesystem::path> sourcePath;
+
+        for (int index = 1; index < argc; ++index) {
+            const string_view argument(argv[index]);
+            if (argument == "--debug") {
+                debugEnabled = true;
+                continue;
+            }
+
+            if (!argument.empty() && argument.front() == '-') {
+                return nullopt;
+            }
+            if (sourcePath.has_value()) {
+                return nullopt;
+            }
+            sourcePath = filesystem::path(argument);
         }
 
-        if (argc == 3 && string_view(argv[2]) == "--debug") {
-            return Arguments{true, argv[1]};
+        if (!sourcePath.has_value()) {
+            return nullopt;
         }
-
-        return nullopt;
+        return Arguments{debugEnabled, std::move(sourcePath.value())};
     }
 
     // Loads, tokenizes, and executes one Crossa source file.

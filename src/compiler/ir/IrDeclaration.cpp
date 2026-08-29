@@ -208,4 +208,17 @@ namespace crossa::compiler::ir {
         return entries_;
     }
 
+    // Creates a top-level expression instruction.
+    IrExpressionDeclaration::IrExpressionDeclaration(
+        unique_ptr<IrExpression> expression,
+        source::SourceLocation location
+    )
+        : IrDeclaration(IrDeclarationKind::Expression, location),
+          expression_(std::move(expression)) {}
+
+    // Returns the lowered top-level expression.
+    const IrExpression& IrExpressionDeclaration::getExpression() const noexcept {
+        return *expression_;
+    }
+
 }

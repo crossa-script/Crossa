@@ -19,7 +19,7 @@
 namespace crossa::compiler::parser {
 
 // Converts lexer tokens into a syntax-only Crossa AST.
-// parse() supports V0 declarations and expressions except CrossaRequest.
+// parse() supports V0 declarations and top-level calls except CrossaRequest.
 class Parser final {
 public:
     // Creates a parser over one token stream and its owning source file.
