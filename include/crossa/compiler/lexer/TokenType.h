@@ -21,6 +21,7 @@ enum class TokenType {
     KeywordModel,
     KeywordConfig,
     KeywordPrint,
+    KeywordAssert,
     KeywordInt,
     KeywordString,
     KeywordBool,

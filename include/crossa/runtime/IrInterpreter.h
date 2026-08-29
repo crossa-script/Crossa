@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -16,6 +17,7 @@
 #include "crossa/network/NetworkEngine.h"
 #include "crossa/network/response/ResponseDecoder.h"
 #include "crossa/runtime/ExecutionFrame.h"
+#include "crossa/runtime/ExecutionMode.h"
 #include "crossa/runtime/RuntimeValue.h"
 #include "crossa/runtime/scheduler/TaskScheduler.h"
 #include "crossa/utils/Log.h"
@@ -32,11 +34,15 @@ public:
         const utils::Log& log,
         scheduler::TaskScheduler& scheduler,
         network::NetworkEngine& networkEngine,
-        const network::NetworkConfiguration& networkConfiguration
+        const network::NetworkConfiguration& networkConfiguration,
+        ExecutionMode mode
     ) noexcept;
 
     // Initializes globals and executes top-level calls in source order.
     void execute();
+
+    // Returns the number of assertions evaluated by this interpreter.
+    [[nodiscard]] std::size_t getAssertionCount() const noexcept;
 
 private:
     // Indexes function declarations for deterministic name-based calls.
@@ -150,6 +156,8 @@ private:
     const utils::Log& log_;
     scheduler::TaskScheduler& scheduler_;
     network::NetworkEngine& networkEngine_;
+    ExecutionMode mode_;
+    std::atomic<std::size_t> assertionCount_;
     network::response::ResponseDecoder responseDecoder_;
     ExecutionFrame globals_;
     std::unordered_map<std::string, const compiler::ir::IrFunctionDeclaration*>

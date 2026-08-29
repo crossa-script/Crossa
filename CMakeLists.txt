@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 
 project(Crossa LANGUAGES CXX)
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
 option(
     CROSSA_ENABLE_NETWORK_INTEGRATION
     "Enable integration tests that call JSONPlaceholder"
@@ -52,6 +54,7 @@ add_executable(
     include/crossa/runtime/objects/NativeModel.h
     include/crossa/runtime/result/CrossaState.h
     include/crossa/runtime/ExecutionFrame.h
+    include/crossa/runtime/ExecutionMode.h
     include/crossa/runtime/IrInterpreter.h
     include/crossa/runtime/ExecutionEngine.h
     src/main.cpp
@@ -242,6 +245,30 @@ target_link_libraries(crossa_language_tests PRIVATE Threads::Threads)
 add_test(NAME crossa_language_tests COMMAND crossa_language_tests)
 add_test(NAME crossa_script_test COMMAND crossa test.cra)
 add_test(
+    NAME crossa_test_runner_pass_test
+    COMMAND crossa test tests/test-runner/pass.cra
+)
+add_test(
+    NAME crossa_test_runner_failure_test
+    COMMAND crossa test tests/test-runner/failure.cra
+)
+set_tests_properties(
+    crossa_test_runner_pass_test
+    crossa_test_runner_failure_test
+    PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(
+    crossa_test_runner_failure_test
+    PROPERTIES WILL_FAIL TRUE
+)
+add_test(
+    NAME crossa_local_network_integration_test
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/run-local-network-tests.py
+        $<TARGET_FILE:crossa>
+)
+add_test(
     NAME crossa_check_nested_project_test
     COMMAND crossa check examples/imports/runPosts.cra
 )
@@ -251,7 +278,7 @@ add_test(
 )
 add_test(
     NAME crossa_explicit_test_command_test
-    COMMAND crossa test tests/import-project/entry/runImports.cra
+    COMMAND crossa test tests/test-runner/pass.cra
 )
 add_test(
     NAME crossa_script_import_test

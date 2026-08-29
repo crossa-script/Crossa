@@ -140,7 +140,8 @@ fi
 ./build/crossa test.cra --debug
 ./build/crossa check examples/imports/runPosts.cra --debug
 ./build/crossa run tests/import-project/entry/runImports.cra
-./build/crossa test tests/import-project/entry/runImports.cra
+./build/crossa run tests/import-project/entry/runImports.cra
+./build/crossa test tests/test-runner/pass.cra
 ./build/crossa tests/import-project/entry/runImports.cra --debug
 ./build/crossa tests/import-project/entry/runDiamondImports.cra --debug
 ./build/crossa examples/imports/repositories/postsRepository.cra --debug
@@ -161,6 +162,15 @@ assertExecutionFails \
 assertExecutionFails \
     "Imports must appear before all declarations" \
     ./build/crossa tests/import-errors/order/importAfterDeclaration.cra
+assertExecutionFails \
+    "Assertion failed: intentional assertion failure" \
+    ./build/crossa test tests/test-runner/failure.cra
+
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' 'Test failed: python3 is required for local network integration.' >&2
+    exit 1
+fi
+python3 tests/run-local-network-tests.py ./build/crossa
 
 if [[ "${CROSSA_RUN_NETWORK_INTEGRATION:-0}" == "1" ]]; then
     ./build/crossa run tests/network-jsonplaceholder.cra

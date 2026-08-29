@@ -94,12 +94,14 @@ cmake --build build
 ./build/crossa test.cra
 ```
 
-The executable accepts an optional command and one `.cra` source file. `run` and
-`test` validate, lower, and execute top-level calls in source order through the
-shared scheduler and native network runtime. `check` loads imports and runs the
-lexer, parser, semantic analysis, and typed IR lowering, then stops without
-loading configuration or executing requests and functions. Normal execution
-displays program output and errors, without compiler lifecycle logs:
+The executable accepts an optional command and one `.cra` source file. `run`
+validates, lowers, and executes top-level calls in source order through the
+shared scheduler and native network runtime. `test` uses the same native runtime
+with test-only `assert` calls and exits non-zero on an assertion or runtime
+failure. `check` loads imports and runs the lexer, parser, semantic analysis,
+and typed IR lowering, then stops without loading configuration or executing
+requests and functions. Normal execution displays program output and errors,
+without compiler lifecycle logs:
 
 ```sh
 ./build/crossa test.cra
@@ -115,6 +117,16 @@ Use explicit commands when the intent should be clear:
 
 The command is optional for backward compatibility, so `crossa file.cra` is
 equivalent to `crossa run file.cra`.
+
+Test sources use assertions:
+
+```cra
+fun returnsTrue(): Bool {
+    re true
+}
+
+assert(returnsTrue(), "returnsTrue should pass")
+```
 
 Use `--debug` to display every current Crossa execution step, emitted token, parsed AST declaration, typed semantic declaration, and lowered IR instruction:
 
@@ -147,7 +159,10 @@ To configure, build, and run the debug test in one command:
 ./test.sh
 ```
 
-The script builds and runs the complete compiler, linker, runtime, and `.cra` scripting suite. It uses CMake when available and falls back to the installed C++ compiler. Native networking requires libcurl. GitHub Actions repeats this workflow on every push and pull request.
+The script builds and runs the complete compiler, linker, runtime, local mock
+network, and `.cra` scripting suite. It uses CMake when available and falls back
+to the installed C++ compiler. Native networking requires libcurl. GitHub
+Actions repeats this workflow on every push and pull request.
 
 Optional JSONPlaceholder integration tests can be enabled when network access is
 available:

@@ -1,0 +1,10 @@
+@AsyncAfter
+fun getSlowResponse(): Json {
+    re CrossaRequest {
+        url: "/slow",
+        method: GET,
+        timeout: 50
+    }
+}
+
+getSlowResponse()

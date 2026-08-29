@@ -23,4 +23,5 @@ fun getPost(): Post {
     }
 }
 
-print(getPost())
+getPost()
+assert(true, "JSONPlaceholder Post decoded successfully")

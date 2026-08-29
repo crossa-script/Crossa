@@ -345,6 +345,9 @@ namespace crossa::compiler::lexer {
         if (lexeme == "print") {
             return TokenType::KeywordPrint;
         }
+        if (lexeme == "assert") {
+            return TokenType::KeywordAssert;
+        }
         if (lexeme == "Int") {
             return TokenType::KeywordInt;
         }

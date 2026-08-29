@@ -33,6 +33,8 @@ namespace crossa::compiler::lexer {
                 return "KeywordConfig";
             case TokenType::KeywordPrint:
                 return "KeywordPrint";
+            case TokenType::KeywordAssert:
+                return "KeywordAssert";
             case TokenType::KeywordInt:
                 return "KeywordInt";
             case TokenType::KeywordString:

@@ -496,6 +496,12 @@ namespace crossa::compiler::parser {
             return parseCallExpression("print", location);
         }
 
+        if (match(lexer::TokenType::KeywordAssert)) {
+            const source::SourceLocation location = getLocation(previous());
+            consume(lexer::TokenType::LeftParen, "Expected '(' after 'assert'.");
+            return parseCallExpression("assert", location);
+        }
+
         if (match(lexer::TokenType::Identifier)) {
             const lexer::Token& identifierToken = previous();
             const string name = getLexeme(identifierToken);

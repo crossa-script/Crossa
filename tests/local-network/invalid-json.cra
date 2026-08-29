@@ -1,0 +1,9 @@
+@AsyncAfter
+fun getInvalidJson(): Json {
+    re CrossaRequest {
+        url: "/invalid-json",
+        method: GET
+    }
+}
+
+getInvalidJson()

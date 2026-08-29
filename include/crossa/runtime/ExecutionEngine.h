@@ -1,6 +1,7 @@
 #pragma once
 
 #include "crossa/compiler/ir/Program.h"
+#include "crossa/runtime/ExecutionMode.h"
 #include "crossa/utils/Log.h"
 
 namespace crossa::runtime {
@@ -13,7 +14,8 @@ public:
     static void execute(
         const compiler::ir::Program& program,
         const compiler::ir::Program* configurationProgram,
-        const utils::Log& log
+        const utils::Log& log,
+        ExecutionMode mode = ExecutionMode::Run
     );
 };
 

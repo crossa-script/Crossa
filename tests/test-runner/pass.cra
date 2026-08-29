@@ -1,0 +1,5 @@
+fun returnsTrue(): Bool {
+    re true
+}
+
+assert(returnsTrue(), "returnsTrue should pass")

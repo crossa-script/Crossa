@@ -1,5 +1,7 @@
 #include "crossa/runtime/ExecutionEngine.h"
 
+#include <stdexcept>
+
 #include "crossa/network/NetworkEngine.h"
 #include "crossa/runtime/IrInterpreter.h"
 #include "crossa/runtime/RuntimeConfiguration.h"
@@ -13,7 +15,8 @@ namespace crossa::runtime {
     void ExecutionEngine::execute(
         const compiler::ir::Program& program,
         const compiler::ir::Program* configurationProgram,
-        const utils::Log& log
+        const utils::Log& log,
+        ExecutionMode mode
     ) {
         log.debug("Execution engine started");
         log.debug(
@@ -57,10 +60,17 @@ namespace crossa::runtime {
             log,
             scheduler,
             networkEngine,
-            configuration.getNetworkConfiguration()
+            configuration.getNetworkConfiguration(),
+            mode
         );
         interpreter.execute();
         scheduler.waitUntilIdle();
+        if (mode == ExecutionMode::Test &&
+            interpreter.getAssertionCount() == 0) {
+            throw std::runtime_error(
+                "Test source must execute at least one assertion."
+            );
+        }
         log.debug("Execution engine completed");
     }
 

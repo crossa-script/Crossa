@@ -268,6 +268,7 @@ Language builtin:
 
 ```text
 print
+assert
 CrossaRequest
 ```
 
@@ -908,6 +909,23 @@ print(value)
 Native execution routes output through a focused Crossa runtime output/logging abstraction.
 
 Do not scatter direct standard-output calls throughout compiler/runtime code.
+
+---
+
+# 17.1 `assert`
+
+Crossa provides an assertion builtin for test sources:
+
+```cra
+assert(condition)
+assert(condition, "failure message")
+```
+
+The condition must be `Bool` and the optional message must be `String`. An
+assertion is evaluated only by `crossa test file.cra`; a false condition fails
+the test with a diagnostic and non-zero exit code. A test source must execute at
+least one assertion. `crossa run` rejects assertion execution so production
+scripts cannot silently depend on test-only behavior.
 
 ---
 
@@ -2003,6 +2021,7 @@ KeywordVar
 KeywordModel
 KeywordConfig
 KeywordPrint
+KeywordAssert
 KeywordList
 KeywordCrossaRequest
 KeywordJson

@@ -170,7 +170,7 @@ private:
     static void verifyLexerTokens() {
         const filesystem::path sourcePath = "lexer.cra";
         const string content =
-            "import #models.cra# fun re var model config print Int String "
+            "import #models.cra# fun re var model config print assert Int String "
             "Bool List Json null true false GET POST PUT PATCH DELETE HEAD "
             "OPTIONS TRACE CONNECT @Sync @Async @AsyncAfter ( ) { } [ ] "
             "< > : , = + - * /";
@@ -188,6 +188,8 @@ private:
                 "Lexer did not recognize GET method token.");
         require(countToken(tokens, lexer::TokenType::MethodConnect) == 1,
                 "Lexer did not recognize CONNECT method token.");
+        require(countToken(tokens, lexer::TokenType::KeywordAssert) == 1,
+                "Lexer did not recognize assert keyword.");
         require(tokens.back().getType() == lexer::TokenType::EndOfFile,
                 "Lexer did not append EndOfFile.");
     }

@@ -832,7 +832,7 @@ namespace crossa::compiler::semantic {
         );
     }
 
-    // Validates one function or print builtin call.
+    // Validates one function or language builtin call.
     unique_ptr<TypedExpression> SemanticAnalyzer::analyzeCallExpression(
         const ast::CallExpression& expression,
         const SemanticScope& scope
@@ -858,6 +858,41 @@ namespace crossa::compiler::semantic {
                     arguments.front()->getLocation(),
                     "CRA3008",
                     "print cannot render a Unit value."
+                );
+            }
+
+            return make_unique<TypedCallExpression>(
+                expression.getCallee(),
+                true,
+                std::move(arguments),
+                types::SemanticType::createUnit(),
+                expression.getLocation()
+            );
+        }
+
+        if (expression.getCallee() == "assert") {
+            if (arguments.empty() || arguments.size() > 2) {
+                fail(
+                    expression.getLocation(),
+                    "CRA3014",
+                    "assert expects one Bool and an optional String message."
+                );
+            }
+            if (arguments.front()->getType().getKind() !=
+                types::SemanticTypeKind::Bool) {
+                fail(
+                    arguments.front()->getLocation(),
+                    "CRA3015",
+                    "assert expects a Bool condition."
+                );
+            }
+            if (arguments.size() == 2 &&
+                arguments[1]->getType().getKind() !=
+                    types::SemanticTypeKind::String) {
+                fail(
+                    arguments[1]->getLocation(),
+                    "CRA3016",
+                    "assert message expects a String."
                 );
             }
 

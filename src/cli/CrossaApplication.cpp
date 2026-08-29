@@ -199,7 +199,10 @@ namespace crossa::cli {
             configurationProgram.has_value()
                 ? &configurationProgram.value()
                 : nullptr,
-            log
+            log,
+            arguments.command == Command::Test
+                ? runtime::ExecutionMode::Test
+                : runtime::ExecutionMode::Run
         );
         logStepCompleted(7, executionStepName, log);
     }

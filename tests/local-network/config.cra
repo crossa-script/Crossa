@@ -1,0 +1,17 @@
+config {
+    baseUrl: "http://127.0.0.1:18765",
+    timeoutRequest: 1000,
+    commonHeaders: {
+        "X-Crossa-Common": "enabled"
+    },
+    interceptor: {
+        enabled: true,
+        logRequests: false,
+        logResponses: false
+    },
+    workerThreads: 2,
+    maxQueuedTasks: 16,
+    maxResponseBytes: 1048576,
+    maxJsonDepth: 32,
+    followRedirects: false
+}

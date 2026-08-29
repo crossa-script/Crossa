@@ -6,13 +6,14 @@ Crossa uses two test layers:
 - `crossa_runtime_tests` covers native result state, typed response decoding, structured errors, scheduler cancellation, and shutdown behavior.
 - CTest runs the real `crossa` executable against `test.cra`, imported scripts,
   nested project fixtures, explicit `check`, `run`, and `test` commands, and
-  expected CLI failures.
+  expected CLI failures, plus the local HTTP integration harness.
 
 Use `check` for a side-effect-free validation pass. It loads the complete import
 graph and stops after typed IR lowering, so it does not load `config.cra` and
-does not execute top-level functions or requests. `run` and `test` continue
-through native execution; `test` currently uses the same runtime path while the
-language-level assertion model is developed.
+does not execute top-level functions or requests. `run` continues through
+native execution. `test` continues through native execution, requires at least
+one `assert`, and returns a non-zero status for failed assertions or runtime
+errors.
 
 Run the complete local suite from the repository root:
 
@@ -28,7 +29,11 @@ GitHub Actions runs the same script on every push and pull request through:
 .github/workflows/ci.yml
 ```
 
-The test fixtures do not depend on a live network service. The runnable JSONPlaceholder example remains available at `examples/imports/runPosts.cra`, but it is intentionally not part of the deterministic CI suite.
+The default test fixtures do not depend on a live network service. The local
+integration harness starts a loopback mock server and verifies the full
+CrossaRequest path without external dependencies. The runnable JSONPlaceholder
+example remains available at `examples/imports/runPosts.cra`, but it is
+intentionally not part of the deterministic CI suite.
 
 CrossaRequest integration tests use JSONPlaceholder and are opt-in because they
 depend on external network availability. Enable them with:

@@ -24,12 +24,15 @@ namespace crossa::runtime {
         const utils::Log& log,
         scheduler::TaskScheduler& scheduler,
         network::NetworkEngine& networkEngine,
-        const network::NetworkConfiguration& networkConfiguration
+        const network::NetworkConfiguration& networkConfiguration,
+        ExecutionMode mode
     ) noexcept
         : program_(program),
           log_(log),
           scheduler_(scheduler),
           networkEngine_(networkEngine),
+          mode_(mode),
+          assertionCount_(0),
           responseDecoder_(
               program,
               networkConfiguration.getMaximumResponseBytes(),
@@ -44,6 +47,11 @@ namespace crossa::runtime {
         initializeGlobals();
         executeTopLevelExpressions();
         log_.debug("IR interpreter completed");
+    }
+
+    // Returns the number of assertions evaluated by this interpreter.
+    size_t IrInterpreter::getAssertionCount() const noexcept {
+        return assertionCount_.load();
     }
 
     // Indexes function declarations for deterministic name-based calls.
@@ -252,11 +260,29 @@ namespace crossa::runtime {
                     arguments.push_back(evaluate(*argument, frame, callDepth));
                 }
                 if (call.isBuiltin()) {
-                    if (call.getCallee() != "print" || arguments.size() != 1) {
-                        fail("Unsupported builtin call in IR.");
+                    if (call.getCallee() == "print" &&
+                        arguments.size() == 1) {
+                        utils::PrintUtils::println(arguments.front().format());
+                        return RuntimeValue::createUnit();
                     }
-                    utils::PrintUtils::println(arguments.front().format());
-                    return RuntimeValue::createUnit();
+                    if (call.getCallee() == "assert" &&
+                        (arguments.size() == 1 || arguments.size() == 2)) {
+                        if (mode_ != ExecutionMode::Test) {
+                            fail(
+                                "assert is available only with 'crossa test'."
+                            );
+                        }
+                        assertionCount_.fetch_add(1);
+                        if (!arguments.front().getBool()) {
+                            const string message = arguments.size() == 2
+                                ? arguments[1].getString()
+                                : "condition evaluated to false";
+                            fail("Assertion failed: " + message);
+                        }
+                        log_.debug("Assertion passed");
+                        return RuntimeValue::createUnit();
+                    }
+                    fail("Unsupported builtin call in IR.");
                 }
                 const auto functionIterator = functions_.find(call.getCallee());
                 if (functionIterator == functions_.end()) {
