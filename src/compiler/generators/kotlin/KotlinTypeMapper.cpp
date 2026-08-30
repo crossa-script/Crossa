@@ -21,10 +21,15 @@ namespace crossa::compiler::generators::kotlin {
                 return "String";
             case types::SemanticTypeKind::Bool:
                 return "Boolean";
+            case types::SemanticTypeKind::Model:
+                return type.getModelName();
+            case types::SemanticTypeKind::List:
+                if (type.getElementType() == nullptr) {
+                    failUnsupportedType(type);
+                }
+                return "List<" + mapValueType(*type.getElementType()) + ">";
             case types::SemanticTypeKind::Unit:
             case types::SemanticTypeKind::Json:
-            case types::SemanticTypeKind::Model:
-            case types::SemanticTypeKind::List:
                 failUnsupportedType(type);
         }
 

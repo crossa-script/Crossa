@@ -4,11 +4,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "crossa/compiler/generators/kotlin/KotlinGeneratedSource.h"
 #include "crossa/compiler/generators/kotlin/KotlinIdentifierEscaper.h"
 #include "crossa/compiler/generators/kotlin/KotlinTypeMapper.h"
+#include "crossa/compiler/ir/IrCrossaRequestExpression.h"
 #include "crossa/compiler/ir/IrExpression.h"
 #include "crossa/compiler/ir/IrStatement.h"
 #include "crossa/compiler/ir/Program.h"
@@ -25,11 +27,51 @@ public:
     ) const;
 
 private:
+    using ModelMap = std::unordered_map<std::string, const ir::IrModelDeclaration*>;
+
+    void emitModel(
+        const ir::IrModelDeclaration& model,
+        class KotlinSourceWriter& writer
+    ) const;
+
     // Emits one pure synchronous Kotlin function.
     void emitFunction(
         const ir::IrFunctionDeclaration& function,
+        const ModelMap& models,
         class KotlinSourceWriter& writer
     ) const;
+
+    void emitAsyncAfterRequestFunction(
+        const ir::IrFunctionDeclaration& function,
+        const ModelMap& models,
+        class KotlinSourceWriter& writer
+    ) const;
+
+    void emitRequestBlockingFunction(
+        const ir::IrFunctionDeclaration& function,
+        const ir::IrCrossaRequestExpression& request,
+        const ModelMap& models,
+        class KotlinSourceWriter& writer
+    ) const;
+
+    void emitModelMapper(
+        const ir::IrModelDeclaration& model,
+        class KotlinSourceWriter& writer
+    ) const;
+
+    [[nodiscard]] static const ir::IrCrossaRequestExpression*
+    findReturnedRequest(const ir::IrFunctionDeclaration& function);
+
+    [[nodiscard]] static std::string readStringLiteral(
+        const ir::IrExpression& expression
+    );
+
+    [[nodiscard]] static std::vector<std::pair<std::string, std::string>>
+    readStringMap(const ir::IrExpression* expression);
+
+    [[nodiscard]] static std::string escapeKotlinStringLiteral(
+        const std::string& value
+    );
 
     // Emits one Kotlin function signature using the canonical wrapping policy.
     void emitFunctionSignature(

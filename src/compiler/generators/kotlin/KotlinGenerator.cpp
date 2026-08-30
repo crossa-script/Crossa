@@ -1,7 +1,9 @@
 #include "crossa/compiler/generators/kotlin/KotlinGenerator.h"
 
+#include <sstream>
 #include <stdexcept>
 
+#include "crossa/compiler/ir/IrCrossaRequestExpression.h"
 #include "crossa/compiler/generators/kotlin/KotlinExpressionEmitter.h"
 #include "crossa/compiler/generators/kotlin/KotlinSourceWriter.h"
 #include "crossa/compiler/generators/kotlin/KotlinStatementEmitter.h"
@@ -28,27 +30,80 @@ namespace crossa::compiler::generators::kotlin {
             "public class " + identifierEscaper_.escape(program.getIdentity())
         );
 
+        ModelMap models;
         for (const unique_ptr<ir::IrDeclaration>& declaration :
              program.getDeclarations()) {
-            if (declaration->getKind() != ir::IrDeclarationKind::Function) {
-                failUnsupported("top-level declaration");
+            if (declaration->getKind() == ir::IrDeclarationKind::Model) {
+                const auto& model = static_cast<const ir::IrModelDeclaration&>(
+                    *declaration
+                );
+                models.emplace(model.getName(), &model);
             }
+        }
+
+        for (const unique_ptr<ir::IrDeclaration>& declaration :
+             program.getDeclarations()) {
+            if (declaration->getKind() == ir::IrDeclarationKind::Model) {
+                writer.writeLine();
+                emitModel(
+                    static_cast<const ir::IrModelDeclaration&>(*declaration),
+                    writer
+                );
+                continue;
+            }
+            if (declaration->getKind() == ir::IrDeclarationKind::Function) {
+                writer.writeLine();
+                emitFunction(
+                    static_cast<const ir::IrFunctionDeclaration&>(*declaration),
+                    models,
+                    writer
+                );
+                continue;
+            }
+            if (declaration->getKind() == ir::IrDeclarationKind::Expression) {
+                continue;
+            }
+            failUnsupported("top-level declaration");
+        }
+
+        for (const auto& entry : models) {
             writer.writeLine();
-            emitFunction(
-                static_cast<const ir::IrFunctionDeclaration&>(*declaration),
-                writer
-            );
+            emitModelMapper(*entry.second, writer);
         }
 
         writer.endBlock();
         return KotlinGeneratedSource(getFileName(program), writer.getSource());
     }
 
+    void KotlinGenerator::emitModel(
+        const ir::IrModelDeclaration& model,
+        KotlinSourceWriter& writer
+    ) const {
+        writer.writeLine("public data class " + identifierEscaper_.escape(model.getName()) + "(");
+        writer.indent();
+        const vector<ir::IrModelField>& fields = model.getFields();
+        for (size_t index = 0; index < fields.size(); ++index) {
+            writer.writeLine(
+                "public val " + identifierEscaper_.escape(fields[index].getName()) +
+                ": " + typeMapper_.mapValueType(fields[index].getType()) +
+                (index + 1 < fields.size() ? "," : "")
+            );
+        }
+        writer.dedent();
+        writer.writeLine(")");
+    }
+
     // Emits one pure synchronous Kotlin function.
     void KotlinGenerator::emitFunction(
         const ir::IrFunctionDeclaration& function,
+        const ModelMap& models,
         KotlinSourceWriter& writer
     ) const {
+        if (function.getExecutionPolicy() == ir::IrExecutionPolicy::AsyncAfter) {
+            emitAsyncAfterRequestFunction(function, models, writer);
+            return;
+        }
+
         if (function.getExecutionPolicy() != ir::IrExecutionPolicy::Sync) {
             failUnsupported("execution policies other than Sync");
         }
@@ -64,6 +119,251 @@ namespace crossa::compiler::generators::kotlin {
         );
         statementEmitter.emitStatements(function.getStatements());
         writer.endBlock();
+    }
+
+    void KotlinGenerator::emitAsyncAfterRequestFunction(
+        const ir::IrFunctionDeclaration& function,
+        const ModelMap& models,
+        KotlinSourceWriter& writer
+    ) const {
+        const ir::IrCrossaRequestExpression* request = findReturnedRequest(function);
+        if (request == nullptr) {
+            failUnsupported("AsyncAfter without returned CrossaRequest");
+        }
+        if (!function.getParameters().empty()) {
+            failUnsupported("AsyncAfter request parameters");
+        }
+
+        const string functionName = identifierEscaper_.escape(function.getName());
+        const string resultType = typeMapper_.mapValueType(function.getReturnType());
+        writer.beginBlock(
+            "public fun " + functionName +
+            "(callback: (Result<" + resultType + ">) -> Unit)"
+        );
+        writer.writeLine("Thread {");
+        writer.indent();
+        writer.writeLine("try {");
+        writer.indent();
+        writer.writeLine("callback(Result.success(" + functionName + "Blocking()))");
+        writer.dedent();
+        writer.writeLine("} catch (error: Throwable) {");
+        writer.indent();
+        writer.writeLine("callback(Result.failure(error))");
+        writer.dedent();
+        writer.writeLine("}");
+        writer.dedent();
+        writer.writeLine("}.start()");
+        writer.endBlock();
+        writer.writeLine();
+        emitRequestBlockingFunction(function, *request, models, writer);
+    }
+
+    void KotlinGenerator::emitRequestBlockingFunction(
+        const ir::IrFunctionDeclaration& function,
+        const ir::IrCrossaRequestExpression& request,
+        const ModelMap& models,
+        KotlinSourceWriter& writer
+    ) const {
+        if (request.getMethod() != ir::IrHttpMethod::Get) {
+            failUnsupported("generated Android request methods other than GET");
+        }
+
+        const types::SemanticType& returnType = function.getReturnType();
+        if (returnType.getKind() != types::SemanticTypeKind::List ||
+            returnType.getElementType() == nullptr ||
+            returnType.getElementType()->getKind() !=
+                types::SemanticTypeKind::Model) {
+            failUnsupported("generated Android request return types other than List<Model>");
+        }
+
+        const string modelName = returnType.getElementType()->getModelName();
+        if (!models.contains(modelName)) {
+            failInvariant("Generated request model is missing.");
+        }
+
+        const string functionName = identifierEscaper_.escape(function.getName());
+        const string resultType = typeMapper_.mapValueType(returnType);
+        const string url = readStringLiteral(request.getUrl());
+        const vector<pair<string, string>> headers = readStringMap(request.getHeaders());
+
+        writer.beginBlock("private fun " + functionName + "Blocking(): " + resultType);
+        writer.writeLine("val connection = java.net.URL(" + escapeKotlinStringLiteral(url) + ").openConnection() as java.net.HttpURLConnection");
+        writer.writeLine("connection.requestMethod = \"GET\"");
+        writer.writeLine("connection.connectTimeout = 10000");
+        writer.writeLine("connection.readTimeout = 10000");
+        writer.writeLine("connection.setRequestProperty(\"Accept\", \"application/json\")");
+        for (const pair<string, string>& header : headers) {
+            writer.writeLine(
+                "connection.setRequestProperty(" +
+                escapeKotlinStringLiteral(header.first) + ", " +
+                escapeKotlinStringLiteral(header.second) + ")"
+            );
+        }
+        writer.beginBlock("try");
+        writer.writeLine("val status = connection.responseCode");
+        writer.writeLine("val stream = if (status in 200..299) connection.inputStream else connection.errorStream");
+        writer.writeLine("val body = stream.bufferedReader().use { it.readText() }");
+        writer.writeLine("if (status !in 200..299) error(\"HTTP $status: $body\")");
+        writer.writeLine("val array = org.json.JSONArray(body)");
+        writer.beginBlock("return buildList");
+        writer.beginBlock("for (index in 0 until array.length())");
+        writer.writeLine("add(map" + identifierEscaper_.escape(modelName) + "(array.getJSONObject(index)))");
+        writer.endBlock();
+        writer.endBlock();
+        writer.writeLine("} finally {");
+        writer.indent();
+        writer.writeLine("connection.disconnect()");
+        writer.endBlock();
+        writer.endBlock();
+    }
+
+    void KotlinGenerator::emitModelMapper(
+        const ir::IrModelDeclaration& model,
+        KotlinSourceWriter& writer
+    ) const {
+        const string modelName = identifierEscaper_.escape(model.getName());
+        writer.beginBlock(
+            "private fun map" + modelName +
+            "(json: org.json.JSONObject): " + modelName
+        );
+        writer.writeLine("return " + modelName + "(");
+        writer.indent();
+        const vector<ir::IrModelField>& fields = model.getFields();
+        for (size_t index = 0; index < fields.size(); ++index) {
+            const ir::IrModelField& field = fields[index];
+            string reader;
+            switch (field.getType().getKind()) {
+                case types::SemanticTypeKind::Int:
+                    reader = "json.getInt";
+                    break;
+                case types::SemanticTypeKind::Long:
+                    reader = "json.getLong";
+                    break;
+                case types::SemanticTypeKind::Double:
+                    reader = "json.getDouble";
+                    break;
+                case types::SemanticTypeKind::String:
+                    reader = "json.getString";
+                    break;
+                case types::SemanticTypeKind::Bool:
+                    reader = "json.getBoolean";
+                    break;
+                case types::SemanticTypeKind::Unit:
+                case types::SemanticTypeKind::Json:
+                case types::SemanticTypeKind::Model:
+                case types::SemanticTypeKind::List:
+                    failUnsupported("nested generated Android model field type");
+            }
+            writer.writeLine(
+                identifierEscaper_.escape(field.getName()) + " = " +
+                reader + "(" + escapeKotlinStringLiteral(field.getName()) + ")" +
+                (index + 1 < fields.size() ? "," : "")
+            );
+        }
+        writer.dedent();
+        writer.writeLine(")");
+        writer.endBlock();
+    }
+
+    const ir::IrCrossaRequestExpression*
+    KotlinGenerator::findReturnedRequest(
+        const ir::IrFunctionDeclaration& function
+    ) {
+        if (function.getStatements().size() != 1 ||
+            function.getStatements().front()->getKind() !=
+                ir::IrStatementKind::Return) {
+            return nullptr;
+        }
+
+        const auto& returnStatement = static_cast<const ir::IrReturnStatement&>(
+            *function.getStatements().front()
+        );
+        if (returnStatement.getExpression().getKind() !=
+            ir::IrExpressionKind::CrossaRequest) {
+            return nullptr;
+        }
+        return &static_cast<const ir::IrCrossaRequestExpression&>(
+            returnStatement.getExpression()
+        );
+    }
+
+    string KotlinGenerator::readStringLiteral(
+        const ir::IrExpression& expression
+    ) {
+        if (expression.getKind() != ir::IrExpressionKind::StringBuild) {
+            failUnsupported("generated Android non-literal URL");
+        }
+
+        const auto& stringBuild = static_cast<const ir::IrStringBuildExpression&>(
+            expression
+        );
+        string value;
+        for (const ir::IrStringSegment& segment : stringBuild.getSegments()) {
+            if (segment.getKind() != ir::IrStringSegmentKind::Literal) {
+                failUnsupported("generated Android interpolated URL");
+            }
+            value += segment.getValue();
+        }
+        return value;
+    }
+
+    vector<pair<string, string>> KotlinGenerator::readStringMap(
+        const ir::IrExpression* expression
+    ) {
+        if (expression == nullptr) {
+            return {};
+        }
+        if (expression->getKind() != ir::IrExpressionKind::JsonObject) {
+            failUnsupported("generated Android non-object headers");
+        }
+
+        const auto& object = static_cast<const ir::IrJsonObjectExpression&>(
+            *expression
+        );
+        vector<pair<string, string>> values;
+        values.reserve(object.getEntries().size());
+        for (const ir::IrJsonObjectEntry& entry : object.getEntries()) {
+            values.emplace_back(entry.getKey(), readStringLiteral(entry.getValue()));
+        }
+        return values;
+    }
+
+    string KotlinGenerator::escapeKotlinStringLiteral(const string& value) {
+        ostringstream output;
+        output << '"';
+        for (const unsigned char character : value) {
+            switch (character) {
+                case '\\':
+                    output << "\\\\";
+                    break;
+                case '"':
+                    output << "\\\"";
+                    break;
+                case '$':
+                    output << "\\$";
+                    break;
+                case '\n':
+                    output << "\\n";
+                    break;
+                case '\r':
+                    output << "\\r";
+                    break;
+                case '\t':
+                    output << "\\t";
+                    break;
+                default:
+                    if (character < 0x20) {
+                        constexpr char HexDigits[] = "0123456789ABCDEF";
+                        output << "\\u00" << HexDigits[character >> 4]
+                               << HexDigits[character & 0x0F];
+                    } else {
+                        output << static_cast<char>(character);
+                    }
+                    break;
+            }
+        }
+        output << '"';
+        return output.str();
     }
 
     // Emits one Kotlin function signature using the canonical wrapping policy.
