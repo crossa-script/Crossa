@@ -150,6 +150,7 @@ add_executable(
     include/crossa/network/utils/UrlUtils.h
     include/crossa/runtime/RuntimeConfiguration.h
     include/crossa/runtime/NativeOperationCatalog.h
+    include/crossa/runtime/NativeRuntime.h
     include/crossa/bindings/shared-abi/CrossaAbi.h
     include/crossa/bindings/shared-abi/CrossaRuntimeContext.h
     include/crossa/runtime/scheduler/SchedulerOptions.h
@@ -179,6 +180,7 @@ add_executable(
     src/network/utils/UrlUtils.cpp
     src/runtime/RuntimeConfiguration.cpp
     src/runtime/NativeOperationCatalog.cpp
+    src/runtime/NativeRuntime.cpp
     src/bindings/shared-abi/CrossaAbi.cpp
     src/bindings/shared-abi/CrossaRuntimeContext.cpp
     src/runtime/scheduler/SchedulerOptions.cpp

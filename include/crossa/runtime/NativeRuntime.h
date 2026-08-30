@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <optional>
+#include <vector>
 
 #include "crossa/bindings/shared-abi/CrossaRuntimeContext.h"
 #include "crossa/compiler/ir/Program.h"

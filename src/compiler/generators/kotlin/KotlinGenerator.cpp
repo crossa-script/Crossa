@@ -35,11 +35,12 @@ namespace crossa::compiler::generators::kotlin {
         }
         for (const unique_ptr<ir::IrDeclaration>& declaration : program.getDeclarations()) {
             if (declaration->getKind() == ir::IrDeclarationKind::Model) {
+                if (target == KotlinGenerationTarget::Pure) {
+                    failUnsupported("top-level declaration");
+                }
                 writer.writeLine();
                 const auto& model = static_cast<const ir::IrModelDeclaration&>(*declaration);
-                target == KotlinGenerationTarget::AndroidNative
-                    ? emitNativeModel(model, writer)
-                    : emitModel(model, writer);
+                emitNativeModel(model, writer);
             } else if (declaration->getKind() == ir::IrDeclarationKind::Function) {
                 writer.writeLine();
                 emitFunction(
@@ -84,6 +85,24 @@ namespace crossa::compiler::generators::kotlin {
         }
         if (function.getExecutionPolicy() != ir::IrExecutionPolicy::Sync) {
             failUnsupported("execution policies other than Sync");
+        }
+        if (target == KotlinGenerationTarget::Pure) {
+            for (const ir::IrParameter& parameter : function.getParameters()) {
+                if (parameter.getType().getKind() ==
+                    types::SemanticTypeKind::List) {
+                    throw runtime_error(
+                        "Kotlin generation does not support type '" +
+                        parameter.getType().format() + "'."
+                    );
+                }
+            }
+            if (function.getReturnType().getKind() ==
+                types::SemanticTypeKind::List) {
+                throw runtime_error(
+                    "Kotlin generation does not support type '" +
+                    function.getReturnType().format() + "'."
+                );
+            }
         }
         validatePureStatements(function.getStatements());
         emitFunctionSignature(function, writer);
