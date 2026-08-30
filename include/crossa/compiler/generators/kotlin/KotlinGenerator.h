@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -17,13 +18,20 @@
 
 namespace crossa::compiler::generators::kotlin {
 
+// Selects whether Kotlin is emitted as pure translation or an Android native binding.
+enum class KotlinGenerationTarget {
+    Pure,
+    AndroidNative
+};
+
 // Generates one deterministic pure Kotlin source unit from platform-neutral IR.
 class KotlinGenerator final {
 public:
     // Generates the Kotlin file identity and canonical source for one IR program.
     [[nodiscard]] KotlinGeneratedSource generate(
         const ir::Program& program,
-        const std::optional<std::string>& packageName = std::nullopt
+        const std::optional<std::string>& packageName = std::nullopt,
+        KotlinGenerationTarget target = KotlinGenerationTarget::Pure
     ) const;
 
 private:
@@ -38,40 +46,26 @@ private:
     void emitFunction(
         const ir::IrFunctionDeclaration& function,
         const ModelMap& models,
+        KotlinGenerationTarget target,
         class KotlinSourceWriter& writer
     ) const;
 
-    void emitAsyncAfterRequestFunction(
+    // Emits an Android API that delegates one operation to the native runtime.
+    void emitNativeFunction(
         const ir::IrFunctionDeclaration& function,
-        const ModelMap& models,
         class KotlinSourceWriter& writer
     ) const;
 
-    void emitRequestBlockingFunction(
-        const ir::IrFunctionDeclaration& function,
-        const ir::IrCrossaRequestExpression& request,
-        const ModelMap& models,
-        class KotlinSourceWriter& writer
-    ) const;
-
-    void emitModelMapper(
+    // Emits native-backed Android model accessors for one runtime model schema.
+    void emitNativeModel(
         const ir::IrModelDeclaration& model,
         class KotlinSourceWriter& writer
     ) const;
 
-    [[nodiscard]] static const ir::IrCrossaRequestExpression*
-    findReturnedRequest(const ir::IrFunctionDeclaration& function);
-
-    [[nodiscard]] static std::string readStringLiteral(
-        const ir::IrExpression& expression
-    );
-
-    [[nodiscard]] static std::vector<std::pair<std::string, std::string>>
-    readStringMap(const ir::IrExpression* expression);
-
-    [[nodiscard]] static std::string escapeKotlinStringLiteral(
-        const std::string& value
-    );
+    // Returns the stable compile-time operation identifier for one function.
+    [[nodiscard]] static std::uint64_t operationId(
+        const ir::IrFunctionDeclaration& function
+    ) noexcept;
 
     // Emits one Kotlin function signature using the canonical wrapping policy.
     void emitFunctionSignature(

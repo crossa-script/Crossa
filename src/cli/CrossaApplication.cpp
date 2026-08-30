@@ -374,7 +374,11 @@ namespace crossa::cli {
                 analyzeSource(sourceUnit, sourceFile, log);
             const compiler::ir::Program program =
                 compiler::ir::IrLowerer::lower(semanticModel);
-            sources.push_back(generator.generate(program, packageName));
+            sources.push_back(generator.generate(
+                program,
+                packageName,
+                compiler::generators::kotlin::KotlinGenerationTarget::AndroidNative
+            ));
         }
 
         logStepStarted(7, "Android Gradle library project generation", log);
