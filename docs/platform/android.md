@@ -19,6 +19,23 @@ canonical C++ frontend, and writes the Android Gradle library project.
 The generated project is the input to its Gradle AAR assembly step while the
 native runtime embedding work is completed.
 
+## Toolchain Validation
+
+```text
+crossa doctor
+```
+
+`doctor` checks whether the current machine can build generated Android AAR
+artifacts without relying on the Crossa source repository. It reports the
+Crossa installation, host operating system and CPU architecture, `ANDROID_HOME`,
+required Android SDK platform and build-tools presence, side-by-side NDK,
+CMake, Ninja, Java, Crossa cache writability, and temporary directory
+writability.
+
+The command uses `✓` for passed checks, `!` for warnings, and `✗` for required
+failures. Any required failure makes the command exit non-zero and prints a
+`Fix:` section. Warnings do not block the current Android build path.
+
 ## Build-Variant Configuration
 
 `config.cra` provides the default values. The generated library has one typed

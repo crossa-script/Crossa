@@ -4,6 +4,8 @@
 #include <stdexcept>
 #include <system_error>
 
+#include "crossa/packaging/android/AndroidBuildRequirements.h"
+
 using namespace std;
 
 namespace crossa::packaging::android {
@@ -133,8 +135,12 @@ namespace crossa::packaging::android {
         writeFile(
             outputDirectory / "build.gradle.kts",
             "plugins {\n"
-            "    id(\"com.android.library\") version \"8.5.1\" apply false\n"
-            "    kotlin(\"android\") version \"2.0.21\" apply false\n"
+            "    id(\"com.android.library\") version \"" +
+                AndroidBuildRequirements::androidGradlePluginVersion() +
+                "\" apply false\n"
+            "    kotlin(\"android\") version \"" +
+                AndroidBuildRequirements::kotlinAndroidPluginVersion() +
+                "\" apply false\n"
             "}\n"
         );
         writeFile(
@@ -151,15 +157,21 @@ namespace crossa::packaging::android {
             "}\n\n"
             "android {\n"
             "    namespace = \"" + packageName + "\"\n"
-            "    compileSdk = 35\n\n"
-            "    ndkVersion = \"28.1.13356709\"\n\n"
+            "    compileSdk = " +
+                to_string(AndroidBuildRequirements::compileSdkVersion()) +
+                "\n\n"
+            "    ndkVersion = \"" +
+                AndroidBuildRequirements::ndkVersion() +
+                "\"\n\n"
             "    defaultConfig {\n"
             "        minSdk = 23\n"
             "        externalNativeBuild { cmake { cppFlags += listOf(\"-std=c++20\", \"-O3\") } }\n"
             "    }\n\n"
             "    externalNativeBuild { cmake { path = file(\"src/main/cpp/CMakeLists.txt\") } }\n"
             "}\n\n"
-            "kotlin { jvmToolchain(17) }\n"
+            "kotlin { jvmToolchain(" +
+                to_string(AndroidBuildRequirements::javaToolchainVersion()) +
+                ") }\n"
         );
     }
 
@@ -220,7 +232,9 @@ namespace crossa::packaging::android {
         );
         writeFile(
             outputDirectory / "library" / "src" / "main" / "cpp" / "CMakeLists.txt",
-            "cmake_minimum_required(VERSION 3.22.1)\n"
+            "cmake_minimum_required(VERSION " +
+                AndroidBuildRequirements::cmakeMinimumVersion() +
+                ")\n"
             "project(crossa_runtime LANGUAGES CXX)\n\n"
             "add_library(crossa_runtime SHARED crossa_runtime.cpp)\n"
             "target_compile_features(crossa_runtime PRIVATE cxx_std_20)\n"

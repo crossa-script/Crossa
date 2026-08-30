@@ -16,6 +16,13 @@ add_executable(
     include/crossa/utils/Log.h
     include/crossa/utils/PrintUtils.h
     include/crossa/cli/CrossaApplication.h
+    include/crossa/cli/CrossaVersion.h
+    include/crossa/cli/doctor/DoctorChecks.h
+    include/crossa/cli/doctor/DoctorCommand.h
+    include/crossa/cli/doctor/DoctorResult.h
+    include/crossa/cli/doctor/DoctorRunner.h
+    include/crossa/cli/doctor/DoctorStatus.h
+    include/crossa/cli/doctor/ProcessRunner.h
     include/crossa/compiler/source/SourceFile.h
     include/crossa/compiler/source/SourceLocation.h
     include/crossa/compiler/source/SourceLoader.h
@@ -37,6 +44,7 @@ add_executable(
     include/crossa/compiler/generators/kotlin/KotlinSourceWriter.h
     include/crossa/compiler/generators/kotlin/KotlinStatementEmitter.h
     include/crossa/compiler/generators/kotlin/KotlinTypeMapper.h
+    include/crossa/packaging/android/AndroidBuildRequirements.h
     include/crossa/packaging/android/AndroidProjectGenerator.h
     include/crossa/compiler/ir/IrExpression.h
     include/crossa/compiler/ir/IrStatement.h
@@ -65,6 +73,11 @@ add_executable(
     include/crossa/runtime/ExecutionEngine.h
     src/main.cpp
     src/cli/CrossaApplication.cpp
+    src/cli/CrossaVersion.cpp
+    src/cli/doctor/DoctorChecks.cpp
+    src/cli/doctor/DoctorCommand.cpp
+    src/cli/doctor/DoctorRunner.cpp
+    src/cli/doctor/ProcessRunner.cpp
     src/compiler/source/SourceFile.cpp
     src/compiler/source/SourceLocation.cpp
     src/compiler/source/SourceLoader.cpp
@@ -86,6 +99,7 @@ add_executable(
     src/compiler/generators/kotlin/KotlinSourceWriter.cpp
     src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
     src/compiler/generators/kotlin/KotlinTypeMapper.cpp
+    src/packaging/android/AndroidBuildRequirements.cpp
     src/packaging/android/AndroidProjectGenerator.cpp
     src/compiler/ir/IrExpression.cpp
     src/compiler/ir/IrStatement.cpp
@@ -240,6 +254,7 @@ add_executable(
     src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
     src/compiler/generators/kotlin/KotlinTypeMapper.cpp
     src/packaging/android/AndroidProjectGenerator.cpp
+    src/packaging/android/AndroidBuildRequirements.cpp
     src/compiler/types/SemanticType.cpp
     src/compiler/semantic/SemanticScope.cpp
     src/compiler/semantic/TypedExpression.cpp

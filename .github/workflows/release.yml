@@ -1,0 +1,190 @@
+name: Release Crossa
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. 0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crossa-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate branch
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Releases must be created from main."
+            exit 1
+          fi
+
+      - name: Validate version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version: $VERSION"
+            echo "Expected semantic version such as 0.1.0"
+            exit 1
+          fi
+
+      - name: Ensure tag does not exist
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git fetch --tags --force
+          if git rev-parse "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists."
+            exit 1
+          fi
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: validate
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: macOS ARM64
+            os: macos-15
+            artifact: macos-arm64
+            extension: tar.gz
+
+          - name: Linux x86_64
+            os: ubuntu-24.04
+            artifact: linux-x86_64
+            extension: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake ninja-build libcurl4-openssl-dev
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew update
+          brew install cmake ninja
+
+      - name: Configure Release
+        shell: bash
+        run: |
+          cmake \
+            -S . \
+            -B build/release \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Crossa
+        shell: bash
+        run: cmake --build build/release --config Release --parallel
+
+      - name: Verify Crossa binary
+        shell: bash
+        run: |
+          if [[ ! -x "build/release/crossa" ]]; then
+            echo "Crossa executable not found at build/release/crossa"
+            exit 1
+          fi
+          ./build/release/crossa --help
+
+      - name: Package Crossa
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          PLATFORM: ${{ matrix.artifact }}
+        run: |
+          package_name="crossa-v${VERSION}-${PLATFORM}"
+          mkdir -p "dist/${package_name}"
+          cp build/release/crossa "dist/${package_name}/crossa"
+          chmod +x "dist/${package_name}/crossa"
+          tar -C dist -czf "${package_name}.tar.gz" "${package_name}"
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: crossa-${{ matrix.artifact }}
+          path: crossa-v${{ inputs.version }}-${{ matrix.artifact }}.${{ matrix.extension }}
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download builds
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Ensure tag still does not exist
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git fetch --tags --force
+          if git rev-parse "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists."
+            exit 1
+          fi
+
+      - name: Generate checksums
+        shell: bash
+        working-directory: release-assets
+        run: |
+          mapfile -t archives < <(
+            find . -maxdepth 1 -type f -name 'crossa-*' -printf '%f\n' |
+              sort
+          )
+          if [[ "${#archives[@]}" -eq 0 ]]; then
+            echo "No release archives found."
+            exit 1
+          fi
+          sha256sum "${archives[@]}" > SHA256SUMS
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            release-assets/* \
+            --target "${GITHUB_SHA}" \
+            --title "Crossa v${VERSION}" \
+            --generate-notes \
+            --verify-tag=false

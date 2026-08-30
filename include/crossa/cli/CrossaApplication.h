@@ -25,6 +25,9 @@ public:
     static int run(int argc, char* argv[]);
 
 private:
+    // Prints the supported Crossa command-line usage.
+    static void printUsage();
+
     // Selects whether the CLI validates, executes, tests, or generates a source file.
     enum class Command {
         Run,

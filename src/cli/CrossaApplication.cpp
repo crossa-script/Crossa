@@ -9,6 +9,8 @@
 #include <system_error>
 #include <utility>
 
+#include "crossa/cli/CrossaVersion.h"
+#include "crossa/cli/doctor/DoctorCommand.h"
 #include "crossa/compiler/ast/AstPrinter.h"
 #include "crossa/compiler/generators/kotlin/KotlinGenerator.h"
 #include "crossa/compiler/ir/IrDeclaration.h"
@@ -25,6 +27,7 @@
 #include "crossa/compiler/source/SourceLoader.h"
 #include "crossa/packaging/android/AndroidProjectGenerator.h"
 #include "crossa/runtime/ExecutionEngine.h"
+#include "crossa/utils/PrintUtils.h"
 
 using namespace std;
 
@@ -32,15 +35,26 @@ namespace crossa::cli {
 
     // Runs the Crossa command-line application and returns its process status.
     int CrossaApplication::run(int argc, char* argv[]) {
+        if (argc == 2 && string_view(argv[1]) == "--help") {
+            printUsage();
+            return 0;
+        }
+        if (argc == 2 && string_view(argv[1]) == "-h") {
+            printUsage();
+            return 0;
+        }
+        if (argc == 2 && string_view(argv[1]) == "--version") {
+            utils::PrintUtils::println(CrossaVersion::current());
+            return 0;
+        }
+        if (argc == 2 && string_view(argv[1]) == "doctor") {
+            return doctor::DoctorCommand::run(argv[0]);
+        }
+
         const optional<Arguments> arguments = parseArguments(argc, argv);
         if (!arguments.has_value()) {
-            utils::Log().error(
-                "Usage: crossa [check|run|test] [--debug] <file.cra>\n"
-                "       crossa generate kotlin [--debug] <file.cra> "
-                "--output <directory>\n"
-                "       crossa generate-build android [--debug] "
-                "<project-directory> --output <directory>"
-            );
+            utils::Log().error("Invalid Crossa command.");
+            printUsage();
             return 1;
         }
 
@@ -71,6 +85,19 @@ namespace crossa::cli {
         }
 
         return 0;
+    }
+
+    // Prints the supported Crossa command-line usage.
+    void CrossaApplication::printUsage() {
+        utils::PrintUtils::println(
+            "Usage: crossa [check|run|test] [--debug] <file.cra>\n"
+            "       crossa generate kotlin [--debug] <file.cra> "
+            "--output <directory>\n"
+            "       crossa generate-build android [--debug] "
+            "<project-directory> --output <directory>\n"
+            "       crossa --version\n"
+            "       crossa doctor"
+        );
     }
 
     // Parses supported command-line arguments into execution options.
