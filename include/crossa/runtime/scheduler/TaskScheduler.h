@@ -42,6 +42,12 @@ public:
         std::function<void(const RequestHandle&)> task
     );
 
+    // Submits one result-producing task and delivers its terminal state on a worker.
+    [[nodiscard]] RequestHandle submitWithCompletion(
+        std::function<RuntimeValue(const RequestHandle&)> task,
+        std::function<void(CrossaState<RuntimeValue>)> completion
+    );
+
     // Waits until the queue is empty and no worker is executing.
     void waitUntilIdle();
 

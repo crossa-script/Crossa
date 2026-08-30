@@ -55,6 +55,101 @@ namespace crossa::runtime {
         return assertionCount_.load();
     }
 
+    // Invokes one synchronous generated operation using native execution semantics.
+    RuntimeValue IrInterpreter::invokeSyncOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        vector<RuntimeValue> arguments
+    ) {
+        if (function.getExecutionPolicy() != compiler::ir::IrExecutionPolicy::Sync) {
+            fail("Generated synchronous invocation requires a Sync operation.");
+        }
+        if (arguments.size() != function.getParameters().size()) {
+            fail("Generated invocation argument count does not match operation.");
+        }
+        initializeGlobals();
+        return invokeFunction(function, std::move(arguments), 0, RequestHandle());
+    }
+
+    // Schedules one generated fire-and-forget operation on the shared scheduler.
+    RequestHandle IrInterpreter::invokeAsyncOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        vector<RuntimeValue> arguments
+    ) {
+        if (function.getExecutionPolicy() != compiler::ir::IrExecutionPolicy::Async) {
+            fail("Generated asynchronous invocation requires an Async operation.");
+        }
+        if (arguments.size() != function.getParameters().size()) {
+            fail("Generated invocation argument count does not match operation.");
+        }
+        initializeGlobals();
+        return scheduler_.submitDetached(
+            [this, &function, arguments = std::move(arguments)](
+                const RequestHandle& requestHandle
+            ) mutable {
+                (void)invokeFunction(
+                    function,
+                    std::move(arguments),
+                    0,
+                    requestHandle
+                );
+            }
+        );
+    }
+
+    // Schedules one generated completion operation on the shared scheduler.
+    scheduler::ScheduledTask IrInterpreter::invokeAsyncAfterOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        vector<RuntimeValue> arguments
+    ) {
+        if (function.getExecutionPolicy() != compiler::ir::IrExecutionPolicy::AsyncAfter) {
+            fail("Generated completion invocation requires an AsyncAfter operation.");
+        }
+        if (arguments.size() != function.getParameters().size()) {
+            fail("Generated invocation argument count does not match operation.");
+        }
+        initializeGlobals();
+        return scheduler_.submit(
+            [this, &function, arguments = std::move(arguments)](
+                const RequestHandle& requestHandle
+            ) mutable {
+                return invokeFunction(
+                    function,
+                    std::move(arguments),
+                    0,
+                    requestHandle
+                );
+            }
+        );
+    }
+
+    // Schedules one generated completion operation with exactly one terminal callback.
+    RequestHandle IrInterpreter::invokeAsyncAfterOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        vector<RuntimeValue> arguments,
+        std::function<void(CrossaState<RuntimeValue>)> completion
+    ) {
+        if (function.getExecutionPolicy() != compiler::ir::IrExecutionPolicy::AsyncAfter) {
+            fail("Generated completion invocation requires an AsyncAfter operation.");
+        }
+        if (arguments.size() != function.getParameters().size()) {
+            fail("Generated invocation argument count does not match operation.");
+        }
+        initializeGlobals();
+        return scheduler_.submitWithCompletion(
+            [this, &function, arguments = std::move(arguments)](
+                const RequestHandle& requestHandle
+            ) mutable {
+                return invokeFunction(
+                    function,
+                    std::move(arguments),
+                    0,
+                    requestHandle
+                );
+            },
+            std::move(completion)
+        );
+    }
+
     // Indexes function declarations for deterministic name-based calls.
     void IrInterpreter::indexFunctions() {
         for (const unique_ptr<compiler::ir::IrDeclaration>& declaration :
@@ -73,6 +168,11 @@ namespace crossa::runtime {
 
     // Evaluates all top-level variable initializers in declaration order.
     void IrInterpreter::initializeGlobals() {
+        call_once(globalsInitialized_, [this]() { initializeGlobalValues(); });
+    }
+
+    // Evaluates global initializers once in deterministic declaration order.
+    void IrInterpreter::initializeGlobalValues() {
         for (const unique_ptr<compiler::ir::IrDeclaration>& declaration :
              program_.getDeclarations()) {
             if (declaration->getKind() != compiler::ir::IrDeclarationKind::Variable) {

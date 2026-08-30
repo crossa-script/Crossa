@@ -88,6 +88,41 @@ CrossaStatus crossaGetRootModel(
     CrossaModelHandle* model
 );
 
+// Reads an Int root result.
+CrossaStatus crossaGetResultInt(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    int32_t* value
+);
+
+// Reads a Long root result.
+CrossaStatus crossaGetResultLong(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    int64_t* value
+);
+
+// Reads a Double root result.
+CrossaStatus crossaGetResultDouble(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    double* value
+);
+
+// Reads a String root result.
+CrossaStatus crossaGetResultString(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    CrossaStringView* value
+);
+
+// Reads a Bool root result.
+CrossaStatus crossaGetResultBool(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    uint8_t* value
+);
+
 // Reads one Int field using a generated declaration-order field identifier.
 CrossaStatus crossaGetModelInt(
     CrossaRuntimeHandle runtime,

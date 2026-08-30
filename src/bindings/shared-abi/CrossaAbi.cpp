@@ -138,6 +138,57 @@ extern "C" {
         return CrossaStatusOk;
     }
 
+    // Reads one Int root result through its retained opaque handle.
+    CrossaStatus crossaGetResultInt(CrossaRuntimeHandle runtime, CrossaResultHandle result, int32_t* value) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::findResult(runtime, result);
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        if (root->getKind() != crossa::runtime::RuntimeValueKind::Int) return CrossaStatusTypeMismatch;
+        *value = static_cast<int32_t>(root->getInt());
+        return CrossaStatusOk;
+    }
+
+    // Reads one Long root result through its retained opaque handle.
+    CrossaStatus crossaGetResultLong(CrossaRuntimeHandle runtime, CrossaResultHandle result, int64_t* value) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::findResult(runtime, result);
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        if (root->getKind() != crossa::runtime::RuntimeValueKind::Long) return CrossaStatusTypeMismatch;
+        *value = root->getLong();
+        return CrossaStatusOk;
+    }
+
+    // Reads one Double root result through its retained opaque handle.
+    CrossaStatus crossaGetResultDouble(CrossaRuntimeHandle runtime, CrossaResultHandle result, double* value) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::findResult(runtime, result);
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        if (root->getKind() != crossa::runtime::RuntimeValueKind::Double) return CrossaStatusTypeMismatch;
+        *value = root->getDouble();
+        return CrossaStatusOk;
+    }
+
+    // Reads one String root result as a view valid until result release.
+    CrossaStatus crossaGetResultString(CrossaRuntimeHandle runtime, CrossaResultHandle result, CrossaStringView* value) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::findResult(runtime, result);
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        if (root->getKind() != crossa::runtime::RuntimeValueKind::String) return CrossaStatusTypeMismatch;
+        value->data = root->getString().data();
+        value->size = root->getString().size();
+        return CrossaStatusOk;
+    }
+
+    // Reads one Bool root result through its retained opaque handle.
+    CrossaStatus crossaGetResultBool(CrossaRuntimeHandle runtime, CrossaResultHandle result, uint8_t* value) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::findResult(runtime, result);
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        if (root->getKind() != crossa::runtime::RuntimeValueKind::Bool) return CrossaStatusTypeMismatch;
+        *value = root->getBool() ? 1 : 0;
+        return CrossaStatusOk;
+    }
+
     // Reads one Int model field by stable generated index.
     CrossaStatus crossaGetModelInt(CrossaRuntimeHandle runtime, CrossaResultHandle result, CrossaModelHandle model, uint32_t field, int32_t* value) {
         if (value == nullptr) return CrossaStatusInvalidArgument;
@@ -147,6 +198,55 @@ extern "C" {
         if (member == nullptr) return CrossaStatusOutOfBounds;
         if (member->getKind() != crossa::runtime::RuntimeValueKind::Int) return CrossaStatusTypeMismatch;
         *value = static_cast<int32_t>(member->getInt());
+        return CrossaStatusOk;
+    }
+
+    // Reads one Long model field by stable generated index.
+    CrossaStatus crossaGetModelLong(CrossaRuntimeHandle runtime, CrossaResultHandle result, CrossaModelHandle model, uint32_t field, int64_t* value) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::findResult(runtime, result);
+        const auto* member = root == nullptr ? nullptr : crossa::bindings::sharedabi::findField(*root, model, field);
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        if (member == nullptr) return CrossaStatusOutOfBounds;
+        if (member->getKind() != crossa::runtime::RuntimeValueKind::Long) return CrossaStatusTypeMismatch;
+        *value = member->getLong();
+        return CrossaStatusOk;
+    }
+
+    // Reads one Double model field by stable generated index.
+    CrossaStatus crossaGetModelDouble(CrossaRuntimeHandle runtime, CrossaResultHandle result, CrossaModelHandle model, uint32_t field, double* value) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::findResult(runtime, result);
+        const auto* member = root == nullptr ? nullptr : crossa::bindings::sharedabi::findField(*root, model, field);
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        if (member == nullptr) return CrossaStatusOutOfBounds;
+        if (member->getKind() != crossa::runtime::RuntimeValueKind::Double) return CrossaStatusTypeMismatch;
+        *value = member->getDouble();
+        return CrossaStatusOk;
+    }
+
+    // Reads one String model field by stable generated index.
+    CrossaStatus crossaGetModelString(CrossaRuntimeHandle runtime, CrossaResultHandle result, CrossaModelHandle model, uint32_t field, CrossaStringView* value) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::findResult(runtime, result);
+        const auto* member = root == nullptr ? nullptr : crossa::bindings::sharedabi::findField(*root, model, field);
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        if (member == nullptr) return CrossaStatusOutOfBounds;
+        if (member->getKind() != crossa::runtime::RuntimeValueKind::String) return CrossaStatusTypeMismatch;
+        value->data = member->getString().data();
+        value->size = member->getString().size();
+        return CrossaStatusOk;
+    }
+
+    // Reads one Bool model field by stable generated index.
+    CrossaStatus crossaGetModelBool(CrossaRuntimeHandle runtime, CrossaResultHandle result, CrossaModelHandle model, uint32_t field, uint8_t* value) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::findResult(runtime, result);
+        const auto* member = root == nullptr ? nullptr : crossa::bindings::sharedabi::findField(*root, model, field);
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        if (member == nullptr) return CrossaStatusOutOfBounds;
+        if (member->getKind() != crossa::runtime::RuntimeValueKind::Bool) return CrossaStatusTypeMismatch;
+        *value = member->getBool() ? 1 : 0;
         return CrossaStatusOk;
     }
 

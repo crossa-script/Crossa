@@ -91,6 +91,30 @@ namespace crossa::runtime::scheduler {
         return requestHandle;
     }
 
+    // Submits one result-producing task and delivers its terminal state on a worker.
+    RequestHandle TaskScheduler::submitWithCompletion(
+        function<RuntimeValue(const RequestHandle&)> task,
+        function<void(CrossaState<RuntimeValue>)> completion
+    ) {
+        RequestHandle requestHandle;
+        enqueue(ScheduledWork{
+            [this, task = std::move(task), completion = std::move(completion),
+             requestHandle]() mutable {
+                CrossaState<RuntimeValue> state = runTask(task, requestHandle);
+                try {
+                    completion(std::move(state));
+                } catch (const exception& error) {
+                    log_.error("Scheduler completion callback failed: " +
+                        string(error.what()));
+                } catch (...) {
+                    log_.error("Scheduler completion callback failed.");
+                }
+            },
+            requestHandle
+        });
+        return requestHandle;
+    }
+
     // Waits until the queue is empty and no worker is executing.
     void TaskScheduler::waitUntilIdle() {
         unique_lock lock(mutex_);

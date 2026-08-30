@@ -42,7 +42,13 @@ namespace crossa::compiler::generators::kotlin {
                     : emitModel(model, writer);
             } else if (declaration->getKind() == ir::IrDeclarationKind::Function) {
                 writer.writeLine();
-                emitFunction(static_cast<const ir::IrFunctionDeclaration&>(*declaration), models, target, writer);
+                emitFunction(
+                    static_cast<const ir::IrFunctionDeclaration&>(*declaration),
+                    models,
+                    target,
+                    program.getIdentity(),
+                    writer
+                );
             } else if (declaration->getKind() != ir::IrDeclarationKind::Expression) {
                 failUnsupported("top-level declaration");
             }
@@ -68,11 +74,12 @@ namespace crossa::compiler::generators::kotlin {
         const ir::IrFunctionDeclaration& function,
         const ModelMap& models,
         KotlinGenerationTarget target,
+        const string& sourceIdentity,
         KotlinSourceWriter& writer
     ) const {
         (void)models;
         if (target == KotlinGenerationTarget::AndroidNative && function.getExecutionPolicy() != ir::IrExecutionPolicy::Sync) {
-            emitNativeFunction(function, writer);
+            emitNativeFunction(function, sourceIdentity, writer);
             return;
         }
         if (function.getExecutionPolicy() != ir::IrExecutionPolicy::Sync) {
@@ -87,7 +94,11 @@ namespace crossa::compiler::generators::kotlin {
     }
 
     // Emits a native-backed Android entry point without generated network work.
-    void KotlinGenerator::emitNativeFunction(const ir::IrFunctionDeclaration& function, KotlinSourceWriter& writer) const {
+    void KotlinGenerator::emitNativeFunction(
+        const ir::IrFunctionDeclaration& function,
+        const string& sourceIdentity,
+        KotlinSourceWriter& writer
+    ) const {
         string signature = "public fun " + identifierEscaper_.escape(function.getName()) + "(";
         const vector<ir::IrParameter>& parameters = function.getParameters();
         for (size_t index = 0; index < parameters.size(); ++index) {
@@ -105,7 +116,7 @@ namespace crossa::compiler::generators::kotlin {
             arguments += "CrossaArgument.from(" + identifierEscaper_.escape(parameters[index].getName()) + ")";
         }
         arguments += ")";
-        const string identifier = to_string(operationId(function)) + "L";
+        const string identifier = to_string(operationId(sourceIdentity, function)) + "L";
         if (function.getExecutionPolicy() == ir::IrExecutionPolicy::Async) {
             writer.writeLine("CrossaNativeBridge.invokeAsync(" + identifier + ", " + arguments + ")");
         } else {
@@ -181,9 +192,12 @@ namespace crossa::compiler::generators::kotlin {
     }
 
     // Derives one stable FNV-1a operation identifier from a Crossa signature.
-    uint64_t KotlinGenerator::operationId(const ir::IrFunctionDeclaration& function) noexcept {
+    uint64_t KotlinGenerator::operationId(
+        const string& sourceIdentity,
+        const ir::IrFunctionDeclaration& function
+    ) noexcept {
         uint64_t value = 1469598103934665603ULL;
-        const string signature = function.getName() + ":" + function.getReturnType().format();
+        const string signature = sourceIdentity + ":" + function.getName() + ":" + function.getReturnType().format();
         for (const char character : signature) {
             value ^= static_cast<unsigned char>(character);
             value *= 1099511628211ULL;

@@ -67,6 +67,15 @@ terminal completion, models, and lists use opaque handles. Native C++ owns
 HTTP, retries, serialization, response decoding, state transitions, and
 scheduling.
 
+## Result Views
+
+The shared ABI now defines runtime-owned result handles, list access, root and
+list-element model views, and typed scalar field access. A generated model uses
+declaration-order field indexes; it does not perform reflection or string field
+lookup. `CrossaNativeResult` is the root owner for native-backed Kotlin views
+and supports deterministic `close()`. A closed result rejects list and model
+access before JNI can reach released native storage.
+
 ## 16 KB Page-Size Support
 
 The generated Android project requires AGP 8.5.1+ and NDK r28+. NDK r28 builds

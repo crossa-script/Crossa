@@ -47,12 +47,14 @@ private:
         const ir::IrFunctionDeclaration& function,
         const ModelMap& models,
         KotlinGenerationTarget target,
+        const std::string& sourceIdentity,
         class KotlinSourceWriter& writer
     ) const;
 
     // Emits an Android API that delegates one operation to the native runtime.
     void emitNativeFunction(
         const ir::IrFunctionDeclaration& function,
+        const std::string& sourceIdentity,
         class KotlinSourceWriter& writer
     ) const;
 
@@ -64,6 +66,7 @@ private:
 
     // Returns the stable compile-time operation identifier for one function.
     [[nodiscard]] static std::uint64_t operationId(
+        const std::string& sourceIdentity,
         const ir::IrFunctionDeclaration& function
     ) noexcept;
 

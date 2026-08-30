@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -44,12 +45,40 @@ public:
     // Returns the number of assertions evaluated by this interpreter.
     [[nodiscard]] std::size_t getAssertionCount() const noexcept;
 
+    // Invokes one synchronous generated operation using native execution semantics.
+    [[nodiscard]] RuntimeValue invokeSyncOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        std::vector<RuntimeValue> arguments
+    );
+
+    // Schedules one generated fire-and-forget operation on the shared scheduler.
+    [[nodiscard]] RequestHandle invokeAsyncOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        std::vector<RuntimeValue> arguments
+    );
+
+    // Schedules one generated completion operation on the shared scheduler.
+    [[nodiscard]] scheduler::ScheduledTask invokeAsyncAfterOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        std::vector<RuntimeValue> arguments
+    );
+
+    // Schedules one generated completion operation with exactly one terminal callback.
+    [[nodiscard]] RequestHandle invokeAsyncAfterOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        std::vector<RuntimeValue> arguments,
+        std::function<void(CrossaState<RuntimeValue>)> completion
+    );
+
 private:
     // Indexes function declarations for deterministic name-based calls.
     void indexFunctions();
 
     // Evaluates all top-level variable initializers in declaration order.
     void initializeGlobals();
+
+    // Evaluates global initializers exactly once before native operation calls.
+    void initializeGlobalValues();
 
     // Evaluates each top-level executable expression in source order.
     void executeTopLevelExpressions();
@@ -177,6 +206,7 @@ private:
     network::NetworkEngine& networkEngine_;
     ExecutionMode mode_;
     std::atomic<std::size_t> assertionCount_;
+    std::once_flag globalsInitialized_;
     network::response::ResponseDecoder responseDecoder_;
     ExecutionFrame globals_;
     std::unordered_map<std::string, const compiler::ir::IrFunctionDeclaration*>

@@ -15,7 +15,10 @@ namespace crossa::bindings::sharedabi {
             return 0;
         }
         const CrossaResultHandle result = nextResult_++;
-        results_.emplace(result, make_shared<const runtime::RuntimeValue>(move(value)));
+        results_.emplace(
+            result,
+            make_shared<const runtime::RuntimeValue>(std::move(value))
+        );
         return result;
     }
 
