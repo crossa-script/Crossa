@@ -22,7 +22,12 @@ namespace crossa::cli::doctor {
         }
         shellCommand += " 2>&1";
 
-        FILE* pipe = popen(shellCommand.c_str(), "r");
+        FILE* pipe =
+#if defined(_WIN32)
+            _popen(shellCommand.c_str(), "r");
+#else
+            popen(shellCommand.c_str(), "r");
+#endif
         if (pipe == nullptr) {
             return ProcessResult{false, 1, ""};
         }
@@ -33,12 +38,28 @@ namespace crossa::cli::doctor {
                nullptr) {
             output += buffer.data();
         }
-        const int exitCode = pclose(pipe);
+        const int exitCode =
+#if defined(_WIN32)
+            _pclose(pipe);
+#else
+            pclose(pipe);
+#endif
         return ProcessResult{true, exitCode, output};
     }
 
     // Quotes one command segment for safe shell execution.
     string ProcessRunner::quote(const string& value) {
+#if defined(_WIN32)
+        string result = "\"";
+        for (const char character : value) {
+            if (character == '"' || character == '\\') {
+                result += '\\';
+            }
+            result += character;
+        }
+        result += "\"";
+        return result;
+#else
         string result = "'";
         for (const char character : value) {
             if (character == '\'') {
@@ -49,6 +70,7 @@ namespace crossa::cli::doctor {
         }
         result += "'";
         return result;
+#endif
     }
 
 }

@@ -25,7 +25,7 @@ The release workflow reuses the existing CMake target:
 
 ```sh
 cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build/release --config Release --parallel
+cmake --build build/release --config Release --target crossa --parallel
 ```
 
 The standalone CLI archives contain the compiled `crossa` executable and do
@@ -53,8 +53,27 @@ against `SHA256SUMS`, and installs the compiled CLI into:
 ```
 
 The installer does not clone the repository, build Crossa locally, require
-`sudo`, or modify shell profiles. Windows is intentionally not documented as a
-public installation target until `release.yml` publishes Windows artifacts.
+`sudo`, or modify shell profiles.
+
+Windows x86_64 uses the standalone PowerShell installer:
+
+```powershell
+irm https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.ps1 | iex
+```
+
+Install a specific Windows version:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.ps1 -OutFile install.ps1
+.\install.ps1 -Version 0.1.0
+```
+
+The Windows installer downloads the matching release zip, verifies it against
+`SHA256SUMS`, and installs the compiled CLI into:
+
+```text
+%USERPROFILE%\.crossa\bin\crossa.exe
+```
 
 ## Assets
 
@@ -63,9 +82,9 @@ Required release assets are:
 ```text
 crossa-v0.1.0-macos-arm64.tar.gz
 crossa-v0.1.0-linux-x86_64.tar.gz
+crossa-v0.1.0-windows-x86_64.zip
 SHA256SUMS
 ```
 
-Windows is not part of the current release matrix because the repository does
-not yet define a Windows CI dependency setup for the libcurl-backed CMake
-build.
+Windows x86_64 is built on GitHub-hosted Windows runners with the existing
+CMake target and vcpkg-provided static libcurl.

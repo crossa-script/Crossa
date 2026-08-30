@@ -86,7 +86,13 @@ Crossa does not generate separate Retrofit, Ktor, OkHttp, or URLSession implemen
 
 ## Installation
 
-Install the latest stable Crossa CLI on macOS ARM64 or Linux x86_64:
+Crossa installs from compiled GitHub Release artifacts. The installers do not
+clone this repository, build Crossa locally, require `sudo`, or modify shell
+profile files.
+
+### macOS ARM64
+
+Install the latest stable release:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash
@@ -98,16 +104,68 @@ Install a specific version:
 curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash -s -- 0.1.0
 ```
 
-The installer downloads compiled GitHub Release archives, verifies
-`SHA256SUMS`, and installs the CLI into:
+The macOS installer downloads:
+
+```text
+crossa-vX.Y.Z-macos-arm64.tar.gz
+```
+
+### Linux x86_64
+
+Install the latest stable release:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash
+```
+
+Install a specific version:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash -s -- 0.1.0
+```
+
+The Linux installer downloads:
+
+```text
+crossa-vX.Y.Z-linux-x86_64.tar.gz
+```
+
+### Windows x86_64
+
+Install the latest stable release:
+
+```powershell
+irm https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.ps1 | iex
+```
+
+Install a specific version:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.ps1 -OutFile install.ps1
+.\install.ps1 -Version 0.1.0
+```
+
+The Windows installer downloads:
+
+```text
+crossa-vX.Y.Z-windows-x86_64.zip
+```
+
+macOS and Linux install to:
 
 ```text
 ~/.crossa/bin/crossa
 ```
 
-It does not clone this repository, compile Crossa locally, require `sudo`, or
-modify shell profile files. If `~/.crossa/bin` is not on `PATH`, the installer
-prints the exact `export PATH=...` command to add.
+Windows installs to:
+
+```text
+%USERPROFILE%\.crossa\bin\crossa.exe
+```
+
+Each installer downloads `SHA256SUMS` from the same GitHub Release and verifies
+the archive before extracting it. If the Crossa bin directory is not on `PATH`,
+the installer prints the exact command to add it.
 
 Crossa installation flow:
 
@@ -116,6 +174,7 @@ GitHub Release
       |
       v
 install.sh
+install.ps1
       |
       v
 Detect OS + CPU
@@ -142,6 +201,7 @@ crossa doctor
 |----------|--------------|---------------|-----------|
 | macOS | ARM64 / Apple Silicon | `crossa-vX.Y.Z-macos-arm64.tar.gz` | `install.sh` |
 | Linux | x86_64 | `crossa-vX.Y.Z-linux-x86_64.tar.gz` | `install.sh` |
+| Windows | x86_64 | `crossa-vX.Y.Z-windows-x86_64.zip` | `install.ps1` |
 
 ## Verify Installation
 
@@ -204,6 +264,7 @@ Example release assets for `Crossa v0.1.0`:
 ```text
 crossa-v0.1.0-macos-arm64.tar.gz
 crossa-v0.1.0-linux-x86_64.tar.gz
+crossa-v0.1.0-windows-x86_64.zip
 SHA256SUMS
 ```
 

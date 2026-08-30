@@ -73,6 +73,11 @@ jobs:
             artifact: linux-x86_64
             extension: tar.gz
 
+          - name: Windows x86_64
+            os: windows-2025
+            artifact: windows-x86_64
+            extension: zip
+
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -93,7 +98,14 @@ jobs:
           brew update
           brew install cmake ninja
 
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          vcpkg install curl:x64-windows-static
+
       - name: Configure Release
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           cmake \
@@ -102,11 +114,30 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release
 
+      - name: Configure Release for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake `
+            -S . `
+            -B build/release `
+            -G "Visual Studio 17 2022" `
+            -A x64 `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
       - name: Build Crossa
+        if: runner.os != 'Windows'
         shell: bash
-        run: cmake --build build/release --config Release --parallel
+        run: cmake --build build/release --config Release --target crossa --parallel
+
+      - name: Build Crossa for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cmake --build build/release --config Release --target crossa --parallel
 
       - name: Verify Crossa binary
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           if [[ ! -x "build/release/crossa" ]]; then
@@ -115,7 +146,19 @@ jobs:
           fi
           ./build/release/crossa --help
 
+      - name: Verify Crossa Windows binary
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $crossaBinary = "build/release/Release/crossa.exe"
+          if (-not (Test-Path $crossaBinary)) {
+            Write-Error "Crossa executable not found at $crossaBinary"
+            exit 1
+          }
+          & $crossaBinary --help
+
       - name: Package Crossa
+        if: runner.os != 'Windows'
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
@@ -126,6 +169,19 @@ jobs:
           cp build/release/crossa "dist/${package_name}/crossa"
           chmod +x "dist/${package_name}/crossa"
           tar -C dist -czf "${package_name}.tar.gz" "${package_name}"
+
+      - name: Package Crossa for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+          PLATFORM: ${{ matrix.artifact }}
+        run: |
+          $packageName = "crossa-v$env:VERSION-$env:PLATFORM"
+          $packageDirectory = Join-Path "dist" $packageName
+          New-Item -ItemType Directory -Path $packageDirectory -Force | Out-Null
+          Copy-Item "build/release/Release/crossa.exe" (Join-Path $packageDirectory "crossa.exe") -Force
+          Compress-Archive -Path $packageDirectory -DestinationPath "$packageName.zip" -Force
 
       - name: Upload build
         uses: actions/upload-artifact@v4

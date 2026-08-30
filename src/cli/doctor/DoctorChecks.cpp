@@ -11,7 +11,11 @@
 #include <utility>
 #include <vector>
 
+#if defined(_WIN32)
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
 
 #include "crossa/cli/CrossaVersion.h"
 #include "crossa/cli/doctor/ProcessRunner.h"
@@ -103,6 +107,9 @@ namespace crossa::cli::doctor {
             if (!filesystem::is_regular_file(path, error) || error) {
                 return false;
             }
+#if defined(_WIN32)
+            return true;
+#else
             const filesystem::perms permissions =
                 filesystem::status(path, error).permissions();
             if (error) {
@@ -112,6 +119,7 @@ namespace crossa::cli::doctor {
             return (permissions & perms::owner_exec) != perms::none ||
                 (permissions & perms::group_exec) != perms::none ||
                 (permissions & perms::others_exec) != perms::none;
+#endif
         }
 
         // Finds one executable on PATH.
@@ -122,11 +130,16 @@ namespace crossa::cli::doctor {
             if (!pathValue.has_value()) {
                 return nullopt;
             }
+            vector<string> executableNames = executableNameCandidates(
+                executableName
+            );
             for (const string& directory : splitPathList(pathValue.value())) {
-                const filesystem::path candidate =
-                    filesystem::path(directory) / executableName;
-                if (isExecutable(candidate)) {
-                    return candidate;
+                for (const string& currentName : executableNames) {
+                    const filesystem::path candidate =
+                        filesystem::path(directory) / currentName;
+                    if (isExecutable(candidate)) {
+                        return candidate;
+                    }
                 }
             }
             return nullopt;
@@ -290,7 +303,7 @@ namespace crossa::cli::doctor {
             }
 
             const filesystem::path probePath = probeDirectory.value() /
-                (".crossa-doctor-" + to_string(getpid()) + ".tmp");
+                (".crossa-doctor-" + to_string(processId()) + ".tmp");
             ofstream output(probePath, ios::binary | ios::trunc);
             if (!output.is_open()) {
                 return false;
@@ -403,6 +416,30 @@ namespace crossa::cli::doctor {
         }
 
     private:
+        // Returns the current process identifier for temporary probe names.
+        [[nodiscard]] static int processId() {
+#if defined(_WIN32)
+            return _getpid();
+#else
+            return getpid();
+#endif
+        }
+
+        // Returns executable filename candidates for the current host.
+        [[nodiscard]] static vector<string> executableNameCandidates(
+            const string& executableName
+        ) {
+            vector<string> candidates{executableName};
+#if defined(_WIN32)
+            if (executableName.find('.') == string::npos) {
+                candidates.push_back(executableName + ".exe");
+                candidates.push_back(executableName + ".cmd");
+                candidates.push_back(executableName + ".bat");
+            }
+#endif
+            return candidates;
+        }
+
         // Resolves a path canonically when possible and absolutely otherwise.
         [[nodiscard]] static filesystem::path canonicalOrAbsolute(
             const filesystem::path& path
@@ -420,8 +457,13 @@ namespace crossa::cli::doctor {
         [[nodiscard]] static vector<string> splitPathList(const string& value) {
             vector<string> directories;
             string current;
+#if defined(_WIN32)
+            const char delimiter = ';';
+#else
+            const char delimiter = ':';
+#endif
             stringstream stream(value);
-            while (getline(stream, current, ':')) {
+            while (getline(stream, current, delimiter)) {
                 if (!current.empty()) {
                     directories.push_back(current);
                 }
