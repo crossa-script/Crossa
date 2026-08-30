@@ -6,11 +6,6 @@ if [[ "$#" -ne 1 ]]; then
     printf '%s\n' 'Usage: run-local-network-tests.sh <crossa>' >&2
     exit 1
 fi
-if ! command -v socat >/dev/null 2>&1; then
-    printf '%s\n' 'Test failed: socat is required for local network integration.' >&2
-    exit 1
-fi
-
 crossaBinary="$1"
 scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 projectRoot="$(cd "$scriptDirectory/.." && pwd)"
@@ -27,7 +22,14 @@ cleanup() {
 }
 
 trap cleanup EXIT
-socat TCP-LISTEN:18765,bind=127.0.0.1,reuseaddr,fork EXEC:"/bin/bash $scriptDirectory/handle-local-network-request.sh" > "$serverOutput" 2>&1 &
+if command -v socat >/dev/null 2>&1; then
+    socat TCP-LISTEN:18765,bind=127.0.0.1,reuseaddr,fork EXEC:"/bin/bash $scriptDirectory/handle-local-network-request.sh" > "$serverOutput" 2>&1 &
+elif command -v ruby >/dev/null 2>&1; then
+    ruby "$scriptDirectory/local-network-ruby-server.rb" "$scriptDirectory/handle-local-network-request.sh" > "$serverOutput" 2>&1 &
+else
+    printf '%s\n' 'Test failed: socat or ruby is required for local network integration.' >&2
+    exit 1
+fi
 serverPid="$!"
 sleep 0.1
 if ! kill -0 "$serverPid" 2>/dev/null; then

@@ -79,6 +79,40 @@ namespace crossa::runtime {
         );
     }
 
+    // Starts one fire-and-forget operation and retains its cancellation lifecycle.
+    uint64_t NativeRuntime::startAsync(
+        uint64_t operationId,
+        vector<RuntimeValue> arguments
+    ) {
+        return retainOperation(invokeAsync(operationId, std::move(arguments)));
+    }
+
+    // Starts one completion operation and retains its cancellation lifecycle.
+    uint64_t NativeRuntime::startAsyncAfter(
+        uint64_t operationId,
+        vector<RuntimeValue> arguments,
+        function<void(CrossaState<CrossaResultHandle>)> completion
+    ) {
+        return retainOperation(invokeAsyncAfter(
+            operationId,
+            std::move(arguments),
+            std::move(completion)
+        ));
+    }
+
+    // Requests cancellation for one active generated operation.
+    bool NativeRuntime::cancelOperation(uint64_t operation) noexcept {
+        lock_guard<mutex> lock(operationMutex_);
+        const auto found = activeOperations_.find(operation);
+        return found != activeOperations_.end() && found->second.cancel();
+    }
+
+    // Releases one generated operation lifecycle after native completion.
+    bool NativeRuntime::releaseOperation(uint64_t operation) noexcept {
+        lock_guard<mutex> lock(operationMutex_);
+        return activeOperations_.erase(operation) == 1;
+    }
+
     // Returns the context that owns result handles returned to platform bindings.
     bindings::sharedabi::CrossaRuntimeContext&
     NativeRuntime::resultContext() noexcept {
@@ -96,6 +130,17 @@ namespace crossa::runtime {
             throw runtime_error("Unknown generated Crossa operation ID.");
         }
         return *function;
+    }
+
+    // Stores one request handle behind a non-reused native operation identifier.
+    uint64_t NativeRuntime::retainOperation(RequestHandle request) {
+        lock_guard<mutex> lock(operationMutex_);
+        if (nextOperation_ == 0) {
+            throw runtime_error("Native operation handle capacity exhausted.");
+        }
+        const uint64_t operation = nextOperation_++;
+        activeOperations_.emplace(operation, std::move(request));
+        return operation;
     }
 
 }

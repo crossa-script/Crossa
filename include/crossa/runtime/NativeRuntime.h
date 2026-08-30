@@ -2,7 +2,9 @@
 
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 #include "crossa/bindings/shared-abi/CrossaRuntimeContext.h"
@@ -40,6 +42,25 @@ public:
         std::function<void(CrossaState<CrossaResultHandle>)> completion
     );
 
+    // Starts one fire-and-forget operation and retains its cancellation lifecycle.
+    [[nodiscard]] std::uint64_t startAsync(
+        std::uint64_t operationId,
+        std::vector<RuntimeValue> arguments
+    );
+
+    // Starts one completion operation and retains its cancellation lifecycle.
+    [[nodiscard]] std::uint64_t startAsyncAfter(
+        std::uint64_t operationId,
+        std::vector<RuntimeValue> arguments,
+        std::function<void(CrossaState<CrossaResultHandle>)> completion
+    );
+
+    // Requests cancellation for one active generated operation.
+    [[nodiscard]] bool cancelOperation(std::uint64_t operation) noexcept;
+
+    // Releases one generated operation lifecycle after native completion.
+    [[nodiscard]] bool releaseOperation(std::uint64_t operation) noexcept;
+
     // Returns the context that owns result handles returned to platform bindings.
     [[nodiscard]] bindings::sharedabi::CrossaRuntimeContext& resultContext() noexcept;
 
@@ -49,6 +70,9 @@ private:
         std::uint64_t operationId
     ) const;
 
+    // Stores one request handle behind a non-reused native operation identifier.
+    [[nodiscard]] std::uint64_t retainOperation(RequestHandle request);
+
     const compiler::ir::Program& program_;
     const utils::Log& log_;
     RuntimeConfiguration configuration_;
@@ -57,6 +81,9 @@ private:
     IrInterpreter interpreter_;
     NativeOperationCatalog operations_;
     bindings::sharedabi::CrossaRuntimeContext resultContext_;
+    std::mutex operationMutex_;
+    std::uint64_t nextOperation_ = 1;
+    std::unordered_map<std::uint64_t, RequestHandle> activeOperations_;
 };
 
 }
