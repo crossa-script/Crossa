@@ -26,7 +26,7 @@ Run the complete local suite from the repository root:
 ./test.sh
 ```
 
-When CMake is installed, `test.sh` configures `build/`, builds all targets, and runs CTest. When CMake is unavailable, it uses the native C++ compiler and still runs both unit-test executables plus the CLI integration fixtures. Shell scripts under `scripts/` run the Kotlin generator and local networking integration suites; the local server requires `socat`.
+When CMake is installed, `test.sh` configures `build/`, builds all targets, and runs CTest. When CMake is unavailable, it uses the native C++ compiler and still runs both unit-test executables plus the CLI integration fixtures. Shell scripts under `scripts/` run the Kotlin generator and local networking integration suites; the local server requires `socat`. Android project generation is not part of the default test suite.
 
 GitHub Actions runs this complete suite, including
 `crossa_kotlin_generator_test_suite`, on every push and pull request through:

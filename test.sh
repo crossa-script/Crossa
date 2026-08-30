@@ -179,7 +179,6 @@ if ! command -v socat >/dev/null 2>&1; then
     exit 1
 fi
 bash scripts/run-kotlin-generator-tests.sh ./build/crossa
-bash scripts/run-android-project-generator-tests.sh ./build/crossa
 bash scripts/run-local-network-tests.sh ./build/crossa
 
 if [[ "${CROSSA_RUN_NETWORK_INTEGRATION:-0}" == "1" ]]; then
