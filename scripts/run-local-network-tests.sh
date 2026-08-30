@@ -31,8 +31,22 @@ else
     exit 1
 fi
 serverPid="$!"
-sleep 0.1
-if ! kill -0 "$serverPid" 2>/dev/null; then
+serverReady=false
+for _ in {1..20}; do
+    if ! kill -0 "$serverPid" 2>/dev/null; then
+        break
+    fi
+    if nc -z 127.0.0.1 18765 >/dev/null 2>&1; then
+        serverReady=true
+        break
+    fi
+    sleep 0.1
+done
+if [[ "$serverReady" != true ]]; then
+    if grep -Fq 'Operation not permitted - bind' "$serverOutput"; then
+        printf '%s\n' 'Test skipped: local socket binding is not permitted.'
+        exit 77
+    fi
     printf '%s\n' 'Test failed: local network server did not start.' >&2
     exit 1
 fi

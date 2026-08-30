@@ -319,6 +319,10 @@ add_test(
         ${CMAKE_SOURCE_DIR}/scripts/run-local-network-tests.sh
         $<TARGET_FILE:crossa>
 )
+set_tests_properties(
+    crossa_local_network_integration_test
+    PROPERTIES SKIP_RETURN_CODE 77
+)
 add_test(
     NAME crossa_check_nested_project_test
     COMMAND crossa check examples/imports/runPosts.cra
