@@ -10,7 +10,7 @@ native networking stack in both Debug and Release modes.
 ## Command
 
 ```text
-crossa generate-build android <project-directory> --output <directory>
+crossa generate-build android <project-directory> --output <directory> [--ndk-version <version>] [--gradle-version <version>] [--kotlin-version <version>]
 ```
 
 The command discovers the project `.cra` files, compiles them through the
@@ -21,6 +21,13 @@ native runtime embedding work is completed. It contains the repository-trusted
 Gradle Wrapper, including `gradlew`, `gradlew.bat`, and the wrapper JAR and
 properties, so a global `gradle` executable is not required.
 
+The optional version flags select the exact NDK, Gradle Wrapper distribution,
+and Kotlin Android plugin written to that generated project. When omitted,
+Crossa uses its current defaults. These overrides apply only to one generated
+project and do not modify the Crossa installation or source templates.
+Compatibility among user-selected tool versions remains the caller's
+responsibility.
+
 ## Project-Aware Kotlin Layout
 
 Android generation indexes the complete linked IR once before Kotlin text is
@@ -30,7 +37,7 @@ unit and are grouped under `api/`. The generated Kotlin package root therefore
 contains deterministic logical directories:
 
 ```text
-api/<SourceUnit>.kt
+api/<PascalCaseSourceUnit>.kt
 model/<Model>.kt
 runtime/CrossaState.kt
 runtime/CrossaError.kt
@@ -74,8 +81,9 @@ behavior.
 crossa doctor
 ```
 
-`doctor` checks whether the current machine can build generated Android AAR
-artifacts without relying on the Crossa source repository. It reports the
+`doctor` checks whether the current machine can build Android AAR artifacts
+with Crossa's default tool requirements, without relying on the Crossa source
+repository. It reports the
 Crossa installation, host operating system and CPU architecture, `ANDROID_HOME`,
 required Android SDK platform and build-tools presence, side-by-side NDK,
 CMake, Ninja, Java, Crossa cache writability, and temporary directory
@@ -153,7 +161,7 @@ access before JNI can reach released native storage.
 
 ## 16 KB Page-Size Support
 
-The generated Android project requires AGP 8.5.1+ and NDK r28+. NDK r28 builds
+The generated Android project defaults to AGP 8.5.1+ and NDK r28+. NDK r28 builds
 16 KB-aligned ELF files by default. Older supported NDKs must use both
 `-Wl,-z,max-page-size=16384` and `-Wl,-z,common-page-size=16384`. CI must
 verify every generated arm64-v8a library and package alignment before release.

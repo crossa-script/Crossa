@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "crossa/compiler/generators/kotlin/KotlinProjectGenerationContext.h"
@@ -14,6 +15,7 @@ public:
     KotlinSourcePlan(
         std::string relativePath,
         std::string packageName,
+        std::string sourceIdentity,
         const ir::IrModelDeclaration* model,
         std::vector<const ir::IrFunctionDeclaration*> functions
     );
@@ -23,6 +25,9 @@ public:
 
     // Returns the Kotlin package assigned to this output file.
     [[nodiscard]] const std::string& getPackageName() const noexcept;
+
+    // Returns the original Crossa source identity used for native operation IDs.
+    [[nodiscard]] const std::string& getSourceIdentity() const noexcept;
 
     // Returns the canonical model emitted by this file or null for API files.
     [[nodiscard]] const ir::IrModelDeclaration* getModel() const noexcept;
@@ -34,6 +39,7 @@ public:
 private:
     std::string relativePath_;
     std::string packageName_;
+    std::string sourceIdentity_;
     const ir::IrModelDeclaration* model_;
     std::vector<const ir::IrFunctionDeclaration*> functions_;
 };
@@ -41,6 +47,11 @@ private:
 // Plans deterministic model and source-unit Kotlin files for one linked project.
 class KotlinSourcePlanner final {
 public:
+    // Converts one source identity into a deterministic PascalCase Kotlin type name.
+    [[nodiscard]] static std::string toPascalCase(
+        std::string_view sourceIdentity
+    );
+
     // Creates the full Kotlin file plan before text emission starts.
     [[nodiscard]] std::vector<KotlinSourcePlan> plan(
         const KotlinProjectGenerationContext& context,

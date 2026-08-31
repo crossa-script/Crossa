@@ -43,12 +43,21 @@ private:
         bool debugEnabled;
         std::filesystem::path sourcePath;
         std::optional<std::filesystem::path> outputDirectory;
+        std::optional<std::string> ndkVersion;
+        std::optional<std::string> gradleVersion;
+        std::optional<std::string> kotlinVersion;
     };
 
     // Parses one optional CLI command name.
     [[nodiscard]] static std::optional<Command> parseCommand(
         std::string_view argument
     ) noexcept;
+
+    // Verifies a side-by-side Android NDK version before generation.
+    [[nodiscard]] static bool isValidNdkVersion(std::string_view version) noexcept;
+
+    // Verifies a Gradle or Kotlin plugin version before generation.
+    [[nodiscard]] static bool isValidToolVersion(std::string_view version) noexcept;
 
     // Parses supported command-line arguments into validated workflow options.
     [[nodiscard]] static std::optional<Arguments> parseArguments(

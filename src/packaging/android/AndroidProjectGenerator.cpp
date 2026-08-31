@@ -20,11 +20,12 @@ namespace crossa::packaging::android {
             kotlinSources,
         const vector<const compiler::ir::Program*>& programs,
         const optional<string>& packageName,
-        const filesystem::path& outputDirectory
+        const filesystem::path& outputDirectory,
+        const AndroidBuildVersions& buildVersions
     ) const {
         const string resolvedPackageName = resolvePackageName(packageName);
         createDirectory(outputDirectory);
-        writeBuildFiles(outputDirectory, resolvedPackageName);
+        writeBuildFiles(outputDirectory, resolvedPackageName, buildVersions);
         writeNativeBuildFiles(outputDirectory, resolvedPackageName, programs);
 
         const filesystem::path kotlinDirectory = outputDirectory / "library" /
@@ -237,9 +238,10 @@ namespace crossa::packaging::android {
         }
     }
 
-    // Copies the repository-pinned Gradle Wrapper into a generated project.
+    // Copies the trusted Gradle Wrapper and selects its requested distribution version.
     void AndroidProjectGenerator::writeGradleWrapper(
-        const filesystem::path& outputDirectory
+        const filesystem::path& outputDirectory,
+        const string& gradleVersion
     ) {
 #ifdef CROSSA_SOURCE_DIRECTORY
         const filesystem::path sourceRoot(CROSSA_SOURCE_DIRECTORY);
@@ -260,11 +262,17 @@ namespace crossa::packaging::android {
             outputDirectory / "gradle" / "wrapper" / "gradle-wrapper.jar",
             false
         );
-        copyFile(
-            wrapperDirectory / "gradle-wrapper.properties",
+        writeFile(
             outputDirectory / "gradle" / "wrapper" /
                 "gradle-wrapper.properties",
-            false
+            "distributionBase=GRADLE_USER_HOME\n"
+            "distributionPath=wrapper/dists\n"
+            "distributionUrl=https\\://services.gradle.org/distributions/gradle-" +
+                gradleVersion + "-bin.zip\n"
+            "networkTimeout=10000\n"
+            "validateDistributionUrl=true\n"
+            "zipStoreBase=GRADLE_USER_HOME\n"
+            "zipStorePath=wrapper/dists\n"
         );
 #else
         throw runtime_error("Crossa Android generation requires the trusted Gradle Wrapper template.");
@@ -405,9 +413,10 @@ namespace crossa::packaging::android {
     // Writes the Gradle project and Android library build definitions.
     void AndroidProjectGenerator::writeBuildFiles(
         const filesystem::path& outputDirectory,
-        const string& packageName
+        const string& packageName,
+        const AndroidBuildVersions& buildVersions
     ) {
-        writeGradleWrapper(outputDirectory);
+        writeGradleWrapper(outputDirectory, buildVersions.gradleVersion);
         writeFile(
             outputDirectory / "settings.gradle.kts",
             "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\n"
@@ -422,7 +431,7 @@ namespace crossa::packaging::android {
                 AndroidBuildRequirements::androidGradlePluginVersion() +
                 "\" apply false\n"
             "    kotlin(\"android\") version \"" +
-                AndroidBuildRequirements::kotlinAndroidPluginVersion() +
+                buildVersions.kotlinVersion +
                 "\" apply false\n"
             "}\n"
         );
@@ -444,7 +453,7 @@ namespace crossa::packaging::android {
                 to_string(AndroidBuildRequirements::compileSdkVersion()) +
                 "\n\n"
             "    ndkVersion = \"" +
-                AndroidBuildRequirements::recommendedNdkVersion() +
+                buildVersions.ndkVersion +
                 "\"\n\n"
             "    defaultConfig {\n"
             "        minSdk = 23\n"
@@ -839,7 +848,7 @@ namespace crossa::packaging::android {
             "    return crossa::bindings::android::AndroidJniBridge::initialize(\n"
             "        javaVm,\n"
             "        environment,\n"
-            "        \"" + packagePathValue + "_internal_CrossaNativeBridge\",\n"
+            "        \"" + packagePathValue + "/internal/CrossaNativeBridge\",\n"
             "        createGeneratedRuntime\n"
             "    ) ? JNI_VERSION_1_6 : JNI_ERR;\n"
             "}\n"

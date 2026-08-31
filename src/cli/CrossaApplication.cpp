@@ -25,6 +25,7 @@
 #include "crossa/compiler/semantic/SemanticAnalyzer.h"
 #include "crossa/compiler/semantic/SemanticModelPrinter.h"
 #include "crossa/compiler/source/SourceLoader.h"
+#include "crossa/packaging/android/AndroidBuildRequirements.h"
 #include "crossa/packaging/android/AndroidProjectGenerator.h"
 #include "crossa/runtime/ExecutionEngine.h"
 #include "crossa/utils/PrintUtils.h"
@@ -94,7 +95,9 @@ namespace crossa::cli {
             "       crossa generate kotlin [--debug] <file.cra> "
             "--output <directory>\n"
             "       crossa generate-build android [--debug] "
-            "<project-directory> --output <directory>\n"
+            "<project-directory> --output <directory> "
+            "[--ndk-version <version>] [--gradle-version <version>] "
+            "[--kotlin-version <version>]\n"
             "       crossa --version\n"
             "       crossa doctor"
         );
@@ -114,6 +117,9 @@ namespace crossa::cli {
         bool commandProvided = false;
         optional<filesystem::path> sourcePath;
         optional<filesystem::path> outputDirectory;
+        optional<string> ndkVersion;
+        optional<string> gradleVersion;
+        optional<string> kotlinVersion;
 
         for (int index = 1; index < argc; ++index) {
             const string_view argument(argv[index]);
@@ -131,6 +137,42 @@ namespace crossa::cli {
                     return nullopt;
                 }
                 outputDirectory = filesystem::path(outputArgument);
+                continue;
+            }
+
+            if (argument == "--ndk-version") {
+                if (ndkVersion.has_value() || index + 1 >= argc) {
+                    return nullopt;
+                }
+                const string_view version(argv[++index]);
+                if (!isValidNdkVersion(version)) {
+                    return nullopt;
+                }
+                ndkVersion = string(version);
+                continue;
+            }
+
+            if (argument == "--gradle-version") {
+                if (gradleVersion.has_value() || index + 1 >= argc) {
+                    return nullopt;
+                }
+                const string_view version(argv[++index]);
+                if (!isValidToolVersion(version)) {
+                    return nullopt;
+                }
+                gradleVersion = string(version);
+                continue;
+            }
+
+            if (argument == "--kotlin-version") {
+                if (kotlinVersion.has_value() || index + 1 >= argc) {
+                    return nullopt;
+                }
+                const string_view version(argv[++index]);
+                if (!isValidToolVersion(version)) {
+                    return nullopt;
+                }
+                kotlinVersion = string(version);
                 continue;
             }
 
@@ -183,11 +225,19 @@ namespace crossa::cli {
         if (generatesOutput != outputDirectory.has_value()) {
             return nullopt;
         }
+        if (command != Command::GenerateAndroidLibrary &&
+            (ndkVersion.has_value() || gradleVersion.has_value() ||
+             kotlinVersion.has_value())) {
+            return nullopt;
+        }
         return Arguments{
             command,
             debugEnabled,
             std::move(sourcePath.value()),
-            std::move(outputDirectory)
+            std::move(outputDirectory),
+            std::move(ndkVersion),
+            std::move(gradleVersion),
+            std::move(kotlinVersion)
         };
     }
 
@@ -204,6 +254,45 @@ namespace crossa::cli {
             return Command::Test;
         }
         return nullopt;
+    }
+
+    // Verifies a side-by-side Android NDK version before generation.
+    bool CrossaApplication::isValidNdkVersion(string_view version) noexcept {
+        if (version.empty() || version.front() == '.' || version.back() == '.') {
+            return false;
+        }
+        bool previousWasSeparator = false;
+        for (const char character : version) {
+            if (character == '.') {
+                if (previousWasSeparator) {
+                    return false;
+                }
+                previousWasSeparator = true;
+                continue;
+            }
+            if (character < '0' || character > '9') {
+                return false;
+            }
+            previousWasSeparator = false;
+        }
+        return true;
+    }
+
+    // Verifies a Gradle or Kotlin plugin version before generation.
+    bool CrossaApplication::isValidToolVersion(string_view version) noexcept {
+        if (version.empty()) {
+            return false;
+        }
+        for (const char character : version) {
+            const bool isLetter = (character >= 'A' && character <= 'Z') ||
+                (character >= 'a' && character <= 'z');
+            const bool isDigit = character >= '0' && character <= '9';
+            if (!isLetter && !isDigit && character != '.' && character != '-' &&
+                character != '_' && character != '+') {
+                return false;
+            }
+        }
+        return true;
     }
 
     // Loads, compiles, and applies the requested workflow to one Crossa source file.
@@ -394,11 +483,23 @@ namespace crossa::cli {
 
         logStepStarted(7, "Android Gradle library project generation", log);
         packaging::android::AndroidProjectGenerator projectGenerator;
+        const packaging::android::AndroidBuildVersions buildVersions{
+            arguments.ndkVersion.value_or(
+                packaging::android::AndroidBuildRequirements::recommendedNdkVersion()
+            ),
+            arguments.gradleVersion.value_or(
+                packaging::android::AndroidBuildRequirements::gradleWrapperVersion()
+            ),
+            arguments.kotlinVersion.value_or(
+                packaging::android::AndroidBuildRequirements::kotlinAndroidPluginVersion()
+            )
+        };
         projectGenerator.generate(
             sources,
             programViews,
             packageName,
-            arguments.outputDirectory.value()
+            arguments.outputDirectory.value(),
+            buildVersions
         );
         logStepCompleted(7, "Android Gradle library project generation", log);
     }

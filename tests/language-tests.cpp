@@ -610,14 +610,36 @@ private:
         const semantic::TypedSourceUnit keywordModel = keywordAnalyzer.analyze();
         const ir::Program keywordProgram = ir::IrLowerer::lower(keywordModel);
         const auto keywordGenerated = generator.generate(keywordProgram);
-        require(keywordGenerated.getFileName() == "when.kt",
-                "Kotlin generation changed a keyword source-unit file name.");
-        require(keywordGenerated.getContent().find("public class `when`") !=
+        require(keywordGenerated.getFileName() == "When.kt",
+                "Kotlin generation did not use PascalCase for a source-unit file name.");
+        require(keywordGenerated.getContent().find("public class When") !=
                     string::npos,
-                "Kotlin generation did not escape a keyword source-unit name.");
+                "Kotlin generation did not use PascalCase for a source-unit class.");
         require(keywordGenerated.getContent().find("\"\\$value\"") !=
                     string::npos,
                 "Kotlin generation did not escape Kotlin string templates.");
+
+        const source::SourceFile snakeCaseSourceFile(
+            "posts_api.cra",
+            "fun fetch(): Int { re 1 }\n"
+        );
+        lexer::Lexer snakeCaseLexer(snakeCaseSourceFile);
+        const vector<lexer::Token> snakeCaseTokens = snakeCaseLexer.tokenize();
+        parser::Parser snakeCaseParser(snakeCaseTokens, snakeCaseSourceFile);
+        ast::SourceUnit snakeCaseSource = snakeCaseParser.parse();
+        semantic::SemanticAnalyzer snakeCaseAnalyzer(
+            snakeCaseSource,
+            snakeCaseSourceFile
+        );
+        const semantic::TypedSourceUnit snakeCaseModel =
+            snakeCaseAnalyzer.analyze();
+        const ir::Program snakeCaseProgram = ir::IrLowerer::lower(snakeCaseModel);
+        const auto snakeCaseGenerated = generator.generate(snakeCaseProgram);
+        require(snakeCaseGenerated.getFileName() == "PostsApi.kt",
+                "Kotlin generation did not format snake_case source file names.");
+        require(snakeCaseGenerated.getContent().find("public class PostsApi") !=
+                    string::npos,
+                "Kotlin generation did not format snake_case source classes.");
 
         const source::SourceFile requestFile(
             "Request.cra",

@@ -18,6 +18,10 @@ scheduling, and completion state.
   discovers every `.cra` source below the project directory, excludes
   `config.cra` from generated API source, and compiles the project through the
   canonical C++ frontend.
+- `generate-build android` accepts optional `--ndk-version`,
+  `--gradle-version`, and `--kotlin-version` values. They select the exact
+  NDK declaration, Gradle Wrapper distribution, and Kotlin Android plugin
+  written to one generated project. Omitted values use Crossa defaults.
 - The generated output is a self-contained Android library Gradle project. Its
   AAR contains generated Kotlin APIs, a concentrated JNI bridge, generated
   native metadata, and native runtime libraries for the selected ABIs.
@@ -39,16 +43,16 @@ scheduling, and completion state.
 - `@AsyncAfter` completion and cancellation cross JNI through one native
   operation handle. Kotlin may adapt this to coroutines, but does not create a
   second scheduler or execute HTTP work.
-- Generated Android CMake uses NDK r28 or newer. It verifies 16 KB ELF support
-  and uses the explicit 16 KB linker flags when an older supported NDK is
-  selected. Android Gradle Plugin 8.5.1 or newer packages uncompressed native
-  libraries with 16 KB ZIP alignment.
+- Generated Android CMake uses the selected NDK. It verifies 16 KB ELF support
+  and uses explicit 16 KB linker flags. Android Gradle Plugin 8.5.1 or newer
+  packages uncompressed native libraries with 16 KB ZIP alignment. Crossa does
+  not resolve compatibility among caller-selected tool versions.
 - Release performance defaults favor measured C++ optimization, capability
   pruning, connection reuse, bounded scheduling, and coarse JNI calls. Exact
   compiler flags, worker counts, and buffer sizes remain benchmark decisions.
-- Generated projects copy the repository-trusted Gradle Wrapper (Gradle 9.3.0)
-  and make `gradlew` executable. The wrapper remains the sole generated Gradle
-  version source.
+- Generated projects copy the repository-trusted Gradle Wrapper files and make
+  `gradlew` executable. The selected Gradle version is the generated Wrapper
+  distribution URL, allowing each project to choose its own Gradle release.
 - Generated arm64-v8a projects provision OpenSSL 3.0.15 and curl 8.12.1 from
   their official source archives. The generated CMake file verifies SHA-256
   before extraction: OpenSSL
@@ -78,6 +82,9 @@ scheduling, and completion state.
 
 - Flavor values become part of the Android artifact and must not contain
   secrets that cannot safely live in an APK/AAR.
+- Tool version overrides are project-generation inputs. Incompatible Gradle,
+  Kotlin, Android Gradle Plugin, or NDK combinations fail during the generated
+  project's normal Gradle build rather than being silently rewritten by Crossa.
 - Android AAR generation is a distinct native-binding backend, not an
   extension of the pure Kotlin generator.
 - CI must build the generated AAR and verify both ELF and package alignment on

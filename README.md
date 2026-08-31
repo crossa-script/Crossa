@@ -213,49 +213,24 @@ crossa doctor
 `crossa doctor` checks the Crossa installation and the Android development
 toolchain required for generated Android AAR builds.
 
-## Building Android Artifacts
+## CLI Commands
 
-Generate an Android Gradle library project for AAR assembly:
+| Command | What it does | Example |
+|---------|--------------|---------|
+| `crossa <file.cra>` | Runs a source file; equivalent to `crossa run`. | `crossa examples/imports/runPosts.cra` |
+| `crossa run <file.cra>` | Executes reachable top-level calls. | `crossa run file.cra` |
+| `crossa check <file.cra>` | Validates source, imports, semantics, and IR without execution. | `crossa check examples/imports/runPosts.cra` |
+| `crossa test <file.cra>` | Runs a source with assertion semantics. | `crossa test tests/test-runner/pass.cra` |
+| `crossa generate kotlin <file.cra> --output <directory>` | Generates deterministic Kotlin for pure translated IR. | `crossa generate kotlin tests/kotlin-generator/Math.cra --output generated/` |
+| `crossa generate-build android <project-directory> --output <directory> [--ndk-version <version>] [--gradle-version <version>] [--kotlin-version <version>]` | Generates an Android Gradle library project for AAR assembly, with optional per-project tool versions. | `crossa generate-build android ./crossa-project --output ./build/crossa-aar --ndk-version 28.1.13356709 --gradle-version 8.11.1 --kotlin-version 2.0.21` |
+| `crossa doctor` | Checks the default Android build toolchain on the current machine. | `crossa doctor` |
+| `crossa --version` | Prints the installed Crossa version. | `crossa --version` |
 
-```sh
-crossa generate-build android <project-directory> --output <directory>
-```
-
-Run `crossa doctor` first to verify the host has the required Android SDK, NDK,
-CMake, Ninja, Java, cache, and temporary directory setup.
-
-## Release CI
-
-Standalone CLI releases are created from GitHub Actions:
-
-```text
-Actions
-→ Release Crossa
-→ Run workflow
-→ version: 0.1.0
-```
-
-The workflow runs only from `main`:
-
-```text
-GitHub Actions
-    |
-workflow_dispatch(version)
-    |
-validate version/main/tag
-    |
-build Release binaries
-    |
-package per platform/architecture
-    |
-generate SHA256SUMS
-    |
-create vX.Y.Z Git tag
-    |
-create GitHub Release
-    |
-upload release assets
-```
+The Android version flags are used only by `generate-build android`: NDK is
+written to `library/build.gradle.kts`, Gradle selects the wrapper distribution,
+and Kotlin selects the Kotlin Android plugin. When omitted, Crossa uses its
+current defaults. Choose compatible Gradle, Kotlin, Android Gradle Plugin, and
+NDK versions for your project.
 
 ## Release Artifacts
 
@@ -359,8 +334,7 @@ To configure, build, and run the debug test in one command:
 
 The script builds and runs the complete compiler, linker, runtime, local mock
 network, and `.cra` scripting suite. It uses CMake when available and falls back
-to the installed C++ compiler. Native networking requires libcurl. GitHub
-Actions repeats this workflow on every push and pull request.
+to the installed C++ compiler. Native networking requires libcurl.
 
 Optional JSONPlaceholder integration tests can be enabled when network access is
 available:
@@ -373,10 +347,6 @@ With CMake, the same tests are enabled with
 `-DCROSSA_ENABLE_NETWORK_INTEGRATION=ON`.
 
 See [Crossa Testing](docs/development/testing.md) for the test layers and fixtures.
-
-Standalone CLI releases are built from the manual GitHub Actions release
-workflow on `main`. See [Crossa Release Workflow](docs/development/release.md)
-for supported platforms and asset names.
 
 Compiler implementation follows the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, native Networking, then deterministic platform generators.
 

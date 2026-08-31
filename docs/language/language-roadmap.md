@@ -649,6 +649,7 @@ model User(
 > the package directive for Kotlin source. Runtime-backed IR, including
 > `CrossaRequest`, and non-pure execution policies are explicitly rejected
 > pending native binding generation. Swift generation remains unimplemented.
+> Generated Kotlin source-unit file and class names use deterministic PascalCase.
 
 ## Goal
 

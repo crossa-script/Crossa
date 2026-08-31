@@ -10,6 +10,13 @@
 
 namespace crossa::packaging::android {
 
+// Stores the tool versions selected for one generated Android library project.
+struct AndroidBuildVersions final {
+    std::string ndkVersion;
+    std::string gradleVersion;
+    std::string kotlinVersion;
+};
+
 // Creates a deterministic Android library project around generated Kotlin APIs.
 // generate() writes Gradle, manifest, native-build, configuration, and API files.
 class AndroidProjectGenerator final {
@@ -20,7 +27,8 @@ public:
             kotlinSources,
         const std::vector<const compiler::ir::Program*>& programs,
         const std::optional<std::string>& packageName,
-        const std::filesystem::path& outputDirectory
+        const std::filesystem::path& outputDirectory,
+        const AndroidBuildVersions& buildVersions
     ) const;
 
 private:
@@ -62,8 +70,11 @@ private:
         bool executable
     );
 
-    // Copies the repository-pinned Gradle Wrapper into a generated project.
-    static void writeGradleWrapper(const std::filesystem::path& outputDirectory);
+    // Copies the trusted Gradle Wrapper and selects its requested distribution version.
+    static void writeGradleWrapper(
+        const std::filesystem::path& outputDirectory,
+        const std::string& gradleVersion
+    );
 
     // Writes deterministic Android OpenSSL, curl, and CA dependency provisioning.
     static void writeAndroidDependencies(
@@ -73,7 +84,8 @@ private:
     // Writes the Gradle project and Android library build definitions.
     static void writeBuildFiles(
         const std::filesystem::path& outputDirectory,
-        const std::string& packageName
+        const std::string& packageName,
+        const AndroidBuildVersions& buildVersions
     );
 
     // Writes the generated configuration API and JNI bridge declarations.
