@@ -44,6 +44,7 @@ add_executable(
     include/crossa/compiler/generators/kotlin/KotlinSourceWriter.h
     include/crossa/compiler/generators/kotlin/KotlinStatementEmitter.h
     include/crossa/compiler/generators/kotlin/KotlinTypeMapper.h
+    include/crossa/compiler/generators/native/NativeProgramGenerator.h
     include/crossa/packaging/android/AndroidBuildRequirements.h
     include/crossa/packaging/android/AndroidProjectGenerator.h
     include/crossa/compiler/ir/IrExpression.h
@@ -99,6 +100,7 @@ add_executable(
     src/compiler/generators/kotlin/KotlinSourceWriter.cpp
     src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
     src/compiler/generators/kotlin/KotlinTypeMapper.cpp
+    src/compiler/generators/native/NativeProgramGenerator.cpp
     src/packaging/android/AndroidBuildRequirements.cpp
     src/packaging/android/AndroidProjectGenerator.cpp
     src/compiler/ir/IrExpression.cpp
@@ -261,6 +263,7 @@ add_executable(
     src/compiler/generators/kotlin/KotlinSourceWriter.cpp
     src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
     src/compiler/generators/kotlin/KotlinTypeMapper.cpp
+    src/compiler/generators/native/NativeProgramGenerator.cpp
     src/packaging/android/AndroidProjectGenerator.cpp
     src/packaging/android/AndroidBuildRequirements.cpp
     src/compiler/types/SemanticType.cpp

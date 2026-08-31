@@ -360,7 +360,9 @@ namespace crossa::cli {
             : optional<string>("io.crossa.generated");
         compiler::generators::kotlin::KotlinGenerator generator;
         vector<compiler::generators::kotlin::KotlinGeneratedSource> sources;
+        vector<unique_ptr<compiler::ir::Program>> programs;
         sources.reserve(sourcePaths.size());
+        programs.reserve(sourcePaths.size());
         for (const filesystem::path& sourcePath : sourcePaths) {
             compiler::source::SourceFile sourceFile =
                 compiler::source::SourceLoader::load(sourcePath, log);
@@ -375,19 +377,27 @@ namespace crossa::cli {
             );
             const compiler::semantic::TypedSourceUnit semanticModel =
                 analyzeSource(sourceUnit, sourceFile, log);
-            const compiler::ir::Program program =
-                compiler::ir::IrLowerer::lower(semanticModel);
+            unique_ptr<compiler::ir::Program> program = make_unique<
+                compiler::ir::Program
+            >(compiler::ir::IrLowerer::lower(semanticModel));
             sources.push_back(generator.generate(
-                program,
+                *program,
                 kotlinPackageName,
                 compiler::generators::kotlin::KotlinGenerationTarget::AndroidNative
             ));
+            programs.push_back(std::move(program));
+        }
+        vector<const compiler::ir::Program*> programViews;
+        programViews.reserve(programs.size());
+        for (const unique_ptr<compiler::ir::Program>& program : programs) {
+            programViews.push_back(program.get());
         }
 
         logStepStarted(7, "Android Gradle library project generation", log);
         packaging::android::AndroidProjectGenerator projectGenerator;
         projectGenerator.generate(
             sources,
+            programViews,
             packageName,
             arguments.outputDirectory.value()
         );

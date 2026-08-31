@@ -5,6 +5,7 @@
 #include <system_error>
 
 #include "crossa/packaging/android/AndroidBuildRequirements.h"
+#include "crossa/compiler/generators/native/NativeProgramGenerator.h"
 
 using namespace std;
 
@@ -14,13 +15,14 @@ namespace crossa::packaging::android {
     void AndroidProjectGenerator::generate(
         const vector<compiler::generators::kotlin::KotlinGeneratedSource>&
             kotlinSources,
+        const vector<const compiler::ir::Program*>& programs,
         const optional<string>& packageName,
         const filesystem::path& outputDirectory
     ) const {
         const string resolvedPackageName = resolvePackageName(packageName);
         createDirectory(outputDirectory);
         writeBuildFiles(outputDirectory, resolvedPackageName);
-        writeNativeBuildFiles(outputDirectory, resolvedPackageName);
+        writeNativeBuildFiles(outputDirectory, resolvedPackageName, programs);
 
         const filesystem::path kotlinDirectory = outputDirectory / "library" /
             "src" / "main" / "kotlin" / packagePath(resolvedPackageName);
@@ -328,11 +330,38 @@ namespace crossa::packaging::android {
     // Writes the Android manifest and native CMake project source.
     void AndroidProjectGenerator::writeNativeBuildFiles(
         const filesystem::path& outputDirectory,
-        const string& packageName
+        const string& packageName,
+        const vector<const compiler::ir::Program*>& programs
     ) {
         writeFile(
             outputDirectory / "library" / "src" / "main" / "AndroidManifest.xml",
             "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\n"
+        );
+        compiler::generators::native::NativeProgramGenerator nativeGenerator;
+        string operationHeaders;
+        for (const compiler::ir::Program* program : programs) {
+            if (program == nullptr) {
+                throw runtime_error("Android generation requires a linked IR program.");
+            }
+            operationHeaders += nativeGenerator.generateOperationHeader(*program);
+        }
+        writeFile(
+            outputDirectory / "library" / "src" / "main" / "cpp" /
+                "CrossaGeneratedOperations.h",
+            operationHeaders
+        );
+        if (programs.size() != 1) {
+            throw runtime_error("Android native generation requires one linked program.");
+        }
+        writeFile(
+            outputDirectory / "library" / "src" / "main" / "cpp" /
+                "CrossaGeneratedProgram.h",
+            nativeGenerator.generateProgramHeader()
+        );
+        writeFile(
+            outputDirectory / "library" / "src" / "main" / "cpp" /
+                "CrossaGeneratedProgram.cpp",
+            nativeGenerator.generateProgramSource(*programs.front())
         );
         writeFile(
             outputDirectory / "library" / "src" / "main" / "cpp" / "CMakeLists.txt",

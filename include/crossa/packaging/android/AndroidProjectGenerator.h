@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "crossa/compiler/generators/kotlin/KotlinGeneratedSource.h"
+#include "crossa/compiler/ir/Program.h"
 
 namespace crossa::packaging::android {
 
@@ -17,6 +18,7 @@ public:
     void generate(
         const std::vector<compiler::generators::kotlin::KotlinGeneratedSource>&
             kotlinSources,
+        const std::vector<const compiler::ir::Program*>& programs,
         const std::optional<std::string>& packageName,
         const std::filesystem::path& outputDirectory
     ) const;
@@ -56,7 +58,8 @@ private:
     // Writes the Android manifest and native CMake project source.
     static void writeNativeBuildFiles(
         const std::filesystem::path& outputDirectory,
-        const std::string& packageName
+        const std::string& packageName,
+        const std::vector<const compiler::ir::Program*>& programs
     );
 };
 
