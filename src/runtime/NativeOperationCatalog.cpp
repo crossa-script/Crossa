@@ -1,6 +1,7 @@
 #include "crossa/runtime/NativeOperationCatalog.h"
 
 #include <stdexcept>
+#include <filesystem>
 
 using namespace std;
 
@@ -18,7 +19,7 @@ namespace crossa::runtime {
             }
             const auto& function = static_cast<
                 const compiler::ir::IrFunctionDeclaration&>(*declaration);
-            const uint64_t id = operationId(program.getIdentity(), function);
+            const uint64_t id = operationId(sourceIdentity(program, function), function);
             if (!functions_.emplace(id, &function).second) {
                 throw runtime_error("Crossa generated operation ID collision.");
             }
@@ -46,6 +47,17 @@ namespace crossa::runtime {
             value *= 1099511628211ULL;
         }
         return value;
+    }
+
+    // Returns the source-unit identity stored on one reconstructed function.
+    string NativeOperationCatalog::sourceIdentity(
+        const compiler::ir::Program& program,
+        const compiler::ir::IrFunctionDeclaration& function
+    ) {
+        const string_view sourcePath = function.getLocation().getSourcePath();
+        return sourcePath.empty()
+            ? program.getIdentity()
+            : filesystem::path(string(sourcePath)).stem().string();
     }
 
 }

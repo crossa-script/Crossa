@@ -21,6 +21,36 @@ native runtime embedding work is completed. It contains the repository-trusted
 Gradle Wrapper, including `gradlew`, `gradlew.bat`, and the wrapper JAR and
 properties, so a global `gradle` executable is not required.
 
+## Project-Aware Kotlin Layout
+
+Android generation indexes the complete linked IR once before Kotlin text is
+emitted. A model is canonicalized from its validated project declaration and
+is written once under `model/`; functions remain owned by their original source
+unit and are grouped under `api/`. The generated Kotlin package root therefore
+contains deterministic logical directories:
+
+```text
+api/<SourceUnit>.kt
+model/<Model>.kt
+runtime/CrossaState.kt
+runtime/CrossaError.kt
+internal/CrossaNativeBridge.kt
+```
+
+Imports are planned and sorted before writing a file. The generated manifest
+tracks only Crossa-owned Kotlin outputs, allowing obsolete generated files to
+be removed without deleting unrelated project files. Kotlin remains a thin JNI
+view over native result and list handles.
+
+## Debug and Release AARs
+
+The generated Android library declares both Gradle build types. `debug` uses
+the native Debug configuration, keeps Kotlin unminified, and enables JNI
+debugging. `release` uses the native Release configuration and enables R8 with
+focused library and consumer rules for public API surfaces and the explicitly
+registered JNI bridge. The native CMake project does not force `-O3`; the
+Android/CMake build configuration selects its normal Debug or Release flags.
+
 ## Native Network Dependencies
 
 Generated Android projects provision their own static native dependencies with

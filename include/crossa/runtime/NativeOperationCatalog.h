@@ -26,6 +26,12 @@ public:
     ) noexcept;
 
 private:
+    // Returns the source-unit identity stored on one reconstructed function.
+    [[nodiscard]] static std::string sourceIdentity(
+        const compiler::ir::Program& program,
+        const compiler::ir::IrFunctionDeclaration& function
+    );
+
     std::unordered_map<std::uint64_t, const compiler::ir::IrFunctionDeclaration*>
         functions_;
 };

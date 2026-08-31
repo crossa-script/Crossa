@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "crossa/compiler/ir/Program.h"
 
@@ -23,12 +24,23 @@ public:
         const ir::Program& program
     ) const;
 
+    // Generates one native program reconstruction from every linked project source.
+    [[nodiscard]] std::string generateProgramSource(
+        const std::vector<const ir::Program*>& programs
+    ) const;
+
 private:
     // Computes the canonical stable operation identifier used by native bindings.
     [[nodiscard]] static std::uint64_t operationId(
         const std::string& sourceIdentity,
         const ir::IrFunctionDeclaration& function
     ) noexcept;
+
+    // Returns the original source-unit identity that owns one generated function.
+    [[nodiscard]] static std::string sourceIdentity(
+        const ir::Program& program,
+        const ir::IrFunctionDeclaration& function
+    );
 };
 
 }

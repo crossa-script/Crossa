@@ -10,6 +10,8 @@
 
 #include "crossa/compiler/generators/kotlin/KotlinGeneratedSource.h"
 #include "crossa/compiler/generators/kotlin/KotlinIdentifierEscaper.h"
+#include "crossa/compiler/generators/kotlin/KotlinProjectGenerationContext.h"
+#include "crossa/compiler/generators/kotlin/KotlinSourcePlanner.h"
 #include "crossa/compiler/generators/kotlin/KotlinTypeMapper.h"
 #include "crossa/compiler/ir/IrCrossaRequestExpression.h"
 #include "crossa/compiler/ir/IrExpression.h"
@@ -32,6 +34,13 @@ public:
         const ir::Program& program,
         const std::optional<std::string>& packageName = std::nullopt,
         KotlinGenerationTarget target = KotlinGenerationTarget::Pure
+    ) const;
+
+    // Generates every planned Kotlin file for one complete linked Android project.
+    [[nodiscard]] std::vector<KotlinGeneratedSource> generateProject(
+        const std::vector<const ir::Program*>& programs,
+        const std::string& packageName,
+        KotlinGenerationTarget target = KotlinGenerationTarget::AndroidNative
     ) const;
 
 private:
@@ -63,6 +72,20 @@ private:
         const ir::IrModelDeclaration& model,
         class KotlinSourceWriter& writer
     ) const;
+
+    // Emits deterministic imports for one planned Android Kotlin output.
+    void emitProjectImports(
+        const KotlinSourcePlan& plan,
+        const KotlinProjectGenerationContext& context,
+        const std::string& basePackageName,
+        class KotlinSourceWriter& writer
+    ) const;
+
+    // Collects model dependencies recursively from one resolved Crossa type.
+    static void collectModelDependencies(
+        const types::SemanticType& type,
+        std::vector<std::string>& modelNames
+    );
 
     // Returns the stable compile-time operation identifier for one function.
     [[nodiscard]] static std::uint64_t operationId(

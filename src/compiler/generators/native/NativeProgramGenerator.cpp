@@ -4,6 +4,8 @@
 #include "crossa/compiler/ir/IrJsonExpression.h"
 
 #include <sstream>
+#include <filesystem>
+#include <set>
 #include <stdexcept>
 
 using namespace std;
@@ -171,7 +173,7 @@ namespace crossa::compiler::generators::native {
             );
             output << "    static constexpr std::uint64_t "
                    << function.getName() << " = "
-                   << operationId(program.getIdentity(), function)
+                   << operationId(sourceIdentity(program, function), function)
                    << "ULL;\n";
         }
         output << "};\n\n}\n";
@@ -185,19 +187,38 @@ namespace crossa::compiler::generators::native {
 
     // Generates the executable Program reconstruction source for one IR program.
     string NativeProgramGenerator::generateProgramSource(const ir::Program& program) const {
+        return generateProgramSource(vector<const ir::Program*>{&program});
+    }
+
+    // Generates one native program reconstruction from every linked project source.
+    string NativeProgramGenerator::generateProgramSource(
+        const vector<const ir::Program*>& programs
+    ) const {
         ostringstream output;
         output << "#include \"CrossaGeneratedProgram.h\"\n#include <memory>\n#include <optional>\n#include <vector>\n#include <crossa/compiler/ir/IrCrossaRequestExpression.h>\n#include <crossa/compiler/ir/IrDeclaration.h>\n#include <crossa/compiler/ir/IrJsonExpression.h>\n#include <crossa/compiler/source/SourceLocation.h>\n\nusing namespace std;\nnamespace crossa::generated {\ncompiler::ir::Program CrossaGeneratedProgram::create() {\nusing namespace compiler::ir; using namespace compiler::types; using compiler::source::SourceLocation;\nvector<unique_ptr<IrDeclaration>> declarations;\n";
-        for (const unique_ptr<ir::IrDeclaration>& declaration : program.getDeclarations()) {
-            if (declaration->getKind() != ir::IrDeclarationKind::Function) continue;
-            const auto& function = static_cast<const ir::IrFunctionDeclaration&>(*declaration);
-            if (function.getExecutionPolicy() == ir::IrExecutionPolicy::Sync) continue;
-            output << "{ vector<IrParameter> parameters;\n";
-            for (const ir::IrParameter& parameter : function.getParameters()) output << "parameters.emplace_back(" << NativeProgramEmitter::quote(parameter.getName()) << ", " << NativeProgramEmitter::type(parameter.getType()) << ", SourceLocation(1, 1));\n";
-            output << "vector<unique_ptr<IrStatement>> statements;\n";
-            for (const unique_ptr<ir::IrStatement>& statement : function.getStatements()) output << "statements.push_back(" << NativeProgramEmitter::statement(*statement) << ");\n";
-            output << "declarations.push_back(make_unique<IrFunctionDeclaration>(" << NativeProgramEmitter::quote(function.getName()) << ", IrExecutionPolicy::" << (function.getExecutionPolicy() == ir::IrExecutionPolicy::AsyncAfter ? "AsyncAfter" : function.getExecutionPolicy() == ir::IrExecutionPolicy::Async ? "Async" : "Sync") << ", move(parameters), " << NativeProgramEmitter::type(function.getReturnType()) << ", move(statements), SourceLocation(1, 1))); }\n";
+        set<string> emittedFunctions;
+        for (const ir::Program* program : programs) {
+            if (program == nullptr) {
+                throw runtime_error("Android native generation requires linked IR.");
+            }
+            for (const unique_ptr<ir::IrDeclaration>& declaration :
+                 program->getDeclarations()) {
+                if (declaration->getKind() != ir::IrDeclarationKind::Function) continue;
+                const auto& function = static_cast<const ir::IrFunctionDeclaration&>(*declaration);
+                if (function.getExecutionPolicy() == ir::IrExecutionPolicy::Sync) continue;
+                const source::SourceLocation& location = function.getLocation();
+                const string functionKey = string(location.getSourcePath()) + ":" +
+                    to_string(location.getLine()) + ":" +
+                    to_string(location.getColumn()) + ":" + function.getName();
+                if (!emittedFunctions.insert(functionKey).second) continue;
+                output << "{ vector<IrParameter> parameters;\n";
+                for (const ir::IrParameter& parameter : function.getParameters()) output << "parameters.emplace_back(" << NativeProgramEmitter::quote(parameter.getName()) << ", " << NativeProgramEmitter::type(parameter.getType()) << ", SourceLocation(1, 1));\n";
+                output << "vector<unique_ptr<IrStatement>> statements;\n";
+                for (const unique_ptr<ir::IrStatement>& statement : function.getStatements()) output << "statements.push_back(" << NativeProgramEmitter::statement(*statement) << ");\n";
+                output << "declarations.push_back(make_unique<IrFunctionDeclaration>(" << NativeProgramEmitter::quote(function.getName()) << ", IrExecutionPolicy::" << (function.getExecutionPolicy() == ir::IrExecutionPolicy::AsyncAfter ? "AsyncAfter" : function.getExecutionPolicy() == ir::IrExecutionPolicy::Async ? "Async" : "Sync") << ", move(parameters), " << NativeProgramEmitter::type(function.getReturnType()) << ", move(statements), SourceLocation(" << NativeProgramEmitter::quote(string(location.getSourcePath())) << ", " << location.getLine() << ", " << location.getColumn() << "))); }\n";
+            }
         }
-        output << "return compiler::ir::Program({}, " << NativeProgramEmitter::quote(program.getIdentity()) << ", std::move(declarations)); }\n}\n";
+        output << "return compiler::ir::Program({}, \"CrossaGenerated\", std::move(declarations)); }\n}\n";
         return output.str();
     }
 
@@ -214,6 +235,18 @@ namespace crossa::compiler::generators::native {
             value *= 1099511628211ULL;
         }
         return value;
+    }
+
+    // Returns the original source-unit identity that owns one generated function.
+    string NativeProgramGenerator::sourceIdentity(
+        const ir::Program& program,
+        const ir::IrFunctionDeclaration& function
+    ) {
+        const string_view sourcePath = function.getLocation().getSourcePath();
+        if (sourcePath.empty()) {
+            return program.getIdentity();
+        }
+        return filesystem::path(string(sourcePath)).stem().string();
     }
 
 }

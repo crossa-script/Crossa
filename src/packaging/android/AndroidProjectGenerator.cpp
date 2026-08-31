@@ -1,6 +1,9 @@
 #include "crossa/packaging/android/AndroidProjectGenerator.h"
 
+#include <algorithm>
 #include <fstream>
+#include <iterator>
+#include <set>
 #include <stdexcept>
 #include <system_error>
 
@@ -27,10 +30,24 @@ namespace crossa::packaging::android {
         const filesystem::path kotlinDirectory = outputDirectory / "library" /
             "src" / "main" / "kotlin" / packagePath(resolvedPackageName);
         createDirectory(kotlinDirectory);
+        vector<string> generatedPaths = {
+            "runtime/CrossaState.kt",
+            "runtime/CrossaError.kt",
+            "runtime/CrossaNativeResult.kt",
+            "runtime/CrossaConfigurationOverrides.kt",
+            "runtime/CrossaRuntime.kt",
+            "internal/CrossaArgument.kt",
+            "internal/CrossaNativeBridge.kt"
+        };
+        for (const auto& source : kotlinSources) {
+            generatedPaths.push_back(source.getFileName());
+        }
+        removeStaleKotlinSources(kotlinDirectory, generatedPaths);
         writeRuntimeApi(kotlinDirectory, resolvedPackageName);
         for (const auto& source : kotlinSources) {
             writeFile(kotlinDirectory / source.getFileName(), source.getContent());
         }
+        writeKotlinManifest(kotlinDirectory, generatedPaths);
     }
 
     // Resolves the generated Android package from validated configuration input.
@@ -85,6 +102,17 @@ namespace crossa::packaging::android {
         const string& content
     ) {
         createDirectory(outputPath.parent_path());
+        error_code error;
+        if (filesystem::exists(outputPath, error) && !error) {
+            ifstream existing(outputPath, ios::binary);
+            const string existingContent(
+                (istreambuf_iterator<char>(existing)),
+                istreambuf_iterator<char>()
+            );
+            if (existing && existingContent == content) {
+                return;
+            }
+        }
         filesystem::path temporaryPath = outputPath;
         temporaryPath += ".tmp";
         ofstream output(temporaryPath, ios::binary | ios::trunc);
@@ -102,7 +130,7 @@ namespace crossa::packaging::android {
                 "Unable to finish Android generated file: " + temporaryPath.string()
             );
         }
-        error_code error;
+        error.clear();
         if (filesystem::exists(outputPath, error)) {
             filesystem::remove(outputPath, error);
             if (error) {
@@ -120,6 +148,51 @@ namespace crossa::packaging::android {
                 "Unable to finalize Android generated file: " + outputPath.string()
             );
         }
+    }
+
+    // Removes outputs listed by the previous generated Kotlin manifest only.
+    void AndroidProjectGenerator::removeStaleKotlinSources(
+        const filesystem::path& kotlinDirectory,
+        const vector<string>& currentPaths
+    ) {
+        const filesystem::path manifestPath =
+            kotlinDirectory / ".crossa-generated-kotlin-manifest";
+        ifstream manifest(manifestPath);
+        if (!manifest.is_open()) {
+            return;
+        }
+        const set<string> currentPathSet(currentPaths.begin(), currentPaths.end());
+        string pathValue;
+        while (getline(manifest, pathValue)) {
+            const filesystem::path relativePath(pathValue);
+            if (pathValue.empty() || relativePath.is_absolute() ||
+                pathValue.find("..") != string::npos ||
+                currentPathSet.find(pathValue) != currentPathSet.end()) {
+                continue;
+            }
+            error_code error;
+            filesystem::remove(kotlinDirectory / relativePath, error);
+            if (error) {
+                throw runtime_error(
+                    "Unable to remove stale generated Kotlin source: " +
+                    (kotlinDirectory / relativePath).string()
+                );
+            }
+        }
+    }
+
+    // Writes the stable manifest used to remove stale Kotlin source outputs.
+    void AndroidProjectGenerator::writeKotlinManifest(
+        const filesystem::path& kotlinDirectory,
+        const vector<string>& currentPaths
+    ) {
+        vector<string> sortedPaths = currentPaths;
+        sort(sortedPaths.begin(), sortedPaths.end());
+        string manifest;
+        for (const string& path : sortedPaths) {
+            manifest += path + "\n";
+        }
+        writeFile(kotlinDirectory / ".crossa-generated-kotlin-manifest", manifest);
     }
 
     // Copies one trusted generated-project binary or script and preserves permissions.
@@ -378,10 +451,18 @@ namespace crossa::packaging::android {
             "        ndk { abiFilters += listOf(\"" +
                 AndroidBuildRequirements::supportedAbi() + "\") }\n"
             "        consumerProguardFiles(\"consumer-rules.pro\")\n"
-            "        externalNativeBuild { cmake { cppFlags += listOf(\"-std=c++20\", \"-O3\") } }\n"
+            "        externalNativeBuild { cmake { cppFlags += listOf(\"-std=c++20\") } }\n"
             "    }\n\n"
             "    buildTypes {\n"
-            "        release { isMinifyEnabled = false }\n"
+            "        debug {\n"
+            "            isJniDebuggable = true\n"
+            "            isMinifyEnabled = false\n"
+            "        }\n"
+            "        release {\n"
+            "            isJniDebuggable = false\n"
+            "            isMinifyEnabled = true\n"
+            "            proguardFiles(getDefaultProguardFile(\"proguard-android-optimize.txt\"), \"proguard-rules.pro\")\n"
+            "        }\n"
             "    }\n\n"
             "    externalNativeBuild { cmake { path = file(\"src/main/cpp/CMakeLists.txt\") } }\n"
             "}\n\n"
@@ -391,22 +472,39 @@ namespace crossa::packaging::android {
         );
         writeFile(
             outputDirectory / "library" / "consumer-rules.pro",
-            "-keep,allowoptimization class " + packageName +
-                ".CrossaNativeBridge { *; }\n"
-            "-keep,allowoptimization class " + packageName +
-                ".CrossaNativeCallback { *; }\n"
-            "-keep,allowoptimization class " + packageName +
-                ".CrossaArgument { *; }\n"
-            "-keep,allowoptimization class " + packageName +
-                ".CrossaArgument$IntValue { *; }\n"
-            "-keep,allowoptimization class " + packageName +
-                ".CrossaArgument$LongValue { *; }\n"
-            "-keep,allowoptimization class " + packageName +
-                ".CrossaArgument$DoubleValue { *; }\n"
-            "-keep,allowoptimization class " + packageName +
-                ".CrossaArgument$StringValue { *; }\n"
-            "-keep,allowoptimization class " + packageName +
-                ".CrossaArgument$BooleanValue { *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".api.** { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaRuntime { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaState { public *; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaNativeBridge { <methods>; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaNativeCallback { <methods>; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaArgument { *; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaArgument$IntValue { *; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaArgument$LongValue { *; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaArgument$DoubleValue { *; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaArgument$StringValue { *; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaArgument$BooleanValue { *; }\n"
+        );
+        writeFile(
+            outputDirectory / "library" / "proguard-rules.pro",
+            "-keep,allowoptimization public class " + packageName +
+                ".api.** { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaRuntime { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaState { public *; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaNativeBridge { <methods>; }\n"
         );
     }
 
@@ -416,13 +514,17 @@ namespace crossa::packaging::android {
         const string& packageName
     ) {
         writeFile(
-            sourceDirectory / "CrossaState.kt",
-            "package " + packageName + "\n\n"
+            sourceDirectory / "runtime" / "CrossaState.kt",
+            "package " + packageName + ".runtime\n\n"
             "public sealed interface CrossaState<out T> {\n"
             "    public data class Success<T>(public val data: T) : CrossaState<T>\n"
             "    public data class Failed(public val error: CrossaError) : CrossaState<Nothing>\n"
             "    public data object Cancelled : CrossaState<Nothing>\n"
-            "}\n\n"
+            "}\n"
+        );
+        writeFile(
+            sourceDirectory / "runtime" / "CrossaError.kt",
+            "package " + packageName + ".runtime\n\n"
             "public data class CrossaError(\n"
             "    public val domain: Int,\n"
             "    public val code: Int,\n"
@@ -431,8 +533,9 @@ namespace crossa::packaging::android {
             ")\n"
         );
         writeFile(
-            sourceDirectory / "CrossaNativeResult.kt",
-            "package " + packageName + "\n\n"
+            sourceDirectory / "runtime" / "CrossaNativeResult.kt",
+            "package " + packageName + ".runtime\n\n"
+            "import " + packageName + ".internal.CrossaNativeBridge\n\n"
             "public class CrossaNativeResult internal constructor(\n"
             "    private val runtime: Long,\n"
             "    private var handle: Long\n"
@@ -457,8 +560,8 @@ namespace crossa::packaging::android {
             "}\n"
         );
         writeFile(
-            sourceDirectory / "CrossaArgument.kt",
-            "package " + packageName + "\n\n"
+            sourceDirectory / "internal" / "CrossaArgument.kt",
+            "package " + packageName + ".internal\n\n"
             "public sealed class CrossaArgument private constructor() {\n"
             "    internal data class IntValue(val value: Int) : CrossaArgument()\n"
             "    internal data class LongValue(val value: Long) : CrossaArgument()\n"
@@ -475,8 +578,11 @@ namespace crossa::packaging::android {
             "}\n"
         );
         writeFile(
-            sourceDirectory / "CrossaNativeBridge.kt",
-            "package " + packageName + "\n\n"
+            sourceDirectory / "internal" / "CrossaNativeBridge.kt",
+            "package " + packageName + ".internal\n\n"
+            "import " + packageName + ".runtime.CrossaError\n"
+            "import " + packageName + ".runtime.CrossaNativeResult\n"
+            "import " + packageName + ".runtime.CrossaState\n\n"
             "internal fun interface CrossaNativeCallback {\n"
             "    fun onComplete(state: Int, valueHandle: Long, errorHandle: Long)\n"
             "}\n\n"
@@ -541,8 +647,8 @@ namespace crossa::packaging::android {
             "}\n"
         );
         writeFile(
-            sourceDirectory / "CrossaConfigurationOverrides.kt",
-            "package " + packageName + "\n\n"
+            sourceDirectory / "runtime" / "CrossaConfigurationOverrides.kt",
+            "package " + packageName + ".runtime\n\n"
             "public data class CrossaConfigurationOverrides(\n"
             "    public val baseUrl: String? = null,\n"
             "    public val timeoutRequest: Long? = null,\n"
@@ -569,8 +675,9 @@ namespace crossa::packaging::android {
             "}\n"
         );
         writeFile(
-            sourceDirectory / "CrossaRuntime.kt",
-            "package " + packageName + "\n\n"
+            sourceDirectory / "runtime" / "CrossaRuntime.kt",
+            "package " + packageName + ".runtime\n\n"
+            "import " + packageName + ".internal.CrossaNativeBridge\n\n"
             "public object CrossaRuntime {\n"
             "    init { System.loadLibrary(\"crossa_runtime\") }\n\n"
             "    private var handle: Long = 0L\n\n"
@@ -656,9 +763,6 @@ namespace crossa::packaging::android {
                 "CrossaGeneratedOperations.h",
             operationHeaders
         );
-        if (programs.size() != 1) {
-            throw runtime_error("Android native generation requires one linked program.");
-        }
         writeFile(
             outputDirectory / "library" / "src" / "main" / "cpp" /
                 "CrossaGeneratedProgram.h",
@@ -667,7 +771,7 @@ namespace crossa::packaging::android {
         writeFile(
             outputDirectory / "library" / "src" / "main" / "cpp" /
                 "CrossaGeneratedProgram.cpp",
-            nativeGenerator.generateProgramSource(*programs.front())
+            nativeGenerator.generateProgramSource(programs)
         );
         writeFile(
             outputDirectory / "library" / "src" / "main" / "cpp" / "CMakeLists.txt",
@@ -693,7 +797,7 @@ namespace crossa::packaging::android {
             "target_compile_features(crossa_runtime PRIVATE cxx_std_20)\n"
             "target_include_directories(crossa_runtime PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_LIST_DIR}/crossa/include ${CROSSA_ANDROID_OPENSSL_INSTALL}/include ${CROSSA_ANDROID_CURL_INSTALL}/include)\n"
             "target_compile_definitions(crossa_runtime PRIVATE CROSSA_ANDROID_EMBEDDED_CA_BUNDLE=1)\n"
-            "target_compile_options(crossa_runtime PRIVATE -O3 -fvisibility=hidden -fvisibility-inlines-hidden -ffile-prefix-map=${CMAKE_CURRENT_LIST_DIR}=/crossa-source)\n"
+            "target_compile_options(crossa_runtime PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden -ffile-prefix-map=${CMAKE_CURRENT_LIST_DIR}=/crossa-source)\n"
             "target_link_options(crossa_runtime PRIVATE -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384)\n"
             "target_link_libraries(crossa_runtime PRIVATE crossa_android_curl crossa_android_ssl crossa_android_crypto android log z)\n"
             "add_dependencies(crossa_runtime crossa_android_curl_build)\n"
@@ -735,7 +839,7 @@ namespace crossa::packaging::android {
             "    return crossa::bindings::android::AndroidJniBridge::initialize(\n"
             "        javaVm,\n"
             "        environment,\n"
-            "        \"" + packagePathValue + "_CrossaNativeBridge\",\n"
+            "        \"" + packagePathValue + "_internal_CrossaNativeBridge\",\n"
             "        createGeneratedRuntime\n"
             "    ) ? JNI_VERSION_1_6 : JNI_ERR;\n"
             "}\n"

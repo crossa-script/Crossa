@@ -40,6 +40,8 @@ add_executable(
     include/crossa/compiler/generators/kotlin/KotlinGeneratedSource.h
     include/crossa/compiler/generators/kotlin/KotlinGenerator.h
     include/crossa/compiler/generators/kotlin/KotlinIdentifierEscaper.h
+    include/crossa/compiler/generators/kotlin/KotlinProjectGenerationContext.h
+    include/crossa/compiler/generators/kotlin/KotlinSourcePlanner.h
     include/crossa/compiler/generators/kotlin/KotlinExpressionEmitter.h
     include/crossa/compiler/generators/kotlin/KotlinSourceWriter.h
     include/crossa/compiler/generators/kotlin/KotlinStatementEmitter.h
@@ -96,6 +98,8 @@ add_executable(
     src/compiler/generators/kotlin/KotlinGeneratedSource.cpp
     src/compiler/generators/kotlin/KotlinGenerator.cpp
     src/compiler/generators/kotlin/KotlinIdentifierEscaper.cpp
+    src/compiler/generators/kotlin/KotlinProjectGenerationContext.cpp
+    src/compiler/generators/kotlin/KotlinSourcePlanner.cpp
     src/compiler/generators/kotlin/KotlinExpressionEmitter.cpp
     src/compiler/generators/kotlin/KotlinSourceWriter.cpp
     src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
@@ -261,6 +265,8 @@ add_executable(
     src/compiler/generators/kotlin/KotlinGeneratedSource.cpp
     src/compiler/generators/kotlin/KotlinGenerator.cpp
     src/compiler/generators/kotlin/KotlinIdentifierEscaper.cpp
+    src/compiler/generators/kotlin/KotlinProjectGenerationContext.cpp
+    src/compiler/generators/kotlin/KotlinSourcePlanner.cpp
     src/compiler/generators/kotlin/KotlinExpressionEmitter.cpp
     src/compiler/generators/kotlin/KotlinSourceWriter.cpp
     src/compiler/generators/kotlin/KotlinStatementEmitter.cpp

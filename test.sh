@@ -37,7 +37,7 @@ elif command -v c++ >/dev/null 2>&1; then
 
     while IFS= read -r sourceFile; do
         sourceFiles+=("$sourceFile")
-    done < <(find src -type f -name '*.cpp' -print | sort)
+    done < <(find src -type f -name '*.cpp' ! -path 'src/bindings/android/*' -print | sort)
 
     c++ \
         -std=c++20 \
@@ -46,6 +46,7 @@ elif command -v c++ >/dev/null 2>&1; then
         -Wpedantic \
         -pthread \
         -Iinclude \
+        -DCROSSA_SOURCE_DIRECTORY="\"$projectRoot\"" \
         "${sourceFiles[@]}" \
         "${curlFlags[@]}" \
         -o build/crossa
@@ -102,6 +103,8 @@ elif command -v c++ >/dev/null 2>&1; then
         src/compiler/generators/kotlin/KotlinGeneratedSource.cpp
         src/compiler/generators/kotlin/KotlinGenerator.cpp
         src/compiler/generators/kotlin/KotlinIdentifierEscaper.cpp
+        src/compiler/generators/kotlin/KotlinProjectGenerationContext.cpp
+        src/compiler/generators/kotlin/KotlinSourcePlanner.cpp
         src/compiler/generators/kotlin/KotlinExpressionEmitter.cpp
         src/compiler/generators/kotlin/KotlinSourceWriter.cpp
         src/compiler/generators/kotlin/KotlinStatementEmitter.cpp

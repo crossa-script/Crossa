@@ -43,6 +43,18 @@ private:
         const std::string& content
     );
 
+    // Removes outputs listed by the previous generated Kotlin manifest only.
+    static void removeStaleKotlinSources(
+        const std::filesystem::path& kotlinDirectory,
+        const std::vector<std::string>& currentPaths
+    );
+
+    // Writes the stable manifest used to remove stale Kotlin source outputs.
+    static void writeKotlinManifest(
+        const std::filesystem::path& kotlinDirectory,
+        const std::vector<std::string>& currentPaths
+    );
+
     // Copies one trusted generated-project binary or script and preserves permissions.
     static void copyFile(
         const std::filesystem::path& sourcePath,

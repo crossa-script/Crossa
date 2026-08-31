@@ -1145,7 +1145,7 @@ multipart bodies, and downloads remain planned and are not implicit syntax.
 
 # Phase 19 — Project Compilation and CLI Integration
 
-> **Implementation status:** Recursive exact-filename imports, deterministic project linking, transitive declaration resolution, duplicate-module elimination, source-aware diagnostics, ambiguity failures, and cycle detection are implemented for native CLI execution. Platform artifact generation remains planned.
+> **Implementation status:** Recursive exact-filename imports, deterministic project linking, transitive declaration resolution, duplicate-module elimination, source-aware diagnostics, ambiguity failures, and cycle detection are implemented. Android generation consumes the linked project through a project-aware Kotlin source plan with canonical shared models, source-unit API ownership, shared runtime/JNI outputs, and Debug/Release Gradle variants.
 
 ## Goal
 
