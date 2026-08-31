@@ -202,9 +202,20 @@ namespace crossa::packaging::android {
     void AndroidProjectGenerator::writeAndroidDependencies(
         const filesystem::path& outputDirectory
     ) {
+        const filesystem::path nativeDirectory = outputDirectory / "library" /
+            "src" / "main" / "cpp";
         writeFile(
-            outputDirectory / "library" / "src" / "main" / "cpp" /
-                "CrossaAndroidDependencies.cmake",
+            nativeDirectory / "CrossaOpenSslInstall.cmake",
+            "if(NOT DEFINED source OR NOT DEFINED binary OR NOT DEFINED destination)\n"
+            "    message(FATAL_ERROR \"Crossa OpenSSL staging requires source, binary, and destination paths.\")\n"
+            "endif()\n\n"
+            "file(MAKE_DIRECTORY \"${destination}/lib\")\n"
+            "file(COPY \"${source}/include/\" DESTINATION \"${destination}/include\")\n"
+            "file(COPY \"${binary}/include/\" DESTINATION \"${destination}/include\")\n"
+            "file(COPY \"${binary}/libssl.a\" \"${binary}/libcrypto.a\" DESTINATION \"${destination}/lib\")\n"
+        );
+        writeFile(
+            nativeDirectory / "CrossaAndroidDependencies.cmake",
             "include(ExternalProject)\n\n"
             "if(NOT ANDROID OR NOT CMAKE_ANDROID_NDK)\n"
             "    message(FATAL_ERROR \"Crossa Android dependencies require the Android NDK CMake toolchain.\")\n"
@@ -242,7 +253,8 @@ namespace crossa::packaging::android {
             "if(NOT EXISTS \"${CROSSA_ANDROID_NINJA}\")\n"
             "    message(FATAL_ERROR \"The SDK CMake Ninja executable is required for Android curl provisioning.\")\n"
             "endif()\n"
-            "set(CROSSA_ANDROID_OPENSSL_INSTALL \"${CROSSA_ANDROID_THIRD_PARTY_DIRECTORY}/openssl-install\")\n\n"
+            "set(CROSSA_ANDROID_OPENSSL_STAGE \"${CROSSA_ANDROID_THIRD_PARTY_DIRECTORY}/openssl-stage\")\n"
+            "set(CROSSA_ANDROID_OPENSSL_INSTALL \"${CROSSA_ANDROID_OPENSSL_STAGE}/crossa\")\n\n"
             "ExternalProject_Add(crossa_android_openssl\n"
             "    URL \"" + AndroidBuildRequirements::openSslArchiveUrl() + "\"\n"
             "    URL_HASH \"SHA256=" +
@@ -250,9 +262,9 @@ namespace crossa::packaging::android {
             "    DOWNLOAD_DIR \"${CROSSA_ANDROID_DOWNLOAD_DIRECTORY}\"\n"
             "    SOURCE_DIR \"${CROSSA_ANDROID_THIRD_PARTY_DIRECTORY}/openssl-source\"\n"
             "    BINARY_DIR \"${CROSSA_ANDROID_THIRD_PARTY_DIRECTORY}/openssl-build\"\n"
-            "    CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env \"ANDROID_NDK_ROOT=${CMAKE_ANDROID_NDK}\" \"PATH=${CROSSA_ANDROID_TOOL_PATH}\" <SOURCE_DIR>/Configure android-arm64 -D__ANDROID_API__=23 no-shared no-tests --prefix=${CROSSA_ANDROID_OPENSSL_INSTALL}\n"
+            "    CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env \"ANDROID_NDK_ROOT=${CMAKE_ANDROID_NDK}\" \"PATH=${CROSSA_ANDROID_TOOL_PATH}\" <SOURCE_DIR>/Configure android-arm64 -D__ANDROID_API__=23 no-shared no-tests --prefix=/crossa --openssldir=/crossa/ssl\n"
             "    BUILD_COMMAND ${CMAKE_COMMAND} -E env \"PATH=${CROSSA_ANDROID_TOOL_PATH}\" make -j4 build_libs\n"
-            "    INSTALL_COMMAND ${CMAKE_COMMAND} -E env \"PATH=${CROSSA_ANDROID_TOOL_PATH}\" make install_dev\n"
+            "    INSTALL_COMMAND ${CMAKE_COMMAND} -Dsource=<SOURCE_DIR> -Dbinary=<BINARY_DIR> -Ddestination=${CROSSA_ANDROID_OPENSSL_INSTALL} -P ${CMAKE_CURRENT_LIST_DIR}/CrossaOpenSslInstall.cmake\n"
             "    BUILD_BYPRODUCTS \"${CROSSA_ANDROID_OPENSSL_INSTALL}/lib/libssl.a\" \"${CROSSA_ANDROID_OPENSSL_INSTALL}/lib/libcrypto.a\"\n"
             ")\n\n"
             "set(CROSSA_ANDROID_CURL_INSTALL \"${CROSSA_ANDROID_THIRD_PARTY_DIRECTORY}/curl-install\")\n"
@@ -271,6 +283,8 @@ namespace crossa::packaging::android {
             "        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}\n"
             "        -DCMAKE_DEBUG_POSTFIX=\n"
             "        -DCMAKE_MAKE_PROGRAM=${CROSSA_ANDROID_NINJA}\n"
+            "        -DCMAKE_C_FLAGS=-ffile-prefix-map=${CROSSA_ANDROID_THIRD_PARTY_DIRECTORY}=/crossa-build\n"
+            "        -DCMAKE_CXX_FLAGS=-ffile-prefix-map=${CROSSA_ANDROID_THIRD_PARTY_DIRECTORY}=/crossa-build\n"
             "        -DCMAKE_INSTALL_PREFIX=${CROSSA_ANDROID_CURL_INSTALL}\n"
             "        -DCMAKE_POSITION_INDEPENDENT_CODE=ON\n"
             "        -DBUILD_SHARED_LIBS=OFF\n"
@@ -615,6 +629,12 @@ namespace crossa::packaging::android {
             filesystem::copy_file(sourceRoot / source, nativeDirectory / "crossa" / source, filesystem::copy_options::overwrite_existing, copyError);
             if (copyError) throw runtime_error("Unable to embed Crossa native compiler support.");
         }
+        filesystem::remove(
+            nativeDirectory / "crossa" / "src" / "bindings" / "android" /
+                "AndroidUnavailableCurlTransport.cpp",
+            copyError
+        );
+        if (copyError) throw runtime_error("Unable to remove the Android network fallback source.");
 #else
         throw runtime_error("Crossa Android generation requires an embedded runtime source directory.");
 #endif
@@ -673,7 +693,7 @@ namespace crossa::packaging::android {
             "target_compile_features(crossa_runtime PRIVATE cxx_std_20)\n"
             "target_include_directories(crossa_runtime PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_LIST_DIR}/crossa/include ${CROSSA_ANDROID_OPENSSL_INSTALL}/include ${CROSSA_ANDROID_CURL_INSTALL}/include)\n"
             "target_compile_definitions(crossa_runtime PRIVATE CROSSA_ANDROID_EMBEDDED_CA_BUNDLE=1)\n"
-            "target_compile_options(crossa_runtime PRIVATE -O3 -fvisibility=hidden -fvisibility-inlines-hidden)\n"
+            "target_compile_options(crossa_runtime PRIVATE -O3 -fvisibility=hidden -fvisibility-inlines-hidden -ffile-prefix-map=${CMAKE_CURRENT_LIST_DIR}=/crossa-source)\n"
             "target_link_options(crossa_runtime PRIVATE -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384)\n"
             "target_link_libraries(crossa_runtime PRIVATE crossa_android_curl crossa_android_ssl crossa_android_crypto android log z)\n"
             "add_dependencies(crossa_runtime crossa_android_curl_build)\n"

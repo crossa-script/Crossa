@@ -1,5 +1,8 @@
 #include "crossa/compiler/generators/native/NativeProgramGenerator.h"
 
+#include "crossa/compiler/ir/IrCrossaRequestExpression.h"
+#include "crossa/compiler/ir/IrJsonExpression.h"
+
 #include <sstream>
 #include <stdexcept>
 
@@ -49,6 +52,25 @@ namespace crossa::compiler::generators::native {
                     const auto& node = static_cast<const ir::IrDoubleConstantExpression&>(value);
                     return "make_unique<IrDoubleConstantExpression>(" + quote(node.getValue()) + ", " + location + ")";
                 }
+                case ir::IrExpressionKind::StringBuild: {
+                    const auto& node = static_cast<const ir::IrStringBuildExpression&>(value);
+                    string segments = "vector<IrStringSegment>{";
+                    for (size_t index = 0; index < node.getSegments().size(); ++index) {
+                        const ir::IrStringSegment& segment = node.getSegments()[index];
+                        if (index != 0) segments += ", ";
+                        segments += "IrStringSegment(IrStringSegmentKind::" + string(
+                            segment.getKind() == ir::IrStringSegmentKind::Literal
+                                ? "Literal"
+                                : "Symbol"
+                        ) + ", " + quote(segment.getValue()) + ", ";
+                        segments += segment.getSymbolKind() == nullptr
+                            ? "nullopt"
+                            : "optional<IrSymbolKind>(IrSymbolKind::" +
+                                symbol(*segment.getSymbolKind()) + ")";
+                        segments += ", " + location + ")";
+                    }
+                    return "make_unique<IrStringBuildExpression>(" + segments + "}, " + location + ")";
+                }
                 case ir::IrExpressionKind::BooleanConstant: {
                     const auto& node = static_cast<const ir::IrBooleanConstantExpression&>(value);
                     return "make_unique<IrBooleanConstantExpression>(" + string(node.getValue() ? "true" : "false") + ", " + location + ")";
@@ -60,6 +82,49 @@ namespace crossa::compiler::generators::native {
                 case ir::IrExpressionKind::Binary: {
                     const auto& node = static_cast<const ir::IrBinaryExpression&>(value);
                     return "make_unique<IrBinaryExpression>(" + expression(node.getLeft()) + ", IrArithmeticOperator::" + arithmetic(node.getOperator()) + ", " + expression(node.getRight()) + ", " + type(node.getType()) + ", " + location + ")";
+                }
+                case ir::IrExpressionKind::JsonNumber: {
+                    const auto& node = static_cast<const ir::IrJsonNumberExpression&>(value);
+                    return "make_unique<IrJsonNumberExpression>(" + quote(node.getValue()) + ", " + location + ")";
+                }
+                case ir::IrExpressionKind::JsonNull:
+                    return "make_unique<IrJsonNullExpression>(" + location + ")";
+                case ir::IrExpressionKind::JsonObject: {
+                    const auto& node = static_cast<const ir::IrJsonObjectExpression&>(value);
+                    string output = "[] { vector<IrJsonObjectEntry> entries; ";
+                    for (const ir::IrJsonObjectEntry& entry : node.getEntries()) {
+                        output += "entries.emplace_back(" + quote(entry.getKey()) + ", " +
+                            expression(entry.getValue()) + ", " + location + "); ";
+                    }
+                    return output + "return make_unique<IrJsonObjectExpression>(move(entries), " + location + "); }()";
+                }
+                case ir::IrExpressionKind::JsonArray: {
+                    const auto& node = static_cast<const ir::IrJsonArrayExpression&>(value);
+                    string output = "[] { vector<unique_ptr<IrExpression>> values; ";
+                    for (const unique_ptr<ir::IrExpression>& entry : node.getValues()) {
+                        output += "values.push_back(" + expression(*entry) + "); ";
+                    }
+                    return output + "return make_unique<IrJsonArrayExpression>(move(values), " + location + "); }()";
+                }
+                case ir::IrExpressionKind::CrossaRequest: {
+                    const auto& node = static_cast<const ir::IrCrossaRequestExpression&>(value);
+                    return "make_unique<IrCrossaRequestExpression>(IrHttpMethod::" +
+                        httpMethod(node.getMethod()) + ", " + expression(node.getUrl()) + ", " +
+                        optionalExpression(node.getHeaders()) + ", " +
+                        optionalExpression(node.getCustomHeaders()) + ", " +
+                        optionalExpression(node.getQueryParams()) + ", " +
+                        optionalExpression(node.getBody()) + ", " +
+                        optionalExpression(node.getTimeout()) + ", " +
+                        optionalExpression(node.getRetryPolicy()) + ", " +
+                        optionalExpression(node.getAuthentication()) + ", " +
+                        optionalExpression(node.getMultipart()) + ", " +
+                        optionalExpression(node.getUploadProgress()) + ", " +
+                        optionalExpression(node.getDownloadStreaming()) + ", " +
+                        optionalExpression(node.getCoalesce()) + ", " +
+                        optionalExpression(node.getProxy()) + ", " +
+                        optionalExpression(node.getCertificatePolicy()) + ", " +
+                        optionalExpression(node.getTelemetry()) + ", " +
+                        type(node.getType()) + ", " + location + ")";
                 }
                 default: throw runtime_error("Android native program generation does not support this IR expression.");
             }
@@ -79,8 +144,13 @@ namespace crossa::compiler::generators::native {
         }
 
     private:
+        static string optionalExpression(const ir::IrExpression* value) {
+            return value == nullptr ? "nullptr" : expression(*value);
+        }
+
         static string arithmetic(ir::IrArithmeticOperator value) { return value == ir::IrArithmeticOperator::Add ? "Add" : value == ir::IrArithmeticOperator::Subtract ? "Subtract" : value == ir::IrArithmeticOperator::Multiply ? "Multiply" : value == ir::IrArithmeticOperator::Divide ? "Divide" : value == ir::IrArithmeticOperator::Negate ? "Negate" : value == ir::IrArithmeticOperator::Equal ? "Equal" : value == ir::IrArithmeticOperator::NotEqual ? "NotEqual" : value == ir::IrArithmeticOperator::Less ? "Less" : value == ir::IrArithmeticOperator::LessEqual ? "LessEqual" : value == ir::IrArithmeticOperator::Greater ? "Greater" : value == ir::IrArithmeticOperator::GreaterEqual ? "GreaterEqual" : value == ir::IrArithmeticOperator::LogicalAnd ? "LogicalAnd" : value == ir::IrArithmeticOperator::LogicalOr ? "LogicalOr" : "Not"; }
         static string symbol(ir::IrSymbolKind value) { return value == ir::IrSymbolKind::Parameter ? "Parameter" : value == ir::IrSymbolKind::LocalVariable ? "LocalVariable" : "SourceVariable"; }
+        static string httpMethod(ir::IrHttpMethod value) { return value == ir::IrHttpMethod::Get ? "Get" : value == ir::IrHttpMethod::Post ? "Post" : value == ir::IrHttpMethod::Put ? "Put" : value == ir::IrHttpMethod::Patch ? "Patch" : value == ir::IrHttpMethod::Delete ? "Delete" : value == ir::IrHttpMethod::Head ? "Head" : value == ir::IrHttpMethod::Options ? "Options" : value == ir::IrHttpMethod::Trace ? "Trace" : "Connect"; }
     };
 
     // Generates the immutable operation identifier declarations for one program.
@@ -116,7 +186,7 @@ namespace crossa::compiler::generators::native {
     // Generates the executable Program reconstruction source for one IR program.
     string NativeProgramGenerator::generateProgramSource(const ir::Program& program) const {
         ostringstream output;
-        output << "#include \"CrossaGeneratedProgram.h\"\n#include <memory>\n#include <vector>\n#include <crossa/compiler/ir/IrDeclaration.h>\n#include <crossa/compiler/source/SourceLocation.h>\n\nusing namespace std;\nnamespace crossa::generated {\ncompiler::ir::Program CrossaGeneratedProgram::create() {\nusing namespace compiler::ir; using namespace compiler::types; using compiler::source::SourceLocation;\nvector<unique_ptr<IrDeclaration>> declarations;\n";
+        output << "#include \"CrossaGeneratedProgram.h\"\n#include <memory>\n#include <optional>\n#include <vector>\n#include <crossa/compiler/ir/IrCrossaRequestExpression.h>\n#include <crossa/compiler/ir/IrDeclaration.h>\n#include <crossa/compiler/ir/IrJsonExpression.h>\n#include <crossa/compiler/source/SourceLocation.h>\n\nusing namespace std;\nnamespace crossa::generated {\ncompiler::ir::Program CrossaGeneratedProgram::create() {\nusing namespace compiler::ir; using namespace compiler::types; using compiler::source::SourceLocation;\nvector<unique_ptr<IrDeclaration>> declarations;\n";
         for (const unique_ptr<ir::IrDeclaration>& declaration : program.getDeclarations()) {
             if (declaration->getKind() != ir::IrDeclarationKind::Function) continue;
             const auto& function = static_cast<const ir::IrFunctionDeclaration&>(*declaration);

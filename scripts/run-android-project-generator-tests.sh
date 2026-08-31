@@ -16,9 +16,13 @@ trap 'rm -rf "$outputDirectory"' EXIT
 "$crossaBinary" generate-build android \
     "$projectRoot/tests/kotlin-generator" \
     --output "$outputDirectory/project"
+"$crossaBinary" generate-build android \
+    "$projectRoot/tests/android-network-generator" \
+    --output "$outputDirectory/network-project"
 
 generatedProject="$outputDirectory/project"
 generatedSources="$generatedProject/library/src/main/kotlin/com/example/crossa"
+generatedNetworkProgram="$outputDirectory/network-project/library/src/main/cpp/CrossaGeneratedProgram.cpp"
 
 requireFile() {
     if [[ ! -f "$1" ]]; then
@@ -45,6 +49,7 @@ requireFile "$generatedProject/library/consumer-rules.pro"
 requireFile "$generatedProject/library/src/main/AndroidManifest.xml"
 requireFile "$generatedProject/library/src/main/cpp/CMakeLists.txt"
 requireFile "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cmake"
+requireFile "$generatedProject/library/src/main/cpp/CrossaOpenSslInstall.cmake"
 requireFile "$generatedProject/library/src/main/cpp/crossa_runtime.cpp"
 requireFile "$generatedSources/Math.kt"
 requireFile "$generatedSources/CrossaRuntime.kt"
@@ -55,6 +60,7 @@ requireText "$generatedProject/library/build.gradle.kts" 'namespace = "com.examp
 requireText "$generatedProject/library/src/main/cpp/CMakeLists.txt" '-Wl,-z,max-page-size=16384'
 requireText "$generatedProject/library/src/main/cpp/CMakeLists.txt" '-Wl,-z,common-page-size=16384'
 requireText "$generatedProject/library/src/main/cpp/CMakeLists.txt" 'CROSSA_ANDROID_EMBEDDED_CA_BUNDLE=1'
+requireText "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cmake" '-ffile-prefix-map='
 requireText "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cmake" 'openssl-3.0.15.tar.gz'
 requireText "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cmake" 'curl-8.12.1.tar.xz'
 requireText "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cmake" 'cacert-2025-02-25.pem'
@@ -64,5 +70,12 @@ requireText "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cm
 requireText "$generatedSources/CrossaRuntime.kt" 'fun configure(overrides: CrossaConfigurationOverrides)'
 requireText "$generatedSources/CrossaConfigurationOverrides.kt" 'data class CrossaConfigurationOverrides('
 requireText "$generatedSources/CrossaConfigurationOverrides.kt" 'data class Interceptor('
+requireText "$generatedNetworkProgram" 'make_unique<IrCrossaRequestExpression>'
+requireText "$generatedNetworkProgram" 'IrHttpMethod::Get'
+
+if [[ -e "$generatedProject/library/src/main/cpp/crossa/src/bindings/android/AndroidUnavailableCurlTransport.cpp" ]]; then
+    printf '%s\n' 'Generated Android project still contains the unavailable curl fallback.' >&2
+    exit 1
+fi
 
 printf '%s\n' 'Crossa Android project generator tests passed'

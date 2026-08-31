@@ -1,0 +1,18 @@
+model Post(
+    userId: Int,
+    id: Int,
+    title: String,
+    body: String
+)
+
+@AsyncAfter
+fun getPost(): Post {
+    re CrossaRequest {
+        url: "https://jsonplaceholder.typicode.com/posts/1",
+        method: GET,
+        headers: {
+            "Accept": "application/json"
+        },
+        timeout: 10000
+    }
+}
