@@ -11,6 +11,10 @@
 #include <utility>
 #include <vector>
 
+#if defined(CROSSA_ANDROID_EMBEDDED_CA_BUNDLE)
+#include "CrossaAndroidCaBundle.h"
+#endif
+
 #include "crossa/network/HttpHeader.h"
 #include "crossa/network/HttpMethod.h"
 #include "crossa/network/NetworkPolicy.h"
@@ -357,15 +361,24 @@ private:
         }
         const NetworkPolicy::Certificate certificate =
             NetworkPolicy::parseCertificate(request.getCertificatePolicy());
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER,
-                         certificate.verifyPeer ? 1L : 0L);
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST,
-                         certificate.verifyHost ? 2L : 0L);
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 2L);
+#if defined(CROSSA_ANDROID_EMBEDDED_CA_BUNDLE)
+        curl_blob caBundle{
+            const_cast<char*>(kCrossaAndroidCaBundle),
+            kCrossaAndroidCaBundleSize,
+            CURL_BLOB_NOCOPY
+        };
+        curl_easy_setopt(handle, CURLOPT_CAINFO_BLOB, &caBundle);
+#endif
         if (!certificate.caInfo.empty()) {
             curl_easy_setopt(handle, CURLOPT_CAINFO, certificate.caInfo.c_str());
-        } else {
+        }
+#if !defined(CROSSA_ANDROID_EMBEDDED_CA_BUNDLE)
+        else {
             curl_easy_setopt(handle, CURLOPT_CAINFO, nullptr);
         }
+#endif
         if (!certificate.clientCertificate.empty()) {
             curl_easy_setopt(handle, CURLOPT_SSLCERT,
                              certificate.clientCertificate.c_str());

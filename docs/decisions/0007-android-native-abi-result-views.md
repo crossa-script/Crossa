@@ -34,6 +34,14 @@ or native object addresses. Android views are lazy: list size, one element, and
 one field each cross only when requested. Nested model/list fields require a
 future ABI accessor with the same root-result ownership rule.
 
+The ABI runtime registry owns `shared_ptr<NativeRuntime>` instances, not a
+parallel result registry. `NativeRuntime::resultContext()` is the only storage
+for result, error, model, and list handles. ABI calls acquire a temporary strong
+runtime reference while accessing that context after releasing the registry
+mutex. `crossaReleaseRuntime` shuts down the runtime before dropping its last
+registry reference, invalidating all remaining handles; result handles may
+outlive operation handles but not their runtime.
+
 ## Compatibility and Migration
 
 This adds an internal ABI version axis without changing `.cra` syntax. Android

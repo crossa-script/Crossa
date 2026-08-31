@@ -154,6 +154,7 @@ add_executable(
     include/crossa/runtime/NativeOperationCatalog.h
     include/crossa/runtime/NativeRuntime.h
     include/crossa/bindings/shared-abi/CrossaAbi.h
+    include/crossa/bindings/shared-abi/CrossaAbiRuntimeFactory.h
     include/crossa/bindings/shared-abi/CrossaRuntimeContext.h
     include/crossa/runtime/scheduler/SchedulerOptions.h
     include/crossa/runtime/scheduler/ScheduledTask.h
@@ -191,6 +192,7 @@ add_executable(
 )
 
 target_compile_features(crossa PRIVATE cxx_std_20)
+target_compile_definitions(crossa PRIVATE CROSSA_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
 
 target_include_directories(
     crossa
@@ -289,6 +291,7 @@ add_executable(
 )
 
 target_compile_features(crossa_language_tests PRIVATE cxx_std_20)
+target_compile_definitions(crossa_language_tests PRIVATE CROSSA_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
 target_include_directories(crossa_language_tests PRIVATE include)
 target_link_libraries(crossa_language_tests PRIVATE Threads::Threads)
 

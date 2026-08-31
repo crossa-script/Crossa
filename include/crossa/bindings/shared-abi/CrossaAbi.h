@@ -19,6 +19,15 @@ typedef uint64_t CrossaResultHandle;
 // Identifies one borrowed native model view inside a result.
 typedef uint64_t CrossaModelHandle;
 
+// Identifies one opaque runtime-owned native error.
+typedef uint64_t CrossaErrorHandle;
+
+// Identifies one accepted native asynchronous invocation.
+typedef uint64_t CrossaOperationHandle;
+
+// Identifies one deterministic generated runtime operation.
+typedef uint64_t CrossaOperationId;
+
 // Identifies stable success and failure outcomes from ABI calls.
 typedef enum CrossaStatus {
     CrossaStatusOk = 0,
@@ -47,16 +56,105 @@ typedef struct CrossaStringView {
     size_t size;
 } CrossaStringView;
 
-// Creates an empty runtime context that owns ABI result handles.
+// Distinguishes the POD argument values accepted by native invocation.
+typedef enum CrossaAbiArgumentKind {
+    CrossaAbiArgumentInt = 0,
+    CrossaAbiArgumentLong = 1,
+    CrossaAbiArgumentDouble = 2,
+    CrossaAbiArgumentBool = 3,
+    CrossaAbiArgumentString = 4
+} CrossaAbiArgumentKind;
+
+// Carries one non-owning typed argument for the duration of an ABI call.
+typedef struct CrossaAbiArgument {
+    CrossaAbiArgumentKind kind;
+    int64_t integerValue;
+    double doubleValue;
+    CrossaStringView stringValue;
+} CrossaAbiArgument;
+
+// Identifies the terminal state delivered for an asynchronous operation.
+typedef enum CrossaAbiCompletionKind {
+    CrossaAbiCompletionSuccess = 0,
+    CrossaAbiCompletionFailed = 1,
+    CrossaAbiCompletionCancelled = 2
+} CrossaAbiCompletionKind;
+
+// Delivers one terminal operation state; result and error belong to runtime.
+typedef void (*CrossaAbiCompletion)(
+    void* userData,
+    CrossaAbiCompletionKind kind,
+    CrossaResultHandle result,
+    CrossaErrorHandle error
+);
+
+// Starts a generated fire-and-forget Async operation.
+CrossaStatus crossaInvokeAsync(
+    CrossaRuntimeHandle runtime,
+    CrossaOperationId operation,
+    const CrossaAbiArgument* arguments,
+    size_t argumentCount,
+    CrossaOperationHandle* invocation
+);
+
+// Starts a generated AsyncAfter operation with exactly one terminal callback.
+CrossaStatus crossaInvokeAsyncAfter(
+    CrossaRuntimeHandle runtime,
+    CrossaOperationId operation,
+    const CrossaAbiArgument* arguments,
+    size_t argumentCount,
+    CrossaAbiCompletion completion,
+    void* userData,
+    CrossaOperationHandle* invocation
+);
+
+// Requests idempotent cancellation for one accepted native operation.
+CrossaStatus crossaCancelOperation(
+    CrossaRuntimeHandle runtime,
+    CrossaOperationHandle operation
+);
+
+// Releases the caller-owned handle for one terminal native operation.
+CrossaStatus crossaReleaseOperation(
+    CrossaRuntimeHandle runtime,
+    CrossaOperationHandle operation
+);
+
+// Deprecated: runtime construction requires a generated native program.
 CrossaStatus crossaCreateRuntime(CrossaRuntimeHandle* runtime);
 
-// Destroys a runtime context and invalidates all its result handles.
+// Destroys a runtime and invalidates every remaining result and error handle.
 void crossaReleaseRuntime(CrossaRuntimeHandle runtime);
+
+// Stops a runtime, cancels accepted operations, and preserves retained results.
+CrossaStatus crossaRuntimeShutdown(CrossaRuntimeHandle runtime);
 
 // Releases a result exactly once; repeated calls fail safely.
 CrossaStatus crossaReleaseResult(
     CrossaRuntimeHandle runtime,
     CrossaResultHandle result
+);
+
+// Releases one error and makes future accesses fail deterministically.
+CrossaStatus crossaReleaseError(
+    CrossaRuntimeHandle runtime,
+    CrossaErrorHandle error
+);
+
+// Reads a borrowed error message valid until the error handle is released.
+CrossaStatus crossaGetErrorMessage(
+    CrossaRuntimeHandle runtime,
+    CrossaErrorHandle error,
+    CrossaStringView* value
+);
+
+// Reads stable numeric error metadata without exposing C++ error objects.
+CrossaStatus crossaGetErrorMetadata(
+    CrossaRuntimeHandle runtime,
+    CrossaErrorHandle error,
+    int32_t* domain,
+    int32_t* code,
+    uint8_t* retryable
 );
 
 // Returns the root result value category.

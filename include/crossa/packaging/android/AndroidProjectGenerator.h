@@ -43,6 +43,21 @@ private:
         const std::string& content
     );
 
+    // Copies one trusted generated-project binary or script and preserves permissions.
+    static void copyFile(
+        const std::filesystem::path& sourcePath,
+        const std::filesystem::path& outputPath,
+        bool executable
+    );
+
+    // Copies the repository-pinned Gradle Wrapper into a generated project.
+    static void writeGradleWrapper(const std::filesystem::path& outputDirectory);
+
+    // Writes deterministic Android OpenSSL, curl, and CA dependency provisioning.
+    static void writeAndroidDependencies(
+        const std::filesystem::path& outputDirectory
+    );
+
     // Writes the Gradle project and Android library build definitions.
     static void writeBuildFiles(
         const std::filesystem::path& outputDirectory,

@@ -127,7 +127,7 @@ namespace crossa::compiler::generators::native {
             for (const unique_ptr<ir::IrStatement>& statement : function.getStatements()) output << "statements.push_back(" << NativeProgramEmitter::statement(*statement) << ");\n";
             output << "declarations.push_back(make_unique<IrFunctionDeclaration>(" << NativeProgramEmitter::quote(function.getName()) << ", IrExecutionPolicy::" << (function.getExecutionPolicy() == ir::IrExecutionPolicy::AsyncAfter ? "AsyncAfter" : function.getExecutionPolicy() == ir::IrExecutionPolicy::Async ? "Async" : "Sync") << ", move(parameters), " << NativeProgramEmitter::type(function.getReturnType()) << ", move(statements), SourceLocation(1, 1))); }\n";
         }
-        output << "return compiler::ir::Program({}, " << NativeProgramEmitter::quote(program.getIdentity()) << ", move(declarations)); }\n}\n";
+        output << "return compiler::ir::Program({}, " << NativeProgramEmitter::quote(program.getIdentity()) << ", std::move(declarations)); }\n}\n";
         return output.str();
     }
 

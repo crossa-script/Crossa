@@ -28,6 +28,39 @@ public:
 
     // Returns the Kotlin Android plugin version used by generated AAR builds.
     [[nodiscard]] static std::string kotlinAndroidPluginVersion();
+
+    // Returns the Gradle version supplied by the trusted generated wrapper.
+    [[nodiscard]] static std::string gradleWrapperVersion();
+
+    // Returns the single Android ABI currently packaged by generated AARs.
+    [[nodiscard]] static std::string supportedAbi();
+
+    // Returns the pinned OpenSSL source version used by generated Android projects.
+    [[nodiscard]] static std::string openSslVersion();
+
+    // Returns the verified official OpenSSL source archive URL.
+    [[nodiscard]] static std::string openSslArchiveUrl();
+
+    // Returns the SHA-256 digest for the pinned OpenSSL archive.
+    [[nodiscard]] static std::string openSslArchiveSha256();
+
+    // Returns the pinned libcurl source version used by generated Android projects.
+    [[nodiscard]] static std::string curlVersion();
+
+    // Returns the verified official libcurl source archive URL.
+    [[nodiscard]] static std::string curlArchiveUrl();
+
+    // Returns the SHA-256 digest for the pinned libcurl archive.
+    [[nodiscard]] static std::string curlArchiveSha256();
+
+    // Returns the pinned Mozilla CA bundle release used by generated Android projects.
+    [[nodiscard]] static std::string caBundleVersion();
+
+    // Returns the verified CA bundle URL maintained by the curl project.
+    [[nodiscard]] static std::string caBundleUrl();
+
+    // Returns the SHA-256 digest for the pinned CA bundle.
+    [[nodiscard]] static std::string caBundleSha256();
 };
 
 }

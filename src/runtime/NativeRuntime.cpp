@@ -9,13 +9,13 @@ namespace crossa::runtime {
 
     // Creates one runtime over immutable program and optional configuration IR.
     NativeRuntime::NativeRuntime(
-        const compiler::ir::Program& program,
+        compiler::ir::Program program,
         const compiler::ir::Program* configurationProgram,
         const utils::Log& log
     )
-        : program_(program),
+        : program_(std::move(program)),
           log_(log),
-          configuration_(RuntimeConfiguration::load(program, configurationProgram)),
+          configuration_(RuntimeConfiguration::load(program_, configurationProgram)),
           networkEngine_(
               configuration_.getNetworkConfiguration(),
               log_,
@@ -117,6 +117,11 @@ namespace crossa::runtime {
     bindings::sharedabi::CrossaRuntimeContext&
     NativeRuntime::resultContext() noexcept {
         return resultContext_;
+    }
+
+    // Stops the shared scheduler before runtime-owned state is released.
+    void NativeRuntime::shutdown() {
+        scheduler_.shutdown();
     }
 
     // Resolves a generated operation ID or raises a native runtime error.

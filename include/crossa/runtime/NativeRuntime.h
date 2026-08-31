@@ -21,7 +21,7 @@ class NativeRuntime final {
 public:
     // Creates one runtime over immutable program and optional configuration IR.
     NativeRuntime(
-        const compiler::ir::Program& program,
+        compiler::ir::Program program,
         const compiler::ir::Program* configurationProgram,
         const utils::Log& log
     );
@@ -64,6 +64,9 @@ public:
     // Returns the context that owns result handles returned to platform bindings.
     [[nodiscard]] bindings::sharedabi::CrossaRuntimeContext& resultContext() noexcept;
 
+    // Stops the scheduler and prevents future native operation execution.
+    void shutdown();
+
 private:
     // Resolves a generated operation ID or raises a native runtime error.
     [[nodiscard]] const compiler::ir::IrFunctionDeclaration& requireOperation(
@@ -73,7 +76,7 @@ private:
     // Stores one request handle behind a non-reused native operation identifier.
     [[nodiscard]] std::uint64_t retainOperation(RequestHandle request);
 
-    const compiler::ir::Program& program_;
+    compiler::ir::Program program_;
     const utils::Log& log_;
     RuntimeConfiguration configuration_;
     network::NetworkEngine networkEngine_;

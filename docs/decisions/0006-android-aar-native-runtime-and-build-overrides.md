@@ -46,6 +46,22 @@ scheduling, and completion state.
 - Release performance defaults favor measured C++ optimization, capability
   pruning, connection reuse, bounded scheduling, and coarse JNI calls. Exact
   compiler flags, worker counts, and buffer sizes remain benchmark decisions.
+- Generated projects copy the repository-trusted Gradle Wrapper (Gradle 9.3.0)
+  and make `gradlew` executable. The wrapper remains the sole generated Gradle
+  version source.
+- Generated arm64-v8a projects provision OpenSSL 3.0.15 and curl 8.12.1 from
+  their official source archives. The generated CMake file verifies SHA-256
+  before extraction: OpenSSL
+  `23c666d0edf20f14249b3d8f0368acaee9ab585b09e1de82107c66e1f3ec9533`
+  and curl
+  `0341f1ed97a26c811abaebd37d62b833956792b7607ea3f15d001613c76de202`.
+  Both libraries are built as PIC static archives for Android API 23 and
+  linked into `libcrossa_runtime.so`.
+- The generated runtime downloads the curl-maintained Mozilla CA bundle
+  `cacert-2025-02-25.pem`, verifies SHA-256
+  `50a6277ec69113f00c5fd45f09e8b97a4b3e32daa35d3a95ab30137a55386cef`,
+  compiles its bytes into the native runtime, and configures curl with
+  `CURLOPT_CAINFO_BLOB`. Peer and host verification remain enabled.
 
 ## Alternatives
 
@@ -69,6 +85,9 @@ scheduling, and completion state.
 - Performance claims require Android ARM64 benchmark results for release
   builds; compiler flags alone are not evidence of better request latency or
   threading behavior.
+- Generated AARs do not expose libcurl, libssl, or libcrypto as runtime shared
+  library dependencies. The sole advertised ABI is arm64-v8a until another ABI
+  has equivalent verified dependency provisioning and AAR inspection.
 
 ## Compatibility and Migration
 

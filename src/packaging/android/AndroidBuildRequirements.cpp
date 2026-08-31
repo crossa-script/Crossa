@@ -40,6 +40,12 @@ namespace crossa::packaging::android {
                 if (compareVersions(version, minimumVersion) < 0) {
                     continue;
                 }
+                const filesystem::path toolchain = entry.path() / "toolchains" /
+                    "llvm" / "prebuilt";
+                if (!filesystem::is_directory(toolchain, error) || error) {
+                    error.clear();
+                    continue;
+                }
                 if (selectedVersion.empty() ||
                     compareVersions(version, selectedVersion) > 0) {
                     selectedVersion = version;
@@ -140,6 +146,61 @@ namespace crossa::packaging::android {
     // Returns the Kotlin Android plugin version used by generated AAR builds.
     string AndroidBuildRequirements::kotlinAndroidPluginVersion() {
         return "2.0.21";
+    }
+
+    // Returns the Gradle version supplied by the trusted generated wrapper.
+    string AndroidBuildRequirements::gradleWrapperVersion() {
+        return "9.3.0";
+    }
+
+    // Returns the single Android ABI currently packaged by generated AARs.
+    string AndroidBuildRequirements::supportedAbi() {
+        return "arm64-v8a";
+    }
+
+    // Returns the pinned OpenSSL source version used by generated Android projects.
+    string AndroidBuildRequirements::openSslVersion() {
+        return "3.0.15";
+    }
+
+    // Returns the verified official OpenSSL source archive URL.
+    string AndroidBuildRequirements::openSslArchiveUrl() {
+        return "https://www.openssl.org/source/openssl-3.0.15.tar.gz";
+    }
+
+    // Returns the SHA-256 digest for the pinned OpenSSL archive.
+    string AndroidBuildRequirements::openSslArchiveSha256() {
+        return "23c666d0edf20f14249b3d8f0368acaee9ab585b09e1de82107c66e1f3ec9533";
+    }
+
+    // Returns the pinned libcurl source version used by generated Android projects.
+    string AndroidBuildRequirements::curlVersion() {
+        return "8.12.1";
+    }
+
+    // Returns the verified official libcurl source archive URL.
+    string AndroidBuildRequirements::curlArchiveUrl() {
+        return "https://curl.se/download/curl-8.12.1.tar.xz";
+    }
+
+    // Returns the SHA-256 digest for the pinned libcurl archive.
+    string AndroidBuildRequirements::curlArchiveSha256() {
+        return "0341f1ed97a26c811abaebd37d62b833956792b7607ea3f15d001613c76de202";
+    }
+
+    // Returns the pinned Mozilla CA bundle release used by generated Android projects.
+    string AndroidBuildRequirements::caBundleVersion() {
+        return "2025-02-25";
+    }
+
+    // Returns the verified CA bundle URL maintained by the curl project.
+    string AndroidBuildRequirements::caBundleUrl() {
+        return "https://curl.se/ca/cacert-2025-02-25.pem";
+    }
+
+    // Returns the SHA-256 digest for the pinned CA bundle.
+    string AndroidBuildRequirements::caBundleSha256() {
+        return "50a6277ec69113f00c5fd45f09e8b97a4b3e32daa35d3a95ab30137a55386cef";
     }
 
 }

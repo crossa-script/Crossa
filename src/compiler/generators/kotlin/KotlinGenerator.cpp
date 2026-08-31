@@ -138,7 +138,7 @@ namespace crossa::compiler::generators::kotlin {
         arguments += ")";
         const string identifier = operationLiteral(sourceIdentity, function);
         if (function.getExecutionPolicy() == ir::IrExecutionPolicy::Async) {
-            writer.writeLine("CrossaNativeBridge.invokeAsync(" + identifier + ", " + arguments + ")");
+            writer.writeLine("CrossaNativeBridge.invokeAsync(CrossaRuntime.requireHandle(), " + identifier + ", " + arguments + ")");
         } else {
             const types::SemanticType& resultType = function.getReturnType();
             string mapper;
@@ -179,7 +179,7 @@ namespace crossa::compiler::generators::kotlin {
                         failUnsupported("native-backed Android result type");
                 }
             }
-            writer.writeLine("CrossaNativeBridge.invokeAsyncAfter(" + identifier + ", " + arguments + ", " + mapper + ", onState)");
+            writer.writeLine("CrossaNativeBridge.invokeAsyncAfter(CrossaRuntime.requireHandle(), " + identifier + ", " + arguments + ", " + mapper + ", onState)");
         }
         writer.endBlock();
     }

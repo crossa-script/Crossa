@@ -7,6 +7,7 @@
 
 #include "crossa/bindings/shared-abi/CrossaAbi.h"
 #include "crossa/runtime/RuntimeValue.h"
+#include "crossa/runtime/errors/CrossaError.h"
 
 namespace crossa::bindings::sharedabi {
 
@@ -30,11 +31,25 @@ public:
         CrossaResultHandle result
     ) const;
 
+    // Stores one terminal native error and returns its opaque error handle.
+    [[nodiscard]] CrossaErrorHandle retainError(runtime::CrossaError error);
+
+    // Releases one error handle and its retained native storage.
+    [[nodiscard]] CrossaStatus releaseError(CrossaErrorHandle error);
+
+    // Returns one retained error or null when the handle is invalid.
+    [[nodiscard]] std::shared_ptr<const runtime::CrossaError> findError(
+        CrossaErrorHandle error
+    ) const;
+
 private:
     std::uint64_t nextResult_ = 1;
     mutable std::mutex mutex_;
     std::unordered_map<CrossaResultHandle, std::shared_ptr<const runtime::RuntimeValue>>
         results_;
+    std::uint64_t nextError_ = 1;
+    std::unordered_map<CrossaErrorHandle, std::shared_ptr<const runtime::CrossaError>>
+        errors_;
 };
 
 }

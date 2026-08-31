@@ -2,10 +2,10 @@
 
 ## Status
 
-The CLI now generates the deterministic Android Gradle library project, its
-Kotlin configuration surface, Android manifest, and native CMake setup. Native
-runtime embedding, JNI configuration application, generated request/model
-bindings, and AAR assembly verification remain in progress.
+The generated Android project embeds the native execution/runtime sources,
+creates a `NativeRuntime` through the shared ABI, and registers JNI methods
+explicitly from `JNI_OnLoad`. Generated arm64-v8a AARs build the production
+native networking stack in both Debug and Release modes.
 
 ## Command
 
@@ -17,7 +17,26 @@ The command discovers the project `.cra` files, compiles them through the
 canonical C++ frontend, and writes the Android Gradle library project.
 `config.cra` is compiled as configuration and never becomes a Kotlin API class.
 The generated project is the input to its Gradle AAR assembly step while the
-native runtime embedding work is completed.
+native runtime embedding work is completed. It contains the repository-trusted
+Gradle Wrapper, including `gradlew`, `gradlew.bat`, and the wrapper JAR and
+properties, so a global `gradle` executable is not required.
+
+## Native Network Dependencies
+
+Generated Android projects provision their own static native dependencies with
+the Android NDK for arm64-v8a/API 23. The generated CMake cache verifies each
+official source download before extraction and reuses successful downloads and
+build output within the Gradle CMake build tree.
+
+- OpenSSL 3.0.15: SHA-256 `23c666d0edf20f14249b3d8f0368acaee9ab585b09e1de82107c66e1f3ec9533`
+- curl 8.12.1: SHA-256 `0341f1ed97a26c811abaebd37d62b833956792b7607ea3f15d001613c76de202`
+- curl Mozilla CA bundle `cacert-2025-02-25.pem`: SHA-256 `50a6277ec69113f00c5fd45f09e8b97a4b3e32daa35d3a95ab30137a55386cef`
+
+curl is built with the generated static OpenSSL archive and linked with it into
+`libcrossa_runtime.so`. The pinned CA bundle is generated as immutable native
+bytes and applied centrally with `CURLOPT_CAINFO_BLOB`; peer and hostname
+verification remain enabled. Kotlin does not load CA files or own transport
+behavior.
 
 ## Toolchain Validation
 
@@ -66,6 +85,32 @@ in-memory update before subsequent requests. Request invocation, cancellation,
 terminal completion, models, and lists use opaque handles. Native C++ owns
 HTTP, retries, serialization, response decoding, state transitions, and
 scheduling.
+
+`CrossaNativeBridge` is registered through `RegisterNatives`; no Java-mangled
+per-method exports are used. It creates a runtime from the generated
+`CrossaGeneratedProgram`, forwards scalar arguments to the shared ABI, retains
+asynchronous callbacks with a JNI global reference, and attaches a scheduler
+thread only while delivering its terminal callback. The bridge has no
+interpreter, scheduler, result registry, or networking implementation.
+
+## Runtime and Result Lifetime
+
+Each ABI runtime handle resolves to one `shared_ptr<NativeRuntime>`. That
+`NativeRuntime` owns the sole result/error context for the runtime; the ABI
+registry does not create a second result arena. A result or error is therefore
+identified by its owning runtime handle plus its local result/error handle.
+
+An accepted operation may be cancelled or released independently of a terminal
+result. Retained result/error handles remain readable after the operation
+handle is released, but never after `crossaReleaseRuntime`. Runtime release
+first shuts down and joins the native scheduler, then destroys the runtime and
+invalidates every remaining result/error handle. Bindings must close native
+result views before releasing their runtime during normal lifecycle teardown.
+
+ABI accesses acquire a temporary strong `NativeRuntime` reference from the
+registry and release the registry mutex before accessing result storage. This
+prevents a concurrent runtime release from leaving an ABI call with a dangling
+result-context reference.
 
 ## Result Views
 
