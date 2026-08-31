@@ -39,7 +39,7 @@ public:
 };
 
 // Inspects side-by-side Android NDK installations.
-// run() validates the required NDK version from AndroidBuildRequirements.
+// run() validates that one installed NDK meets the generated build minimum.
 class AndroidNdkCheck final {
 public:
     // Returns structured Android NDK results without writing output.

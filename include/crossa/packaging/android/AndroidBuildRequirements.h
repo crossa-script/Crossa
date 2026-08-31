@@ -5,14 +5,17 @@
 namespace crossa::packaging::android {
 
 // Defines Android build requirements shared by generation and environment checks.
-// compileSdkVersion(), ndkVersion(), cmakeMinimumVersion(), and javaToolchainVersion() expose the pinned values.
+// compileSdkVersion(), ndkVersion(), recommendedNdkVersion(), cmakeMinimumVersion(), and javaToolchainVersion() expose the Android build contract.
 class AndroidBuildRequirements final {
 public:
     // Returns the Android SDK platform API required by generated AAR builds.
     [[nodiscard]] static int compileSdkVersion() noexcept;
 
-    // Returns the side-by-side Android NDK version required by generated AAR builds.
+    // Returns the minimum side-by-side Android NDK version required by generated AAR builds.
     [[nodiscard]] static std::string ndkVersion();
+
+    // Returns the installed Android NDK version selected for generated Gradle builds.
+    [[nodiscard]] static std::string recommendedNdkVersion();
 
     // Returns the minimum CMake version declared by generated native build files.
     [[nodiscard]] static std::string cmakeMinimumVersion();

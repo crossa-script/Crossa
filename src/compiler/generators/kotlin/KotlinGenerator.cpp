@@ -1,6 +1,7 @@
 #include "crossa/compiler/generators/kotlin/KotlinGenerator.h"
 
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 
 #include "crossa/compiler/generators/kotlin/KotlinExpressionEmitter.h"
@@ -135,7 +136,7 @@ namespace crossa::compiler::generators::kotlin {
             arguments += "CrossaArgument.from(" + identifierEscaper_.escape(parameters[index].getName()) + ")";
         }
         arguments += ")";
-        const string identifier = to_string(operationId(sourceIdentity, function)) + "L";
+        const string identifier = operationLiteral(sourceIdentity, function);
         if (function.getExecutionPolicy() == ir::IrExecutionPolicy::Async) {
             writer.writeLine("CrossaNativeBridge.invokeAsync(" + identifier + ", " + arguments + ")");
         } else {
@@ -222,6 +223,16 @@ namespace crossa::compiler::generators::kotlin {
             value *= 1099511628211ULL;
         }
         return value;
+    }
+
+    // Formats one operation identifier as a Kotlin Long literal.
+    string KotlinGenerator::operationLiteral(
+        const string& sourceIdentity,
+        const ir::IrFunctionDeclaration& function
+    ) {
+        const uint64_t value = operationId(sourceIdentity, function);
+        const int64_t signedValue = static_cast<int64_t>(value);
+        return to_string(signedValue) + "L";
     }
 
     // Emits one pure Kotlin function signature.

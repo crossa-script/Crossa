@@ -757,19 +757,57 @@ namespace crossa::cli::doctor {
             };
         }
 
-        const filesystem::path ndkDirectory =
-            sdkDirectory.value() / "ndk" / requiredNdk;
-        const bool ndkAvailable =
-            DoctorCheckUtils::isReadableDirectory(ndkDirectory);
+        const filesystem::path ndkRoot = sdkDirectory.value() / "ndk";
+        string bestInstalledVersion;
+        bool ndkAvailable = false;
+        error_code error;
+        if (filesystem::is_directory(ndkRoot, error) && !error) {
+            for (const filesystem::directory_entry& entry :
+                 filesystem::directory_iterator(ndkRoot, error)) {
+                if (error) {
+                    break;
+                }
+                if (!entry.is_directory(error) || error) {
+                    error.clear();
+                    continue;
+                }
+                const string installedVersion =
+                    entry.path().filename().string();
+                if (DoctorCheckUtils::compareVersions(
+                        installedVersion,
+                        requiredNdk
+                    ) < 0) {
+                    if (bestInstalledVersion.empty() ||
+                        DoctorCheckUtils::compareVersions(
+                            installedVersion,
+                            bestInstalledVersion
+                        ) > 0) {
+                        bestInstalledVersion = installedVersion;
+                    }
+                    continue;
+                }
+                if (bestInstalledVersion.empty() ||
+                    DoctorCheckUtils::compareVersions(
+                        installedVersion,
+                        bestInstalledVersion
+                    ) > 0) {
+                    bestInstalledVersion = installedVersion;
+                }
+                ndkAvailable = true;
+            }
+        }
         return vector<DoctorResult>{
             DoctorResult{
                 ndkAvailable ? DoctorStatus::Passed : DoctorStatus::Failed,
                 "Android",
                 "Android NDK",
                 ndkAvailable
-                    ? requiredNdk
-                    : "required " + requiredNdk + ", not installed",
-                "Install the required Android NDK version."
+                    ? bestInstalledVersion
+                    : bestInstalledVersion.empty()
+                        ? "requires " + requiredNdk + " or newer, not installed"
+                        : "found " + bestInstalledVersion + ", requires " +
+                            requiredNdk + " or newer",
+                "Install Android NDK " + requiredNdk + " or newer."
             }
         };
     }

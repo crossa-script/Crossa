@@ -355,6 +355,9 @@ namespace crossa::cli {
             compileSiblingConfiguration(projectDirectory / "project.cra", log);
         const optional<string> packageName =
             readKotlinPackageName(configurationProgram);
+        const optional<string> kotlinPackageName = packageName.has_value()
+            ? packageName
+            : optional<string>("io.crossa.generated");
         compiler::generators::kotlin::KotlinGenerator generator;
         vector<compiler::generators::kotlin::KotlinGeneratedSource> sources;
         sources.reserve(sourcePaths.size());
@@ -376,7 +379,7 @@ namespace crossa::cli {
                 compiler::ir::IrLowerer::lower(semanticModel);
             sources.push_back(generator.generate(
                 program,
-                packageName,
+                kotlinPackageName,
                 compiler::generators::kotlin::KotlinGenerationTarget::AndroidNative
             ));
         }

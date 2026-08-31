@@ -70,6 +70,12 @@ private:
         const ir::IrFunctionDeclaration& function
     ) noexcept;
 
+    // Formats one operation identifier as a Kotlin Long literal.
+    [[nodiscard]] static std::string operationLiteral(
+        const std::string& sourceIdentity,
+        const ir::IrFunctionDeclaration& function
+    );
+
     // Emits one Kotlin function signature using the canonical wrapping policy.
     void emitFunctionSignature(
         const ir::IrFunctionDeclaration& function,

@@ -161,7 +161,7 @@ namespace crossa::packaging::android {
                 to_string(AndroidBuildRequirements::compileSdkVersion()) +
                 "\n\n"
             "    ndkVersion = \"" +
-                AndroidBuildRequirements::ndkVersion() +
+                AndroidBuildRequirements::recommendedNdkVersion() +
                 "\"\n\n"
             "    defaultConfig {\n"
             "        minSdk = 23\n"
@@ -222,7 +222,7 @@ namespace crossa::packaging::android {
         writeFile(
             sourceDirectory / "CrossaArgument.kt",
             "package " + packageName + "\n\n"
-            "public sealed class CrossaArgument internal constructor() {\n"
+            "public sealed class CrossaArgument private constructor() {\n"
             "    internal data class IntValue(val value: Int) : CrossaArgument()\n"
             "    internal data class LongValue(val value: Long) : CrossaArgument()\n"
             "    internal data class DoubleValue(val value: Double) : CrossaArgument()\n"
