@@ -1,6 +1,7 @@
 #include "crossa/network/NetworkInterceptor.h"
 
 #include "crossa/network/HttpMethod.h"
+#include "crossa/network/NetworkPolicy.h"
 #include "crossa/network/utils/UrlUtils.h"
 
 using namespace std;
@@ -35,28 +36,31 @@ namespace crossa::network {
             return;
         }
         if (configuration_.shouldLogRequests()) {
-            string message =
+            const string message =
                 "Network request started: method=" +
                 string(HttpMethodUtils::toString(request.getMethod())) +
                 " url=" + utils::UrlUtils::stripQuery(request.getUrl()) +
                 " headers=" + to_string(request.getHeaders().size()) +
-                " bodyBytes=" + to_string(
+                " requestBytes=" + to_string(
                     request.getBody().has_value()
                         ? request.getBody()->size()
                         : 0
                 );
+            log_.debug(message);
             if (configuration_.shouldLogHeaders()) {
-                message += " headerValues=" +
-                    formatHeaders(request.getHeaders());
+                log_.debug(
+                    "Network request headers: " +
+                    formatHeaders(request.getHeaders())
+                );
             }
             if (configuration_.shouldLogBody() && request.getBody().has_value()) {
-                message += " body=" + *request.getBody();
+                log_.debug("Network request body: " + *request.getBody());
             }
-            log_.debug(message);
+            log_.debug("Network request curl: " + buildCurlCommand(request));
         }
     }
 
-    // Reports response status and size without logging sensitive bodies.
+    // Reports response status and emits optional response values.
     void NetworkInterceptor::afterResponse(
         const request::PreparedRequest& request,
         const response::HttpResponse& response
@@ -65,18 +69,21 @@ namespace crossa::network {
             !configuration_.shouldLogResponses()) {
             return;
         }
-        string message =
+        const string message =
             "Network request completed: url=" +
             utils::UrlUtils::stripQuery(request.getUrl()) +
             " status=" + to_string(response.getStatusCode()) +
             " responseBytes=" + to_string(response.getBody().size());
+        log_.debug(message);
         if (configuration_.shouldLogHeaders()) {
-            message += " headerValues=" + formatHeaders(response.getHeaders());
+            log_.debug(
+                "Network response headers: " +
+                formatHeaders(response.getHeaders())
+            );
         }
         if (configuration_.shouldLogBody()) {
-            message += " body=" + response.getBody();
+            log_.debug("Network response body: " + response.getBody());
         }
-        log_.debug(message);
     }
 
     // Reports a sanitized request failure for the global interception path.
@@ -101,15 +108,7 @@ namespace crossa::network {
         string result = "[";
         bool first = true;
         for (const HttpHeader& header : headers) {
-            bool excluded = false;
-            for (const string& excludedName :
-                 configuration_.getExcludedLogHeaders()) {
-                if (headerNamesEqual(header.getName(), excludedName)) {
-                    excluded = true;
-                    break;
-                }
-            }
-            if (excluded) {
+            if (isHeaderExcluded(header.getName())) {
                 continue;
             }
             if (!first) {
@@ -119,6 +118,77 @@ namespace crossa::network {
             result += header.getName() + "=" + header.getValue();
         }
         return result + "]";
+    }
+
+    // Builds one copyable curl command from the prepared request.
+    string NetworkInterceptor::buildCurlCommand(
+        const request::PreparedRequest& request
+    ) const {
+        string command = "curl";
+        command += " -X " + escapeShellArgument(
+            string(HttpMethodUtils::toString(request.getMethod()))
+        );
+        if (configuration_.shouldLogHeaders()) {
+            for (const HttpHeader& header : request.getHeaders()) {
+                if (isHeaderExcluded(header.getName())) {
+                    continue;
+                }
+                command += " -H " + escapeShellArgument(
+                    header.getName() + ": " + header.getValue()
+                );
+            }
+        }
+        if (request.getMultipart().has_value() &&
+            configuration_.shouldLogBody()) {
+            for (const NetworkPolicy::MultipartPart& part :
+                 NetworkPolicy::parseMultipart(*request.getMultipart())) {
+                string value = part.name + "=";
+                if (part.filePath.has_value()) {
+                    value += "@" + *part.filePath;
+                } else if (part.data.has_value()) {
+                    value += *part.data;
+                }
+                if (part.filename.has_value()) {
+                    value += ";filename=" + *part.filename;
+                }
+                if (part.contentType.has_value()) {
+                    value += ";type=" + *part.contentType;
+                }
+                command += " -F " + escapeShellArgument(value);
+            }
+        } else if (request.getBody().has_value() &&
+                   configuration_.shouldLogBody()) {
+            command += " --data-raw " +
+                escapeShellArgument(*request.getBody());
+        }
+        command += " " + escapeShellArgument(request.getUrl());
+        return command;
+    }
+
+    // Returns whether one header name must be removed from logs.
+    bool NetworkInterceptor::isHeaderExcluded(
+        const string& name
+    ) const noexcept {
+        for (const string& excludedName : configuration_.getExcludedLogHeaders()) {
+            if (headerNamesEqual(name, excludedName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Escapes one shell argument for safe single-line curl output.
+    string NetworkInterceptor::escapeShellArgument(const string& value) {
+        string escaped = "'";
+        for (const char character : value) {
+            if (character == '\'') {
+                escaped += "'\"'\"'";
+                continue;
+            }
+            escaped.push_back(character);
+        }
+        escaped.push_back('\'');
+        return escaped;
     }
 
     // Compares two header names without ASCII case sensitivity.

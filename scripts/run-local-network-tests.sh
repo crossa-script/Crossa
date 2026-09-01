@@ -83,15 +83,29 @@ runCase() {
 }
 
 localOutput="$(runCase "$projectRoot/tests/local-network/request.cra" 0 '' true)"
-networkLogs="$(printf '%s\n' "$localOutput" | grep 'Network request' || true)"
-if [[ "$networkLogs" != *'headerValues='* ]]; then
-    fail 'Enabled header logging did not appear.'
+if [[ "$localOutput" != *'Network request headers:'* ]]; then
+    fail 'Enabled request header logging did not appear.'
 fi
-if [[ "$networkLogs" != *'body='* ]]; then
-    fail 'Enabled body logging did not appear.'
+if [[ "$localOutput" != *'Network request body:'* ]]; then
+    fail 'Enabled request body logging did not appear.'
 fi
-if [[ "$networkLogs" == *'secret-token'* ]]; then
+if [[ "$localOutput" != *'Network response body:'* ]]; then
+    fail 'Enabled response body logging did not appear.'
+fi
+if [[ "$localOutput" != *'Network request curl: curl '* ]]; then
+    fail 'Copyable curl logging did not appear.'
+fi
+if [[ "$localOutput" != *"--data-raw"* ]]; then
+    fail 'Serialized request body did not appear in curl logging.'
+fi
+if [[ "$localOutput" != *"/posts/1?page=1"* ]]; then
+    fail 'Final request URL did not appear in curl logging.'
+fi
+if [[ "$localOutput" == *'secret-token'* ]]; then
     fail 'Excluded Authorization header appeared in logs.'
+fi
+if [[ "$localOutput" == *'Bearer expired-token'* ]]; then
+    fail 'Refreshed Authorization token appeared in logs.'
 fi
 if [[ "$localOutput" != *'telemetry event=completed'* ]]; then
     fail 'Structured telemetry event did not appear.'

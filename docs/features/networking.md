@@ -16,8 +16,12 @@ The configured interceptor observes every request. It appends common headers and
 can emit debug lifecycle events. `logHeaders` and `logBody` independently
 control request and response values and default to `false`. When header logging
 is enabled, `excludedHeaders` removes matching names case-insensitively from
-both request and response logs. Header and body values are never logged unless
-their corresponding options are enabled.
+both request and response logs. When request logging is enabled, Crossa also
+emits one copyable `curl` command built from the final prepared request so the
+same request can be replayed outside Crossa. The emitted `curl` command omits
+excluded headers and only includes headers or body content when `logHeaders`
+or `logBody` allow them. Header and body values are never logged unless their
+corresponding options are enabled.
 
 ```cra
 interceptor: {

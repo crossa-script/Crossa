@@ -1,6 +1,9 @@
 #include <atomic>
 #include <future>
+#include <iostream>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -11,6 +14,11 @@
 #include "crossa/compiler/ir/Program.h"
 #include "crossa/compiler/source/SourceLocation.h"
 #include "crossa/compiler/types/SemanticType.h"
+#include "crossa/network/HttpMethod.h"
+#include "crossa/network/NetworkConfiguration.h"
+#include "crossa/network/NetworkInterceptor.h"
+#include "crossa/network/request/PreparedRequest.h"
+#include "crossa/network/response/HttpResponse.h"
 #include "crossa/network/response/ResponseDecoder.h"
 #include "crossa/runtime/errors/CrossaException.h"
 #include "crossa/runtime/objects/NativeList.h"
@@ -32,6 +40,7 @@ public:
         verifyStateAndErrorContract();
         verifyTypedResponseDecoding();
         verifyDecoderErrors();
+        verifyNetworkLoggingContract();
         verifyQueuedCancellation();
         verifyExecutingCancellation();
         verifyShutdownCancellation();
@@ -303,10 +312,100 @@ private:
             );
         } catch (const runtime::CrossaException& error) {
             require(error.getError().getCode() == expectedCode,
-                    "Decoder produced the wrong CrossaError code.");
+            "Decoder produced the wrong CrossaError code.");
             return;
         }
         throw runtime_error("Decoder did not produce the expected error.");
+    }
+
+    // Verifies request and response logs emit bodies and a copyable curl command.
+    static void verifyNetworkLoggingContract() {
+        network::NetworkConfiguration configuration;
+        configuration.setInterceptorEnabled(true);
+        configuration.setLogRequests(true);
+        configuration.setLogResponses(true);
+        configuration.setLogHeaders(true);
+        configuration.setLogBody(true);
+        configuration.setExcludedLogHeaders(vector<string>{"Authorization"});
+        configuration.setCommonHeaders(vector<network::HttpHeader>{
+            network::HttpHeader("X-Crossa-Common", "enabled")
+        });
+
+        utils::Log log(utils::Log::Level::Debug);
+        network::NetworkInterceptor interceptor(configuration, log);
+        network::request::PreparedRequest request(
+            network::HttpMethod::Post,
+            "https://example.test/posts?page=1",
+            vector<network::HttpHeader>{
+                network::HttpHeader("X-Crossa-Request", "value"),
+                network::HttpHeader("Authorization", "secret-token")
+            },
+            string("{\"title\":\"hello\"}"),
+            1000,
+            false,
+            4096,
+            nullopt,
+            nullopt,
+            nullopt,
+            nullopt,
+            optional<bool>(false),
+            optional<bool>(false),
+            nullopt
+        );
+        network::response::HttpResponse response(
+            201,
+            vector<network::HttpHeader>{
+                network::HttpHeader("Content-Type", "application/json")
+            },
+            "{\"id\":1,\"title\":\"hello\"}"
+        );
+
+        ostringstream captured;
+        streambuf* originalBuffer = cout.rdbuf(captured.rdbuf());
+        interceptor.beforeRequest(request);
+        interceptor.afterResponse(request, response);
+        cout.rdbuf(originalBuffer);
+
+        const string output = captured.str();
+        require(
+            output.find("Network request started: method=POST url=https://example.test/posts headers=4 requestBytes=17") !=
+                string::npos,
+            "Request summary log did not include final prepared metadata."
+        );
+        require(
+            output.find("Network request headers: [X-Crossa-Request=value, X-Crossa-Common=enabled, Content-Type=application/json, Accept=application/json]") !=
+                string::npos,
+            "Request header log did not include the prepared visible headers."
+        );
+        require(
+            output.find("Network request body: {\"title\":\"hello\"}") !=
+                string::npos,
+            "Request body log did not include the serialized body."
+        );
+        require(
+            output.find("Network request curl: curl -X 'POST' -H 'X-Crossa-Request: value' -H 'X-Crossa-Common: enabled' -H 'Content-Type: application/json' -H 'Accept: application/json' --data-raw '{\"title\":\"hello\"}' 'https://example.test/posts?page=1'") !=
+                string::npos,
+            "Request curl log did not include the copyable prepared request."
+        );
+        require(
+            output.find("secret-token") == string::npos,
+            "Excluded Authorization header leaked into network logs."
+        );
+        require(
+            output.find("Network request completed: url=https://example.test/posts status=201 responseBytes=24") !=
+                string::npos,
+            "Response summary log did not include status and response size."
+        );
+        require(
+            output.find("Network response headers: [Content-Type=application/json]") !=
+                string::npos,
+            "Response header log did not include visible response headers."
+        );
+        require(
+            output.find("Network response body: {\"id\":1,\"title\":\"hello\"}") !=
+                string::npos,
+            "Response body log did not include the response payload."
+        );
     }
 
     // Throws when one deterministic test condition is false.

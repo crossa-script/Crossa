@@ -41,6 +41,19 @@ private:
         const std::vector<HttpHeader>& headers
     ) const;
 
+    // Builds one copyable curl command from the prepared request.
+    [[nodiscard]] std::string buildCurlCommand(
+        const request::PreparedRequest& request
+    ) const;
+
+    // Returns whether one header name must be removed from logs.
+    [[nodiscard]] bool isHeaderExcluded(const std::string& name) const noexcept;
+
+    // Escapes one shell argument for safe single-line curl output.
+    [[nodiscard]] static std::string escapeShellArgument(
+        const std::string& value
+    );
+
     // Compares two header names without ASCII case sensitivity.
     [[nodiscard]] static bool headerNamesEqual(
         const std::string& left,

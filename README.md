@@ -65,6 +65,34 @@ fun getUsers(id: Int): List<User> {
 
 Here, `List<User>` is the logical success type. `CrossaRequest` lowers into a native request plan, executes through the shared C++ scheduler and Networking runtime, and produces `Success(data)` or `Failed(error)` semantics for generated platform APIs.
 
+## Android Networking Benchmark
+
+The Android demo compares the same `GET https://jsonplaceholder.typicode.com/posts` request across three clients:
+
+- Retrofit with OkHttp, interceptors, request headers, response mapping, and a new HTTP client per request.
+- Ktor Client with coroutines, response mapping, and a new HTTP client per request.
+- Crossa generated Android AAR from `.cra` files using `@AsyncAfter` callback APIs.
+
+Each scenario sends 5 requests with a 2000ms delay between calls. Cache is disabled by creating a fresh client for every request and sending:
+
+```text
+Cache-Control: no-cache, no-store, max-age=0
+Pragma: no-cache
+Expires: 0
+```
+
+The benchmark screen shows the average, min, max, per-request timings, request headers, response status, mapped first post, and response preview for each client.
+
+Latest emulator run:
+
+| Rank | Client | Average | Success |
+|------|--------|---------|---------|
+| 1 | Crossa AAR `@AsyncAfter` | 200.20ms | 5/5 |
+| 2 | Ktor Client | 959.20ms | 5/5 |
+| 3 | Retrofit + OkHttp | 1038.20ms | 5/5 |
+
+The result validates that the generated Crossa AAR can be built by the CLI, linked into the Android demo, called from Compose UI, execute the API request, map the JSON response into generated models, and report benchmark numbers beside Retrofit and Ktor.
+
 ## Native-First Architecture
 
 For runtime-backed features, C++ owns:
