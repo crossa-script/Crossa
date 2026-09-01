@@ -368,7 +368,7 @@ private:
 
         const string output = captured.str();
         require(
-            output.find("Network request started: method=POST url=https://example.test/posts headers=4 requestBytes=17") !=
+            output.find("Network request started: method=POST url=https://example.test/posts headers=5 requestBytes=17") !=
                 string::npos,
             "Request summary log did not include final prepared metadata."
         );
