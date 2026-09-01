@@ -263,10 +263,18 @@ namespace crossa::bindings::android {
     }
 
     // Reads a scalar string root result through the ABI.
-    static jstring nativeResultString(JNIEnv* environment, jobject, jlong runtime, jlong result) { CrossaStringView value{}; return newString(environment, value, crossaGetResultString(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaResultHandle>(result), &value)); }
+    static jstring nativeResultString(JNIEnv* environment, jobject, jlong runtime, jlong result) {
+        CrossaStringView value{};
+        const CrossaStatus status = crossaGetResultString(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaResultHandle>(result), &value);
+        return newString(environment, value, status);
+    }
 
     // Copies one structured native error message for Kotlin state delivery.
-    static jstring nativeErrorMessage(JNIEnv* environment, jobject, jlong runtime, jlong error) { CrossaStringView value{}; return newString(environment, value, crossaGetErrorMessage(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaErrorHandle>(error), &value)); }
+    static jstring nativeErrorMessage(JNIEnv* environment, jobject, jlong runtime, jlong error) {
+        CrossaStringView value{};
+        const CrossaStatus status = crossaGetErrorMessage(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaErrorHandle>(error), &value);
+        return newString(environment, value, status);
+    }
 
     // Releases one terminal error after Kotlin has copied its message.
     static void nativeReleaseError(JNIEnv*, jobject, jlong runtime, jlong error) { (void)crossaReleaseError(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaErrorHandle>(error)); }
@@ -276,7 +284,12 @@ namespace crossa::bindings::android {
     static jlong nativeModelLong(JNIEnv*, jobject, jlong runtime, jlong result, jlong model, jint field) { int64_t value = 0; return field >= 0 && crossaGetModelLong(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaResultHandle>(result), static_cast<CrossaModelHandle>(model), static_cast<uint32_t>(field), &value) == CrossaStatusOk ? value : 0; }
     static jdouble nativeModelDouble(JNIEnv*, jobject, jlong runtime, jlong result, jlong model, jint field) { double value = 0; return field >= 0 && crossaGetModelDouble(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaResultHandle>(result), static_cast<CrossaModelHandle>(model), static_cast<uint32_t>(field), &value) == CrossaStatusOk ? value : 0; }
     static jboolean nativeModelBoolean(JNIEnv*, jobject, jlong runtime, jlong result, jlong model, jint field) { uint8_t value = 0; return field >= 0 && crossaGetModelBool(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaResultHandle>(result), static_cast<CrossaModelHandle>(model), static_cast<uint32_t>(field), &value) == CrossaStatusOk && value ? JNI_TRUE : JNI_FALSE; }
-    static jstring nativeModelString(JNIEnv* environment, jobject, jlong runtime, jlong result, jlong model, jint field) { CrossaStringView value{}; return field < 0 ? environment->NewStringUTF("") : newString(environment, value, crossaGetModelString(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaResultHandle>(result), static_cast<CrossaModelHandle>(model), static_cast<uint32_t>(field), &value)); }
+    static jstring nativeModelString(JNIEnv* environment, jobject, jlong runtime, jlong result, jlong model, jint field) {
+        if (field < 0) return environment->NewStringUTF("");
+        CrossaStringView value{};
+        const CrossaStatus status = crossaGetModelString(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaResultHandle>(result), static_cast<CrossaModelHandle>(model), static_cast<uint32_t>(field), &value);
+        return newString(environment, value, status);
+    }
 
     bool AndroidJniMetadata::initialize(JavaVM* javaVm, JNIEnv* environment, const char* bridgeClassName, AndroidJniBridge::RuntimeCreator runtimeCreator) noexcept {
         lock_guard lock(mutex_);

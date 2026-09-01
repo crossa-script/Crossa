@@ -474,6 +474,16 @@ namespace crossa::cli {
         for (const unique_ptr<compiler::ir::Program>& program : programs) {
             programViews.push_back(program.get());
         }
+        vector<const compiler::ir::Program*> nativeProgramViews;
+        nativeProgramViews.reserve(programViews.size() + 1);
+        nativeProgramViews.insert(
+            nativeProgramViews.end(),
+            programViews.begin(),
+            programViews.end()
+        );
+        if (configurationProgram.has_value()) {
+            nativeProgramViews.push_back(&configurationProgram.value());
+        }
         const vector<compiler::generators::kotlin::KotlinGeneratedSource>
             sources = generator.generateProject(
                 programViews,
@@ -496,7 +506,7 @@ namespace crossa::cli {
         };
         projectGenerator.generate(
             sources,
-            programViews,
+            nativeProgramViews,
             packageName,
             arguments.outputDirectory.value(),
             buildVersions

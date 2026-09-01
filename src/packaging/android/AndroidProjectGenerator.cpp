@@ -828,7 +828,7 @@ namespace crossa::packaging::android {
             "#include <crossa/utils/Log.h>\n\n"
             "namespace {\n\n"
             "CrossaRuntimeHandle createGeneratedRuntime() {\n"
-            "    static const crossa::utils::Log log(crossa::utils::Log::Level::Error);\n"
+            "    static const crossa::utils::Log log(crossa::utils::Log::Level::Debug);\n"
             "    CrossaRuntimeHandle runtime = 0;\n"
             "    crossa::compiler::ir::Program program = crossa::generated::CrossaGeneratedProgram::create();\n"
             "    const CrossaStatus status = crossa::bindings::sharedabi::CrossaAbiRuntimeFactory::create(\n"

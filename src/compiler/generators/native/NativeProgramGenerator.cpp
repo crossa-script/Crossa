@@ -164,6 +164,24 @@ namespace crossa::compiler::generators::native {
             return output;
         }
 
+        static string config(const ir::IrConfigDeclaration& value) {
+            const source::SourceLocation& location = value.getLocation();
+            string output = "{ vector<IrConfigEntry> entries;\n";
+            for (const ir::IrConfigEntry& entry : value.getEntries()) {
+                const source::SourceLocation& entryLocation = entry.getLocation();
+                output += "entries.emplace_back(" + quote(entry.getName()) + ", " +
+                    type(entry.getType()) + ", " + expression(entry.getValue()) +
+                    ", SourceLocation(" + quote(string(entryLocation.getSourcePath())) +
+                    ", " + to_string(entryLocation.getLine()) + ", " +
+                    to_string(entryLocation.getColumn()) + "));\n";
+            }
+            output += "declarations.push_back(make_unique<IrConfigDeclaration>(move(entries), SourceLocation(" +
+                quote(string(location.getSourcePath())) + ", " +
+                to_string(location.getLine()) + ", " +
+                to_string(location.getColumn()) + "))); }\n";
+            return output;
+        }
+
     private:
         static string optionalExpression(const ir::IrExpression* value) {
             return value == nullptr ? "nullptr" : expression(*value);
@@ -225,6 +243,11 @@ namespace crossa::compiler::generators::native {
                 if (declaration->getKind() == ir::IrDeclarationKind::Model) {
                     const auto& model = static_cast<const ir::IrModelDeclaration&>(*declaration);
                     output << NativeProgramEmitter::model(model);
+                    continue;
+                }
+                if (declaration->getKind() == ir::IrDeclarationKind::Config) {
+                    const auto& config = static_cast<const ir::IrConfigDeclaration&>(*declaration);
+                    output << NativeProgramEmitter::config(config);
                     continue;
                 }
                 if (declaration->getKind() != ir::IrDeclarationKind::Function) continue;
