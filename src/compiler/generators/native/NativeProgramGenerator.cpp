@@ -145,6 +145,25 @@ namespace crossa::compiler::generators::native {
             throw runtime_error("Android native program generation does not support this IR statement.");
         }
 
+        static string model(const ir::IrModelDeclaration& value) {
+            const source::SourceLocation& location = value.getLocation();
+            string output = "{ vector<IrModelField> fields;\n";
+            for (const ir::IrModelField& field : value.getFields()) {
+                const source::SourceLocation& fieldLocation = field.getLocation();
+                output += "fields.emplace_back(" + quote(field.getName()) + ", " +
+                    type(field.getType()) + ", SourceLocation(" +
+                    quote(string(fieldLocation.getSourcePath())) + ", " +
+                    to_string(fieldLocation.getLine()) + ", " +
+                    to_string(fieldLocation.getColumn()) + "));\n";
+            }
+            output += "declarations.push_back(make_unique<IrModelDeclaration>(" +
+                quote(value.getName()) + ", move(fields), SourceLocation(" +
+                quote(string(location.getSourcePath())) + ", " +
+                to_string(location.getLine()) + ", " +
+                to_string(location.getColumn()) + "))); }\n";
+            return output;
+        }
+
     private:
         static string optionalExpression(const ir::IrExpression* value) {
             return value == nullptr ? "nullptr" : expression(*value);
@@ -203,6 +222,11 @@ namespace crossa::compiler::generators::native {
             }
             for (const unique_ptr<ir::IrDeclaration>& declaration :
                  program->getDeclarations()) {
+                if (declaration->getKind() == ir::IrDeclarationKind::Model) {
+                    const auto& model = static_cast<const ir::IrModelDeclaration&>(*declaration);
+                    output << NativeProgramEmitter::model(model);
+                    continue;
+                }
                 if (declaration->getKind() != ir::IrDeclarationKind::Function) continue;
                 const auto& function = static_cast<const ir::IrFunctionDeclaration&>(*declaration);
                 if (function.getExecutionPolicy() == ir::IrExecutionPolicy::Sync) continue;

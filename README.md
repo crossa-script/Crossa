@@ -226,6 +226,57 @@ toolchain required for generated Android AAR builds.
 | `crossa doctor` | Checks the default Android build toolchain on the current machine. | `crossa doctor` |
 | `crossa --version` | Prints the installed Crossa version. | `crossa --version` |
 
+### CLI Examples
+
+Run a `.cra` file with the default `run` command:
+
+```sh
+crossa examples/imports/runPosts.cra
+```
+
+Run, validate, or test a source explicitly:
+
+```sh
+crossa run test.cra
+crossa check examples/imports/runPosts.cra
+crossa test tests/test-runner/pass.cra
+```
+
+Show compiler pipeline details while executing a source:
+
+```sh
+crossa run --debug test.cra
+```
+
+Generate pure Kotlin output:
+
+```sh
+crossa generate kotlin tests/kotlin-generator/Math.cra --output ./generated
+```
+
+Generate an Android library with Crossa's default tool versions:
+
+```sh
+crossa generate-build android ./crossa-project --output ./build/crossa-aar
+```
+
+Generate an Android library with project-specific NDK, Gradle, and Kotlin versions:
+
+```sh
+crossa generate-build android ./crossa-project --output ./build/crossa-aar \
+  --ndk-version 28.1.13356709 \
+  --gradle-version 8.11.1 \
+  --kotlin-version 2.1.10
+```
+
+Inspect the installation, print the version, or view CLI usage:
+
+```sh
+crossa doctor
+crossa --version
+crossa --help
+```
+
 The Android version flags are used only by `generate-build android`: NDK is
 written to `library/build.gradle.kts`, Gradle selects the wrapper distribution,
 and Kotlin selects the Kotlin Android plugin. When omitted, Crossa uses its
