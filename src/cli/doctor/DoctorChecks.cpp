@@ -569,6 +569,24 @@ namespace crossa::cli::doctor {
         }
     };
 
+    // Inspects one required Apple command and returns a concise doctor row.
+    class AppleToolchainUtils final {
+    public:
+        // Runs one Apple tool command and maps its outcome to a doctor result.
+        [[nodiscard]] static DoctorResult command(
+            const string& name,
+            const vector<string>& invocation,
+            const string& remediation
+        ) {
+            const ProcessResult result = ProcessRunner::run(invocation);
+            return result.started && result.exitCode == 0
+                ? DoctorResult{DoctorStatus::Passed, "iOS", name,
+                    DoctorCheckUtils::firstTrimmedLine(result.output), ""}
+                : DoctorResult{DoctorStatus::Failed, "iOS", name,
+                    "not available", remediation};
+        }
+    };
+
     // Creates a check bound to the executable argument used to launch Crossa.
     CrossaInstallationCheck::CrossaInstallationCheck(
         string executableArgument
@@ -741,8 +759,17 @@ namespace crossa::cli::doctor {
 
     // Returns structured Android NDK results without writing output.
     vector<DoctorResult> AndroidNdkCheck::run() const {
-        const string requiredNdk =
-            packaging::android::AndroidBuildRequirements::ndkVersion();
+        return run("");
+    }
+
+    // Returns structured results for the requested exact NDK version.
+    vector<DoctorResult> AndroidNdkCheck::run(
+        const string& requestedVersion
+    ) const {
+        const bool exactVersion = !requestedVersion.empty();
+        const string requiredNdk = exactVersion
+            ? requestedVersion
+            : packaging::android::AndroidBuildRequirements::ndkVersion();
         const optional<filesystem::path> sdkDirectory =
             DoctorCheckUtils::androidHome();
         if (!sdkDirectory.has_value()) {
@@ -773,10 +800,13 @@ namespace crossa::cli::doctor {
                 }
                 const string installedVersion =
                     entry.path().filename().string();
-                if (DoctorCheckUtils::compareVersions(
+                const bool versionMatches = exactVersion
+                    ? installedVersion == requiredNdk
+                    : DoctorCheckUtils::compareVersions(
                         installedVersion,
                         requiredNdk
-                    ) < 0) {
+                    ) >= 0;
+                if (!versionMatches) {
                     if (bestInstalledVersion.empty() ||
                         DoctorCheckUtils::compareVersions(
                             installedVersion,
@@ -793,7 +823,7 @@ namespace crossa::cli::doctor {
                     ) > 0) {
                     bestInstalledVersion = installedVersion;
                 }
-                ndkAvailable = true;
+                ndkAvailable = versionMatches;
             }
         }
         return vector<DoctorResult>{
@@ -802,12 +832,17 @@ namespace crossa::cli::doctor {
                 "Android",
                 "Android NDK",
                 ndkAvailable
-                    ? bestInstalledVersion
+                    ? exactVersion ? requiredNdk : bestInstalledVersion
                     : bestInstalledVersion.empty()
-                        ? "requires " + requiredNdk + " or newer, not installed"
+                        ? "requires " + requiredNdk +
+                            (exactVersion ? ", not installed" :
+                                " or newer, not installed")
                         : "found " + bestInstalledVersion + ", requires " +
-                            requiredNdk + " or newer",
-                "Install Android NDK " + requiredNdk + " or newer."
+                            requiredNdk +
+                            (exactVersion ? " exactly" : " or newer"),
+                exactVersion
+                    ? "Install Android NDK " + requiredNdk + "."
+                    : "Install Android NDK " + requiredNdk + " or newer."
             }
         };
     }
@@ -979,6 +1014,47 @@ namespace crossa::cli::doctor {
                     " or newer and set JAVA_HOME when needed."
             }
         };
+    }
+
+    // Returns Apple iOS toolchain results on macOS without requiring Android tools.
+    vector<DoctorResult> AppleToolchainCheck::run() const {
+#if defined(__APPLE__)
+        return {
+            AppleToolchainUtils::command(
+                "Xcode",
+                {"xcodebuild", "-version"},
+                "Install Xcode and select it with xcode-select for iOS XCFramework builds."
+            ),
+            AppleToolchainUtils::command(
+                "iOS SDK",
+                {"xcrun", "--sdk", "iphoneos", "--show-sdk-path"},
+                "Install the iOS SDK through Xcode."
+            ),
+            AppleToolchainUtils::command(
+                "Swift compiler",
+                {"xcrun", "--find", "swiftc"},
+                "Install Xcode Swift toolchain support."
+            ),
+            AppleToolchainUtils::command(
+                "C++ compiler",
+                {"xcrun", "--find", "clang++"},
+                "Install Xcode C++ toolchain support."
+            ),
+            AppleToolchainUtils::command(
+                "CMake",
+                {"cmake", "--version"},
+                "Install CMake to provision the pinned iOS libcurl dependency."
+            )
+        };
+#else
+        return {DoctorResult{
+            DoctorStatus::Warning,
+            "iOS",
+            "Apple toolchain",
+            "not checked on this host",
+            ""
+        }};
+#endif
     }
 
     // Returns structured storage results without writing output.

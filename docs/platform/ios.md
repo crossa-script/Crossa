@@ -1,0 +1,13 @@
+# iOS XCFramework
+
+Crossa iOS artifacts are generated from the same linked C++ IR used by Android. The generated project contains separated Swift model/API files, the generated native program, the Crossa runtime, and the stable C ABI. Swift never parses `.cra`, performs HTTP, parses responses, or schedules native operations.
+
+`crossa generate-build ios <project> --output <directory>` writes a self-contained Xcode framework project and archives Debug and Release device and simulator variants into `debug/Crossa.xcframework` and `release/Crossa.xcframework`. The project uses `xcodebuild archive` followed by `xcodebuild -create-xcframework`; it does not combine platform binaries with `lipo`.
+
+The public Swift module is `Crossa`. `CrossaRuntime` explicitly owns a native runtime handle. `CrossaOperation` maps cancellation to the native operation handle. `@AsyncAfter` exposes `CrossaState.success`, `.failed(CrossaError)`, and `.cancelled`; callbacks run on the native delivery thread and are not implicitly dispatched to the main thread.
+
+Generated model and `CrossaList` values retain one internal result owner. Field and list access uses generated schema indexes and stable ABI value paths, so nested models/lists remain native-backed and lazy. A scalar terminal result is copied to Swift and its native result is released immediately; model/list terminal results retain native ownership until their Swift owner is deallocated.
+
+The packaging project provisions pinned static libcurl with Apple Security TLS through its isolated dependency CMake project. The framework links the runtime and dependency statically, exposes Swift API only, and retains dSYMs under each artifact's `symbols/` directory. `metadata/artifact-manifest.json` records the compiler, language, IR, ABI, runtime, deployment target, dependency, and linked-project axes.
+
+For direct integration, add `Crossa.xcframework` to an Xcode application, link/embed it according to Xcode's framework settings, `import Crossa`, create `CrossaRuntime`, and call generated `CrossaFunctions` APIs with that runtime. The generated project also includes a local `Package.swift` binary-target wrapper; copy the intended XCFramework into its `Artifacts/` directory before adding that package locally.

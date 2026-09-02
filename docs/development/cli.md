@@ -2,10 +2,24 @@
 
 ## Commands
 
+Running `crossa` without arguments starts an interactive wizard when standard
+input is attached to a terminal. The wizard collects a project root, source,
+and supported Android/iOS generation settings, then displays the equivalent
+explicit command before dispatching through the normal Crossa application
+pipeline. Enter accepts the displayed default; `0` backs out of secondary
+screens, `0` at the root exits, and Ctrl+C or EOF cancels cleanly.
+
+Non-TTY invocations never wait for input. They print an actionable diagnostic
+and return non-zero. `--no-input` makes this policy explicit: it is accepted
+with explicit commands, while `crossa --no-input` fails without prompting.
+
 ```text
 crossa [check|run|test] [--debug] <file.cra>
+crossa run [--project-root <directory>] <file.cra>
 crossa generate kotlin [--debug] <file.cra> --output <directory>
-crossa generate-build android [--debug] <project-directory> --output <directory> [--ndk-version <version>] [--gradle-version <version>] [--kotlin-version <version>]
+crossa generate-build android [--debug] <project-directory> --output <directory> [--entry <file.cra>] [--ndk-version <version>] [--gradle-version <version>] [--kotlin-version <version>]
+crossa generate-build ios [--debug] <project-directory> --output <directory> [--entry <file.cra>]
+crossa --no-input <explicit command>
 crossa --version
 crossa doctor
 ```
@@ -18,6 +32,11 @@ failed assertions or runtime errors.
 `generate kotlin` writes deterministic Kotlin source for pure translated IR.
 `generate-build android` writes a generated Android Gradle library project for
 AAR assembly.
+`generate-build ios` writes its generated Xcode framework project under
+`<output>/project`, archives Debug and Release device/simulator frameworks, and
+creates `<output>/debug/Crossa.xcframework` and
+`<output>/release/Crossa.xcframework` when the Apple toolchain and CMake are
+available.
 
 ## Android Build Tool Versions
 
@@ -40,17 +59,32 @@ and Kotlin versions contain only safe version characters. Compatibility among
 the selected Gradle, Android Gradle Plugin, Kotlin, and NDK versions remains
 the caller's responsibility.
 
+The interactive Android flow exposes only the currently implemented output:
+the generated Android Gradle project used as input for AAR assembly. It uses
+the authoritative Android build requirements for Kotlin, NDK, Gradle, and the
+single supported `arm64-v8a` ABI. The selected entry is passed as `--entry`;
+without that flag the explicit generator retains its existing behavior of
+generating every non-configuration source in the project.
+
+The generated Android project currently declares both Debug and Release
+variants; because the CLI does not select or build one variant, the wizard
+does not show a build-configuration question.
+
+The interactive iOS flow validates only Apple prerequisites and then builds
+both Debug and Release XCFramework artifacts. It does not require Android SDK
+or NDK checks.
+
 ## Doctor
 
 ```text
 crossa doctor
 ```
 
-`doctor` inspects the current machine and reports whether Crossa is ready to
-build Android AAR artifacts. It does not install dependencies, download files,
+`doctor` inspects the current machine and reports installed Android and iOS
+build prerequisites. It does not install dependencies, download files,
 modify environment variables, or edit shell configuration.
 
-Doctor output is grouped by Crossa, host, Android, and storage checks. Each row
+Doctor output is grouped by Crossa, host, Android, iOS, and storage checks. Each row
 uses one status symbol:
 
 ```text
@@ -59,7 +93,7 @@ uses one status symbol:
 ✗ Failed
 ```
 
-Passed checks satisfy the current Android build requirements. Warnings report
+Passed checks satisfy the selected platform's build requirements. Warnings report
 optional or recommended setup issues that do not block the current build path.
 Failed checks report missing required setup and make `crossa doctor` exit
 non-zero.

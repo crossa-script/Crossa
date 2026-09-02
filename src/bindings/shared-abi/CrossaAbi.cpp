@@ -245,6 +245,37 @@ namespace crossa::bindings::sharedabi {
             return &nativeModel->getFields()[field].second;
         }
 
+        // Resolves one generated path without exposing native object addresses.
+        static const runtime::RuntimeValue* findPath(
+            const runtime::RuntimeValue& result,
+            const CrossaAbiPathSegment* path,
+            size_t pathCount
+        ) {
+            if (path == nullptr && pathCount != 0) return nullptr;
+            const runtime::RuntimeValue* value = &result;
+            for (size_t index = 0; index < pathCount; ++index) {
+                const CrossaAbiPathSegment& segment = path[index];
+                if (segment.kind == CrossaAbiPathField) {
+                    if (value->getKind() != runtime::RuntimeValueKind::Model ||
+                        segment.index >= value->getModel().getFields().size()) {
+                        return nullptr;
+                    }
+                    value = &value->getModel().getFields()[segment.index].second;
+                    continue;
+                }
+                if (segment.kind == CrossaAbiPathListElement) {
+                    if (value->getKind() != runtime::RuntimeValueKind::List ||
+                        segment.index >= value->getList().getSize()) {
+                        return nullptr;
+                    }
+                    value = &value->getList().get(segment.index);
+                    continue;
+                }
+                return nullptr;
+            }
+            return value;
+        }
+
         // Maps one native runtime value type to its stable ABI category.
         static CrossaValueKind mapKind(runtime::RuntimeValueKind kind) {
             switch (kind) {
@@ -663,6 +694,178 @@ extern "C" {
         if (root == nullptr) return CrossaStatusInvalidHandle;
         if (member == nullptr) return CrossaStatusOutOfBounds;
         if (member->getKind() != crossa::runtime::RuntimeValueKind::Bool) return CrossaStatusTypeMismatch;
+        *value = member->getBool() ? 1 : 0;
+        return CrossaStatusOk;
+    }
+
+    // Returns the type of one generated path inside a retained result tree.
+    CrossaStatus crossaGetPathKind(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        CrossaValueKind* kind
+    ) {
+        if (kind == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::CrossaAbiValueAccess::findResult(
+            runtime, result
+        );
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        const auto* value = crossa::bindings::sharedabi::CrossaAbiValueAccess::findPath(
+            *root, path, pathCount
+        );
+        if (value == nullptr) return CrossaStatusOutOfBounds;
+        *kind = crossa::bindings::sharedabi::CrossaAbiValueAccess::mapKind(
+            value->getKind()
+        );
+        return CrossaStatusOk;
+    }
+
+    // Returns the element count for a list resolved through a generated path.
+    CrossaStatus crossaGetPathListSize(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        size_t* size
+    ) {
+        if (size == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::CrossaAbiValueAccess::findResult(
+            runtime, result
+        );
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        const auto* value = crossa::bindings::sharedabi::CrossaAbiValueAccess::findPath(
+            *root, path, pathCount
+        );
+        if (value == nullptr) return CrossaStatusOutOfBounds;
+        if (value->getKind() != crossa::runtime::RuntimeValueKind::List) {
+            return CrossaStatusTypeMismatch;
+        }
+        *size = value->getList().getSize();
+        return CrossaStatusOk;
+    }
+
+    // Reads one Int value through a generated result path.
+    CrossaStatus crossaGetPathInt(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        int32_t* value
+    ) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::CrossaAbiValueAccess::findResult(
+            runtime, result
+        );
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        const auto* member = crossa::bindings::sharedabi::CrossaAbiValueAccess::findPath(
+            *root, path, pathCount
+        );
+        if (member == nullptr) return CrossaStatusOutOfBounds;
+        if (member->getKind() != crossa::runtime::RuntimeValueKind::Int) {
+            return CrossaStatusTypeMismatch;
+        }
+        if (member->getInt() < numeric_limits<int32_t>::min() ||
+            member->getInt() > numeric_limits<int32_t>::max()) {
+            return CrossaStatusOutOfBounds;
+        }
+        *value = static_cast<int32_t>(member->getInt());
+        return CrossaStatusOk;
+    }
+
+    // Reads one Long value through a generated result path.
+    CrossaStatus crossaGetPathLong(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        int64_t* value
+    ) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::CrossaAbiValueAccess::findResult(
+            runtime, result
+        );
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        const auto* member = crossa::bindings::sharedabi::CrossaAbiValueAccess::findPath(
+            *root, path, pathCount
+        );
+        if (member == nullptr) return CrossaStatusOutOfBounds;
+        if (member->getKind() != crossa::runtime::RuntimeValueKind::Long) {
+            return CrossaStatusTypeMismatch;
+        }
+        *value = member->getLong();
+        return CrossaStatusOk;
+    }
+
+    // Reads one Double value through a generated result path.
+    CrossaStatus crossaGetPathDouble(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        double* value
+    ) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::CrossaAbiValueAccess::findResult(
+            runtime, result
+        );
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        const auto* member = crossa::bindings::sharedabi::CrossaAbiValueAccess::findPath(
+            *root, path, pathCount
+        );
+        if (member == nullptr) return CrossaStatusOutOfBounds;
+        if (member->getKind() != crossa::runtime::RuntimeValueKind::Double) {
+            return CrossaStatusTypeMismatch;
+        }
+        *value = member->getDouble();
+        return CrossaStatusOk;
+    }
+
+    // Reads one String view through a generated result path.
+    CrossaStatus crossaGetPathString(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        CrossaStringView* value
+    ) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::CrossaAbiValueAccess::findResult(
+            runtime, result
+        );
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        const auto* member = crossa::bindings::sharedabi::CrossaAbiValueAccess::findPath(
+            *root, path, pathCount
+        );
+        if (member == nullptr) return CrossaStatusOutOfBounds;
+        if (member->getKind() != crossa::runtime::RuntimeValueKind::String) {
+            return CrossaStatusTypeMismatch;
+        }
+        value->data = member->getString().data();
+        value->size = member->getString().size();
+        return CrossaStatusOk;
+    }
+
+    // Reads one Bool value through a generated result path.
+    CrossaStatus crossaGetPathBool(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        uint8_t* value
+    ) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::CrossaAbiValueAccess::findResult(
+            runtime, result
+        );
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        const auto* member = crossa::bindings::sharedabi::CrossaAbiValueAccess::findPath(
+            *root, path, pathCount
+        );
+        if (member == nullptr) return CrossaStatusOutOfBounds;
+        if (member->getKind() != crossa::runtime::RuntimeValueKind::Bool) {
+            return CrossaStatusTypeMismatch;
+        }
         *value = member->getBool() ? 1 : 0;
         return CrossaStatusOk;
     }

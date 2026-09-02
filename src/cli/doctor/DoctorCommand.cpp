@@ -71,12 +71,12 @@ namespace crossa::cli::doctor {
         utils::PrintUtils::println("");
         if (report.hasFailures()) {
             utils::PrintUtils::println(
-                "Crossa is not ready to build Android artifacts."
+                "Crossa has missing required build prerequisites."
             );
             printRemediation(report);
         } else {
             utils::PrintUtils::println(
-                "Crossa is ready to build Android artifacts."
+                "Crossa is ready to build supported artifacts on this host."
             );
         }
     }

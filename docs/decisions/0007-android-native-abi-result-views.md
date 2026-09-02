@@ -31,8 +31,9 @@ preserves result lifetime across asynchronous callback delivery.
 
 The ABI remains independent of JNI and exposes no STL containers, C++ classes,
 or native object addresses. Android views are lazy: list size, one element, and
-one field each cross only when requested. Nested model/list fields require a
-future ABI accessor with the same root-result ownership rule.
+one field each cross only when requested. Additive ABI v1 value-path accessors
+now support nested model/list values for iOS with the same root-result ownership
+rule; Android remains compatible with its existing root/model accessors.
 
 The ABI runtime registry owns `shared_ptr<NativeRuntime>` instances, not a
 parallel result registry. `NativeRuntime::resultContext()` is the only storage

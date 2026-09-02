@@ -44,6 +44,11 @@ class AndroidNdkCheck final {
 public:
     // Returns structured Android NDK results without writing output.
     [[nodiscard]] std::vector<DoctorResult> run() const;
+
+    // Returns structured results for the requested exact NDK version.
+    [[nodiscard]] std::vector<DoctorResult> run(
+        const std::string& requestedVersion
+    ) const;
 };
 
 // Inspects the CMake executable available to Android native builds.
@@ -67,6 +72,14 @@ public:
 class JavaCheck final {
 public:
     // Returns structured Java results without writing output.
+    [[nodiscard]] std::vector<DoctorResult> run() const;
+};
+
+// Inspects Apple tools required only when Crossa builds iOS XCFramework artifacts.
+// run() reports Xcode, SDK, Swift, Clang, and CMake readiness without affecting other targets.
+class AppleToolchainCheck final {
+public:
+    // Returns structured Apple iOS build-tool results without writing output.
     [[nodiscard]] std::vector<DoctorResult> run() const;
 };
 

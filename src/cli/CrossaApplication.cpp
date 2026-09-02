@@ -10,9 +10,13 @@
 #include <utility>
 
 #include "crossa/cli/CrossaVersion.h"
+#include "crossa/cli/CliValueValidation.h"
+#include "crossa/cli/ProjectSourceDiscovery.h"
+#include "crossa/cli/TerminalCapabilities.h"
 #include "crossa/cli/doctor/DoctorCommand.h"
 #include "crossa/compiler/ast/AstPrinter.h"
 #include "crossa/compiler/generators/kotlin/KotlinGenerator.h"
+#include "crossa/compiler/generators/swift/SwiftGenerator.h"
 #include "crossa/compiler/ir/IrDeclaration.h"
 #include "crossa/compiler/ir/IrExpression.h"
 #include "crossa/compiler/ir/IrLowerer.h"
@@ -27,6 +31,8 @@
 #include "crossa/compiler/source/SourceLoader.h"
 #include "crossa/packaging/android/AndroidBuildRequirements.h"
 #include "crossa/packaging/android/AndroidProjectGenerator.h"
+#include "crossa/packaging/ios/IosProjectGenerator.h"
+#include "crossa/cli/doctor/ProcessRunner.h"
 #include "crossa/runtime/ExecutionEngine.h"
 #include "crossa/utils/PrintUtils.h"
 
@@ -36,15 +42,66 @@ namespace crossa::cli {
 
     // Runs the Crossa command-line application and returns its process status.
     int CrossaApplication::run(int argc, char* argv[]) {
-        if (argc == 2 && string_view(argv[1]) == "--help") {
+        bool noInput = false;
+        bool helpRequested = false;
+        bool versionRequested = false;
+        for (int index = 1; index < argc; ++index) {
+            const string_view argument(argv[index]);
+            noInput = noInput || argument == "--no-input";
+            helpRequested = helpRequested || argument == "--help" ||
+                argument == "-h";
+            versionRequested = versionRequested || argument == "--version";
+        }
+        if (argc == 1) {
+            if (TerminalCapabilities::isInteractiveInput()) {
+                const InteractiveResult result = InteractiveCli(argv[0]).run();
+                if (result.status == InteractiveResultStatus::Completed &&
+                    result.command.has_value()) {
+                    const optional<Arguments> arguments = interactiveArguments(
+                        result.command.value()
+                    );
+                    if (!arguments.has_value()) {
+                        utils::Log().error(
+                            "Interactive configuration could not be converted "
+                            "to a Crossa command."
+                        );
+                        return 1;
+                    }
+                    try {
+                        executeSource(
+                            arguments.value(),
+                            utils::Log(arguments->debugEnabled
+                                ? utils::Log::Level::Debug
+                                : utils::Log::Level::Error)
+                        );
+                    } catch (const exception& error) {
+                        utils::Log().error(error.what());
+                        return 1;
+                    }
+                }
+                return result.status == InteractiveResultStatus::Failed ? 1 : 0;
+            }
+            utils::PrintUtils::println(
+                "Crossa interactive mode requires an interactive terminal.\n\n"
+                "Use an explicit command instead:\n\n"
+                "  crossa run App.cra\n"
+                "  crossa generate-build android . --output ./dist/android\n\n"
+                "Run `crossa --help` for all commands."
+            );
+            return 1;
+        }
+        if (noInput && argc == 2) {
+            utils::PrintUtils::println(
+                "--no-input requires an explicit Crossa command.\n\n"
+                "Run `crossa --help` for available commands."
+            );
+            return 1;
+        }
+        if (helpRequested) {
             printUsage();
             return 0;
         }
-        if (argc == 2 && string_view(argv[1]) == "-h") {
-            printUsage();
-            return 0;
-        }
-        if (argc == 2 && string_view(argv[1]) == "--version") {
+        if (versionRequested) {
             utils::PrintUtils::println(CrossaVersion::current());
             return 0;
         }
@@ -75,6 +132,8 @@ namespace crossa::cli {
                         ? "Command selected: generate kotlin"
                         : arguments->command == Command::GenerateAndroidLibrary
                             ? "Command selected: generate-build android"
+                        : arguments->command == Command::GenerateIosFramework
+                            ? "Command selected: generate-build ios"
                         : "Command selected: run"
         );
 
@@ -91,13 +150,20 @@ namespace crossa::cli {
     // Prints the supported Crossa command-line usage.
     void CrossaApplication::printUsage() {
         utils::PrintUtils::println(
+            "Running `crossa` without arguments starts interactive mode when "
+            "attached to a terminal.\n\n"
             "Usage: crossa [check|run|test] [--debug] <file.cra>\n"
             "       crossa generate kotlin [--debug] <file.cra> "
             "--output <directory>\n"
             "       crossa generate-build android [--debug] "
             "<project-directory> --output <directory> "
+            "[--entry <file.cra>] "
             "[--ndk-version <version>] [--gradle-version <version>] "
             "[--kotlin-version <version>]\n"
+            "       crossa generate-build ios [--debug] "
+            "<project-directory> --output <directory> [--entry <file.cra>]\n"
+            "       crossa run [--project-root <directory>] <file.cra>\n"
+            "       crossa --no-input <explicit command>\n"
             "       crossa --version\n"
             "       crossa doctor"
         );
@@ -116,6 +182,8 @@ namespace crossa::cli {
         Command command = Command::Run;
         bool commandProvided = false;
         optional<filesystem::path> sourcePath;
+        optional<filesystem::path> projectRoot;
+        optional<filesystem::path> entrySource;
         optional<filesystem::path> outputDirectory;
         optional<string> ndkVersion;
         optional<string> gradleVersion;
@@ -123,6 +191,9 @@ namespace crossa::cli {
 
         for (int index = 1; index < argc; ++index) {
             const string_view argument(argv[index]);
+            if (argument == "--no-input") {
+                continue;
+            }
             if (argument == "--debug") {
                 debugEnabled = true;
                 continue;
@@ -140,12 +211,36 @@ namespace crossa::cli {
                 continue;
             }
 
+            if (argument == "--project-root") {
+                if (projectRoot.has_value() || index + 1 >= argc) {
+                    return nullopt;
+                }
+                const string_view rootArgument(argv[++index]);
+                if (rootArgument.empty() || rootArgument.front() == '-') {
+                    return nullopt;
+                }
+                projectRoot = filesystem::path(rootArgument);
+                continue;
+            }
+
+            if (argument == "--entry") {
+                if (entrySource.has_value() || index + 1 >= argc) {
+                    return nullopt;
+                }
+                const string_view entryArgument(argv[++index]);
+                if (entryArgument.empty() || entryArgument.front() == '-') {
+                    return nullopt;
+                }
+                entrySource = filesystem::path(entryArgument);
+                continue;
+            }
+
             if (argument == "--ndk-version") {
                 if (ndkVersion.has_value() || index + 1 >= argc) {
                     return nullopt;
                 }
                 const string_view version(argv[++index]);
-                if (!isValidNdkVersion(version)) {
+                if (!CliValueValidation::isNdkVersion(version)) {
                     return nullopt;
                 }
                 ndkVersion = string(version);
@@ -157,7 +252,7 @@ namespace crossa::cli {
                     return nullopt;
                 }
                 const string_view version(argv[++index]);
-                if (!isValidToolVersion(version)) {
+                if (!CliValueValidation::isToolVersion(version)) {
                     return nullopt;
                 }
                 gradleVersion = string(version);
@@ -169,7 +264,7 @@ namespace crossa::cli {
                     return nullopt;
                 }
                 const string_view version(argv[++index]);
-                if (!isValidToolVersion(version)) {
+                if (!CliValueValidation::isToolVersion(version)) {
                     return nullopt;
                 }
                 kotlinVersion = string(version);
@@ -190,10 +285,13 @@ namespace crossa::cli {
             if (argument == "generate-build") {
                 if (commandProvided || sourcePath.has_value() ||
                     index + 1 >= argc ||
-                    string_view(argv[++index]) != "android") {
+                    (string_view(argv[index + 1]) != "android" &&
+                     string_view(argv[index + 1]) != "ios")) {
                     return nullopt;
                 }
-                command = Command::GenerateAndroidLibrary;
+                command = string_view(argv[++index]) == "android"
+                    ? Command::GenerateAndroidLibrary
+                    : Command::GenerateIosFramework;
                 commandProvided = true;
                 continue;
             }
@@ -221,7 +319,8 @@ namespace crossa::cli {
             return nullopt;
         }
         const bool generatesOutput = command == Command::GenerateKotlin ||
-            command == Command::GenerateAndroidLibrary;
+            command == Command::GenerateAndroidLibrary ||
+            command == Command::GenerateIosFramework;
         if (generatesOutput != outputDirectory.has_value()) {
             return nullopt;
         }
@@ -230,14 +329,53 @@ namespace crossa::cli {
              kotlinVersion.has_value())) {
             return nullopt;
         }
+        if ((command == Command::GenerateAndroidLibrary ||
+             command == Command::GenerateIosFramework) &&
+            projectRoot.has_value()) {
+            return nullopt;
+        }
+        if (command != Command::GenerateAndroidLibrary &&
+            command != Command::GenerateIosFramework &&
+            entrySource.has_value()) {
+            return nullopt;
+        }
+        if (command == Command::GenerateKotlin && projectRoot.has_value()) {
+            return nullopt;
+        }
         return Arguments{
             command,
             debugEnabled,
             std::move(sourcePath.value()),
+            std::move(projectRoot),
+            std::move(entrySource),
             std::move(outputDirectory),
             std::move(ndkVersion),
             std::move(gradleVersion),
             std::move(kotlinVersion)
+        };
+    }
+
+    // Converts interactive answers into the normal CLI argument model.
+    optional<CrossaApplication::Arguments>
+    CrossaApplication::interactiveArguments(
+        const InteractiveCommand& command
+    ) {
+        const Command normalCommand = command.kind ==
+                InteractiveCommandKind::Run
+            ? Command::Run
+            : command.kind == InteractiveCommandKind::GenerateAndroidLibrary
+                ? Command::GenerateAndroidLibrary
+                : Command::GenerateIosFramework;
+        return Arguments{
+            normalCommand,
+            false,
+            command.sourcePath,
+            command.projectRoot,
+            command.entrySource,
+            command.outputDirectory,
+            command.ndkVersion,
+            command.gradleVersion,
+            command.kotlinVersion
         };
     }
 
@@ -256,45 +394,6 @@ namespace crossa::cli {
         return nullopt;
     }
 
-    // Verifies a side-by-side Android NDK version before generation.
-    bool CrossaApplication::isValidNdkVersion(string_view version) noexcept {
-        if (version.empty() || version.front() == '.' || version.back() == '.') {
-            return false;
-        }
-        bool previousWasSeparator = false;
-        for (const char character : version) {
-            if (character == '.') {
-                if (previousWasSeparator) {
-                    return false;
-                }
-                previousWasSeparator = true;
-                continue;
-            }
-            if (character < '0' || character > '9') {
-                return false;
-            }
-            previousWasSeparator = false;
-        }
-        return true;
-    }
-
-    // Verifies a Gradle or Kotlin plugin version before generation.
-    bool CrossaApplication::isValidToolVersion(string_view version) noexcept {
-        if (version.empty()) {
-            return false;
-        }
-        for (const char character : version) {
-            const bool isLetter = (character >= 'A' && character <= 'Z') ||
-                (character >= 'a' && character <= 'z');
-            const bool isDigit = character >= '0' && character <= '9';
-            if (!isLetter && !isDigit && character != '.' && character != '-' &&
-                character != '_' && character != '+') {
-                return false;
-            }
-        }
-        return true;
-    }
-
     // Loads, compiles, and applies the requested workflow to one Crossa source file.
     void CrossaApplication::executeSource(
         const Arguments& arguments,
@@ -302,6 +401,10 @@ namespace crossa::cli {
     ) {
         if (arguments.command == Command::GenerateAndroidLibrary) {
             executeAndroidLibraryBuild(arguments, log);
+            return;
+        }
+        if (arguments.command == Command::GenerateIosFramework) {
+            executeIosFrameworkBuild(arguments, log);
             return;
         }
 
@@ -326,6 +429,7 @@ namespace crossa::cli {
 
         logStepStarted(4, "Import graph resolution and project linking", log);
         sourceUnit = linkProject(
+            arguments.projectRoot.value_or(filesystem::current_path()),
             sourceFile.getPath(),
             std::move(sourceUnit),
             log
@@ -367,6 +471,9 @@ namespace crossa::cli {
                 break;
             case Command::GenerateAndroidLibrary:
                 finalStepName = "Android library generation";
+                break;
+            case Command::GenerateIosFramework:
+                finalStepName = "iOS framework generation";
                 break;
             case Command::Run:
                 finalStepName = "Native execution";
@@ -430,8 +537,26 @@ namespace crossa::cli {
         }
 
         logStepStarted(1, "Android project source discovery", log);
-        const vector<filesystem::path> sourcePaths =
-            discoverProjectSources(projectDirectory);
+        vector<filesystem::path> sourcePaths;
+        if (arguments.entrySource.has_value()) {
+            const filesystem::path entryPath = filesystem::weakly_canonical(
+                projectDirectory / arguments.entrySource.value()
+            );
+            const filesystem::path relativePath =
+                entryPath.lexically_relative(projectDirectory);
+            if (!filesystem::is_regular_file(entryPath) ||
+                entryPath.extension() != ".cra" || relativePath.empty() ||
+                relativePath.is_absolute() || relativePath.begin()->string() ==
+                    ".." || entryPath.filename() == "config.cra") {
+                throw runtime_error(
+                    "Android generation entry source must be an existing .cra "
+                    "file inside the project directory."
+                );
+            }
+            sourcePaths.push_back(entryPath);
+        } else {
+            sourcePaths = ProjectSourceDiscovery::find(projectDirectory);
+        }
         if (sourcePaths.empty()) {
             throw runtime_error(
                 "No non-configuration .cra files were found in: " +
@@ -458,6 +583,7 @@ namespace crossa::cli {
             compiler::ast::SourceUnit sourceUnit =
                 parseSource(tokens, sourceFile, log);
             sourceUnit = linkProject(
+                projectDirectory,
                 sourceFile.getPath(),
                 std::move(sourceUnit),
                 log
@@ -514,40 +640,128 @@ namespace crossa::cli {
         logStepCompleted(7, "Android Gradle library project generation", log);
     }
 
-    // Discovers every non-configuration Crossa source in a project directory.
-    vector<filesystem::path> CrossaApplication::discoverProjectSources(
-        const filesystem::path& projectDirectory
+    // Compiles one linked project and creates debug and release iOS XCFramework artifacts.
+    void CrossaApplication::executeIosFrameworkBuild(
+        const Arguments& arguments,
+        const utils::Log& log
     ) {
-        vector<filesystem::path> sourcePaths;
-        error_code error;
-        filesystem::recursive_directory_iterator iterator(
-            projectDirectory,
-            filesystem::directory_options::skip_permission_denied,
-            error
-        );
-        if (error) {
+        const filesystem::path projectDirectory =
+            filesystem::weakly_canonical(arguments.sourcePath);
+        if (!filesystem::is_directory(projectDirectory)) {
             throw runtime_error(
-                "Unable to inspect Android project directory: " +
+                "generate-build ios requires a project directory: " +
                 projectDirectory.string()
             );
         }
-        const filesystem::recursive_directory_iterator end;
-        while (iterator != end) {
-            if (iterator->is_regular_file(error) &&
-                iterator->path().extension() == ".cra" &&
-                iterator->path().filename() != "config.cra") {
-                sourcePaths.push_back(iterator->path());
-            }
-            iterator.increment(error);
-            if (error) {
+
+        logStepStarted(1, "iOS project source discovery", log);
+        vector<filesystem::path> sourcePaths;
+        if (arguments.entrySource.has_value()) {
+            const filesystem::path entryPath = filesystem::weakly_canonical(
+                projectDirectory / arguments.entrySource.value()
+            );
+            const filesystem::path relativePath =
+                entryPath.lexically_relative(projectDirectory);
+            if (!filesystem::is_regular_file(entryPath) ||
+                entryPath.extension() != ".cra" || relativePath.empty() ||
+                relativePath.is_absolute() || relativePath.begin()->string() ==
+                    ".." || entryPath.filename() == "config.cra") {
                 throw runtime_error(
-                    "Unable to inspect Android project directory: " +
-                    projectDirectory.string()
+                    "iOS generation entry source must be an existing .cra "
+                    "file inside the project directory."
                 );
             }
+            sourcePaths.push_back(entryPath);
+        } else {
+            sourcePaths = ProjectSourceDiscovery::find(projectDirectory);
         }
-        sort(sourcePaths.begin(), sourcePaths.end());
-        return sourcePaths;
+        if (sourcePaths.empty()) {
+            throw runtime_error(
+                "No non-configuration .cra files were found in: " +
+                projectDirectory.string()
+            );
+        }
+        logStepCompleted(1, "iOS project source discovery", log);
+
+        const optional<compiler::ir::Program> configurationProgram =
+            compileSiblingConfiguration(projectDirectory / "project.cra", log);
+        vector<unique_ptr<compiler::ir::Program>> programs;
+        programs.reserve(sourcePaths.size());
+        for (const filesystem::path& sourcePath : sourcePaths) {
+            compiler::source::SourceFile sourceFile =
+                compiler::source::SourceLoader::load(sourcePath, log);
+            compiler::ast::SourceUnit sourceUnit = parseSource(
+                tokenizeSource(sourceFile, log), sourceFile, log
+            );
+            sourceUnit = linkProject(
+                projectDirectory,
+                sourceFile.getPath(),
+                std::move(sourceUnit),
+                log
+            );
+            const compiler::semantic::TypedSourceUnit semanticModel =
+                analyzeSource(sourceUnit, sourceFile, log);
+            programs.push_back(make_unique<compiler::ir::Program>(
+                compiler::ir::IrLowerer::lower(semanticModel)
+            ));
+        }
+        vector<const compiler::ir::Program*> programViews;
+        programViews.reserve(programs.size() + 1);
+        for (const unique_ptr<compiler::ir::Program>& program : programs) {
+            programViews.push_back(program.get());
+        }
+        vector<const compiler::ir::Program*> nativeProgramViews(programViews);
+        if (configurationProgram.has_value()) {
+            nativeProgramViews.push_back(&configurationProgram.value());
+        }
+        compiler::generators::swift::SwiftGenerator swiftGenerator;
+        const vector<compiler::generators::swift::SwiftGeneratedSource> sources =
+            swiftGenerator.generateProject(programViews);
+
+        const filesystem::path buildProjectDirectory =
+            arguments.outputDirectory.value() / "project";
+        logStepStarted(7, "iOS framework project generation", log);
+        packaging::ios::IosProjectGenerator().generate(
+            sources,
+            nativeProgramViews,
+            buildProjectDirectory
+        );
+        const filesystem::path buildScript = buildProjectDirectory / "Scripts" /
+            "build-xcframework.sh";
+        const vector<pair<string, filesystem::path>> configurations = {
+            {"debug", arguments.outputDirectory.value() / "debug"},
+            {"release", arguments.outputDirectory.value() / "release"}
+        };
+        for (const auto& configuration : configurations) {
+            const doctor::ProcessResult result = doctor::ProcessRunner::run({
+                buildScript.string(),
+                configuration.first,
+                configuration.second.string()
+            });
+            if (!result.started || result.exitCode != 0) {
+                throw runtime_error(
+                    "iOS " + configuration.first + " XCFramework build failed:\n" +
+                    result.output
+                );
+            }
+            const filesystem::path manifestSource = buildProjectDirectory /
+                "Metadata" / "artifact-manifest.json";
+            const filesystem::path manifestOutput = configuration.second /
+                "metadata" / "artifact-manifest.json";
+            error_code error;
+            filesystem::create_directories(manifestOutput.parent_path(), error);
+            filesystem::copy_file(
+                manifestSource,
+                manifestOutput,
+                filesystem::copy_options::overwrite_existing,
+                error
+            );
+            if (error) {
+                throw runtime_error("Unable to write iOS artifact metadata: " +
+                    manifestOutput.string());
+            }
+        }
+        logStepCompleted(7, "iOS XCFramework packaging", log);
     }
 
     // Writes one generated Kotlin source unit into the requested output directory.
@@ -737,13 +951,14 @@ namespace crossa::cli {
 
     // Resolves the entry file's transitive imports into one project AST.
     compiler::ast::SourceUnit CrossaApplication::linkProject(
+        const filesystem::path& projectRoot,
         const filesystem::path& entryPath,
         compiler::ast::SourceUnit entrySourceUnit,
         const utils::Log& log
     ) {
         log.debug("Project import graph resolution started");
         return compiler::project::ProjectLinker::link(
-            filesystem::current_path(),
+            projectRoot,
             entryPath,
             std::move(entrySourceUnit),
             log

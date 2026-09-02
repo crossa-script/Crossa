@@ -16,6 +16,11 @@ add_executable(
     include/crossa/utils/Log.h
     include/crossa/utils/PrintUtils.h
     include/crossa/cli/CrossaApplication.h
+    include/crossa/cli/CliValueValidation.h
+    include/crossa/cli/ConsolePrompt.h
+    include/crossa/cli/InteractiveCli.h
+    include/crossa/cli/ProjectSourceDiscovery.h
+    include/crossa/cli/TerminalCapabilities.h
     include/crossa/cli/CrossaVersion.h
     include/crossa/cli/doctor/DoctorChecks.h
     include/crossa/cli/doctor/DoctorCommand.h
@@ -47,8 +52,12 @@ add_executable(
     include/crossa/compiler/generators/kotlin/KotlinStatementEmitter.h
     include/crossa/compiler/generators/kotlin/KotlinTypeMapper.h
     include/crossa/compiler/generators/native/NativeProgramGenerator.h
+    include/crossa/compiler/generators/swift/SwiftGeneratedSource.h
+    include/crossa/compiler/generators/swift/SwiftGenerator.h
     include/crossa/packaging/android/AndroidBuildRequirements.h
     include/crossa/packaging/android/AndroidProjectGenerator.h
+    include/crossa/packaging/ios/IosBuildRequirements.h
+    include/crossa/packaging/ios/IosProjectGenerator.h
     include/crossa/compiler/ir/IrExpression.h
     include/crossa/compiler/ir/IrStatement.h
     include/crossa/compiler/ir/IrDeclaration.h
@@ -76,6 +85,11 @@ add_executable(
     include/crossa/runtime/ExecutionEngine.h
     src/main.cpp
     src/cli/CrossaApplication.cpp
+    src/cli/CliValueValidation.cpp
+    src/cli/ConsolePrompt.cpp
+    src/cli/InteractiveCli.cpp
+    src/cli/ProjectSourceDiscovery.cpp
+    src/cli/TerminalCapabilities.cpp
     src/cli/CrossaVersion.cpp
     src/cli/doctor/DoctorChecks.cpp
     src/cli/doctor/DoctorCommand.cpp
@@ -105,8 +119,12 @@ add_executable(
     src/compiler/generators/kotlin/KotlinStatementEmitter.cpp
     src/compiler/generators/kotlin/KotlinTypeMapper.cpp
     src/compiler/generators/native/NativeProgramGenerator.cpp
+    src/compiler/generators/swift/SwiftGeneratedSource.cpp
+    src/compiler/generators/swift/SwiftGenerator.cpp
     src/packaging/android/AndroidBuildRequirements.cpp
     src/packaging/android/AndroidProjectGenerator.cpp
+    src/packaging/ios/IosBuildRequirements.cpp
+    src/packaging/ios/IosProjectGenerator.cpp
     src/compiler/ir/IrExpression.cpp
     src/compiler/ir/IrStatement.cpp
     src/compiler/ir/IrDeclaration.cpp

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -29,7 +30,10 @@ private:
 class DoctorRunner final {
 public:
     // Runs all Crossa, host, Android, and storage checks.
-    [[nodiscard]] DoctorReport run(const std::string& executableArgument) const;
+    [[nodiscard]] DoctorReport run(
+        const std::string& executableArgument,
+        const std::optional<std::string>& requestedNdkVersion = std::nullopt
+    ) const;
 };
 
 }

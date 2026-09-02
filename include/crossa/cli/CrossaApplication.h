@@ -7,8 +7,10 @@
 #include <string_view>
 #include <vector>
 
+#include "crossa/cli/InteractiveCli.h"
 #include "crossa/compiler/ast/SourceUnit.h"
 #include "crossa/compiler/generators/kotlin/KotlinGeneratedSource.h"
+#include "crossa/compiler/generators/swift/SwiftGeneratedSource.h"
 #include "crossa/compiler/ir/Program.h"
 #include "crossa/compiler/lexer/Token.h"
 #include "crossa/compiler/semantic/TypedSourceUnit.h"
@@ -34,7 +36,8 @@ private:
         Check,
         Test,
         GenerateKotlin,
-        GenerateAndroidLibrary
+        GenerateAndroidLibrary,
+        GenerateIosFramework
     };
 
     // Stores validated command-line options for one Crossa execution.
@@ -42,6 +45,8 @@ private:
         Command command;
         bool debugEnabled;
         std::filesystem::path sourcePath;
+        std::optional<std::filesystem::path> projectRoot;
+        std::optional<std::filesystem::path> entrySource;
         std::optional<std::filesystem::path> outputDirectory;
         std::optional<std::string> ndkVersion;
         std::optional<std::string> gradleVersion;
@@ -53,16 +58,15 @@ private:
         std::string_view argument
     ) noexcept;
 
-    // Verifies a side-by-side Android NDK version before generation.
-    [[nodiscard]] static bool isValidNdkVersion(std::string_view version) noexcept;
-
-    // Verifies a Gradle or Kotlin plugin version before generation.
-    [[nodiscard]] static bool isValidToolVersion(std::string_view version) noexcept;
-
     // Parses supported command-line arguments into validated workflow options.
     [[nodiscard]] static std::optional<Arguments> parseArguments(
         int argc,
         char* argv[]
+    );
+
+    // Converts interactive answers into the normal CLI argument model.
+    [[nodiscard]] static std::optional<Arguments> interactiveArguments(
+        const InteractiveCommand& command
     );
 
     // Loads, compiles, and applies the requested workflow to one Crossa source file.
@@ -74,9 +78,11 @@ private:
         const utils::Log& log
     );
 
-    // Discovers every non-configuration Crossa source in a project directory.
-    [[nodiscard]] static std::vector<std::filesystem::path>
-    discoverProjectSources(const std::filesystem::path& projectDirectory);
+    // Compiles every project source and produces debug and release iOS XCFrameworks.
+    static void executeIosFrameworkBuild(
+        const Arguments& arguments,
+        const utils::Log& log
+    );
 
     // Writes one generated Kotlin source unit into the requested output directory.
     static void writeGeneratedKotlinSource(
@@ -117,6 +123,7 @@ private:
 
     // Resolves the entry file's transitive imports into one project AST.
     [[nodiscard]] static compiler::ast::SourceUnit linkProject(
+        const std::filesystem::path& projectRoot,
         const std::filesystem::path& entryPath,
         compiler::ast::SourceUnit entrySourceUnit,
         const utils::Log& log

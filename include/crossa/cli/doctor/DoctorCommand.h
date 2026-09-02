@@ -13,10 +13,10 @@ public:
     // Executes crossa doctor for the current executable and returns an exit code.
     [[nodiscard]] static int run(const std::string& executableArgument);
 
-private:
-    // Prints the complete doctor report in grouped CLI format.
+    // Prints a structured doctor report for commands that perform preflight checks.
     static void printReport(const DoctorReport& report);
 
+private:
     // Prints actionable remediation lines for failed results.
     static void printRemediation(const DoctorReport& report);
 };

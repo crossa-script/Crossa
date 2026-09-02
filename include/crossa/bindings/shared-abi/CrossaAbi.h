@@ -56,6 +56,18 @@ typedef struct CrossaStringView {
     size_t size;
 } CrossaStringView;
 
+// Identifies one immutable navigation step inside a result-owned value tree.
+typedef enum CrossaAbiPathSegmentKind {
+    CrossaAbiPathField = 0,
+    CrossaAbiPathListElement = 1
+} CrossaAbiPathSegmentKind;
+
+// Carries one generated field or list index without exposing native objects.
+typedef struct CrossaAbiPathSegment {
+    CrossaAbiPathSegmentKind kind;
+    uint32_t index;
+} CrossaAbiPathSegment;
+
 // Distinguishes the POD argument values accepted by native invocation.
 typedef enum CrossaAbiArgumentKind {
     CrossaAbiArgumentInt = 0,
@@ -263,6 +275,69 @@ CrossaStatus crossaGetModelBool(
     CrossaResultHandle result,
     CrossaModelHandle model,
     uint32_t field,
+    uint8_t* value
+);
+
+// Returns the value category reached through a generated result path.
+CrossaStatus crossaGetPathKind(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    CrossaValueKind* kind
+);
+
+// Returns the number of elements in a list reached through a result path.
+CrossaStatus crossaGetPathListSize(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    size_t* size
+);
+
+// Reads an Int value reached through a generated result path.
+CrossaStatus crossaGetPathInt(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    int32_t* value
+);
+
+// Reads a Long value reached through a generated result path.
+CrossaStatus crossaGetPathLong(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    int64_t* value
+);
+
+// Reads a Double value reached through a generated result path.
+CrossaStatus crossaGetPathDouble(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    double* value
+);
+
+// Reads a String view reached through a generated result path.
+CrossaStatus crossaGetPathString(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    CrossaStringView* value
+);
+
+// Reads a Bool value reached through a generated result path.
+CrossaStatus crossaGetPathBool(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
     uint8_t* value
 );
 

@@ -29,7 +29,10 @@ namespace crossa::cli::doctor {
     }
 
     // Runs all Crossa, host, Android, and storage checks.
-    DoctorReport DoctorRunner::run(const string& executableArgument) const {
+    DoctorReport DoctorRunner::run(
+        const string& executableArgument,
+        const optional<string>& requestedNdkVersion
+    ) const {
         vector<DoctorResult> results;
         const auto append = [&results](vector<DoctorResult> nextResults) {
             results.insert(
@@ -42,10 +45,15 @@ namespace crossa::cli::doctor {
         append(CrossaInstallationCheck(executableArgument).run());
         append(HostCheck().run());
         append(AndroidSdkCheck().run());
-        append(AndroidNdkCheck().run());
+        append(
+            requestedNdkVersion.has_value()
+                ? AndroidNdkCheck().run(requestedNdkVersion.value())
+                : AndroidNdkCheck().run()
+        );
         append(CMakeCheck().run());
         append(NinjaCheck().run());
         append(JavaCheck().run());
+        append(AppleToolchainCheck().run());
         append(StorageCheck().run());
         return DoctorReport(std::move(results));
     }
