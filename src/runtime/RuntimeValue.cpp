@@ -1,7 +1,9 @@
 #include "crossa/runtime/RuntimeValue.h"
 
-#include <array>
-#include <charconv>
+#include <iomanip>
+#include <limits>
+#include <locale>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 
@@ -214,16 +216,13 @@ namespace crossa::runtime {
 
     // Formats a Double value with stable compact text.
     string RuntimeValue::formatDouble(double value) {
-        array<char, 64> buffer{};
-        const auto result = to_chars(
-            buffer.data(),
-            buffer.data() + buffer.size(),
-            value
-        );
-        if (result.ec != errc{}) {
+        ostringstream stream;
+        stream.imbue(locale::classic());
+        stream << setprecision(numeric_limits<double>::max_digits10) << value;
+        if (!stream) {
             throw runtime_error("Unable to format Double value.");
         }
-        return string(buffer.data(), result.ptr);
+        return stream.str();
     }
 
 }

@@ -502,7 +502,8 @@ public final class CrossaRuntime {
         // Writes private bridge and public umbrella headers for the Swift framework target.
         static void writeBridgeHeaders(const filesystem::path& directory) {
             writeFile(directory / "Crossa.h",
-                "#import <Foundation/Foundation.h>\n\n"
+                "#import <Foundation/Foundation.h>\n"
+                "#import \"CrossaBridge.h\"\n\n"
                 "FOUNDATION_EXPORT double CrossaVersionNumber;\n"
                 "FOUNDATION_EXPORT const unsigned char CrossaVersionString[];\n");
             writeFile(directory / "CrossaBridge.h",
@@ -525,9 +526,8 @@ public final class CrossaRuntime {
                 "CLANG_CXX_LANGUAGE_STANDARD = c++20\n"
                 "GCC_SYMBOLS_PRIVATE_EXTERN = YES\n"
                 "OTHER_CPLUSPLUSFLAGS = $(inherited) -fvisibility=hidden -fvisibility-inlines-hidden -ffile-prefix-map=$(PROJECT_DIR)=/crossa-source\n"
-                "HEADER_SEARCH_PATHS = $(PROJECT_DIR)/Sources/Native/Runtime/include $(PROJECT_DIR)/Sources/Native\n"
-                "SWIFT_OBJC_BRIDGING_HEADER = $(PROJECT_DIR)/Sources/Bridge/CrossaBridge.h\n"
-                "OTHER_LDFLAGS = $(inherited) $(PROJECT_DIR)/.crossa/dependencies/$(PLATFORM_NAME)/$(CURRENT_ARCH)/curl/lib/libcurl.a -framework Security -framework SystemConfiguration -framework CFNetwork -lz\n"
+                "HEADER_SEARCH_PATHS = $(PROJECT_DIR)/Sources/Native/Runtime/include $(PROJECT_DIR)/Sources/Native $(PROJECT_DIR)/.crossa/dependencies/$(PLATFORM_NAME)/$(ARCHS)/curl/include\n"
+                "OTHER_LDFLAGS = $(inherited) $(PROJECT_DIR)/.crossa/dependencies/$(PLATFORM_NAME)/$(ARCHS)/curl/lib/libcurl.a -framework Security -framework SystemConfiguration -framework CFNetwork -lz\n"
             );
             writeFile(directory / "Crossa.xcodeproj" / "project.pbxproj", projectFile());
         }
@@ -541,7 +541,7 @@ public final class CrossaRuntime {
     objectVersion = 77;
     objects = {
         000000000000000000000001 = {isa = PBXBuildFile; fileRef = 000000000000000000000002; settings = {ATTRIBUTES = (Public, ); }; };
-        000000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Crossa.h; sourceTree = "<group>"; };
+        000000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Sources/Bridge/Crossa.h; sourceTree = SOURCE_ROOT; };
         000000000000000000000003 = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (000000000000000000000004, ); path = Sources; sourceTree = "<group>"; };
         000000000000000000000004 = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Bridge/Crossa.h, ); target = 000000000000000000000005; };
         000000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
@@ -555,8 +555,8 @@ public final class CrossaRuntime {
         000000000000000000000014 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2620; LastUpgradeCheck = 2620; TargetAttributes = {000000000000000000000005 = {CreatedOnToolsVersion = 26.2; }; }; }; buildConfigurationList = 000000000000000000000015; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base, ); mainGroup = 000000000000000000000012; productRefGroup = 000000000000000000000013; projectDirPath = ""; projectRoot = ""; targets = (000000000000000000000005, ); };
         000000000000000000000010 = {isa = XCConfigurationList; buildConfigurations = (000000000000000000000016, 000000000000000000000017, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
         000000000000000000000015 = {isa = XCConfigurationList; buildConfigurations = (000000000000000000000018, 000000000000000000000019, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-        000000000000000000000016 = {isa = XCBuildConfiguration; baseConfigurationReference = 000000000000000000000020; buildSettings = {PRODUCT_BUNDLE_IDENTIFIER = io.crossa.framework; PRODUCT_MODULE_NAME = Crossa; PRODUCT_NAME = Crossa; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = (iphoneos, iphonesimulator, ); SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
-        000000000000000000000017 = {isa = XCBuildConfiguration; baseConfigurationReference = 000000000000000000000020; buildSettings = {PRODUCT_BUNDLE_IDENTIFIER = io.crossa.framework; PRODUCT_MODULE_NAME = Crossa; PRODUCT_NAME = Crossa; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = (iphoneos, iphonesimulator, ); SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEAD_CODE_STRIPPING = YES; }; name = Release; };
+        000000000000000000000016 = {isa = XCBuildConfiguration; baseConfigurationReference = 000000000000000000000020; buildSettings = {GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = io.crossa.framework; PRODUCT_MODULE_NAME = Crossa; PRODUCT_NAME = Crossa; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = (iphoneos, iphonesimulator, ); SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+        000000000000000000000017 = {isa = XCBuildConfiguration; baseConfigurationReference = 000000000000000000000020; buildSettings = {GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = io.crossa.framework; PRODUCT_MODULE_NAME = Crossa; PRODUCT_NAME = Crossa; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = (iphoneos, iphonesimulator, ); SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEAD_CODE_STRIPPING = YES; }; name = Release; };
         000000000000000000000018 = {isa = XCBuildConfiguration; baseConfigurationReference = 000000000000000000000020; buildSettings = {}; name = Debug; };
         000000000000000000000019 = {isa = XCBuildConfiguration; baseConfigurationReference = 000000000000000000000020; buildSettings = {}; name = Release; };
         000000000000000000000020 = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Crossa.xcconfig; sourceTree = SOURCE_ROOT; };
@@ -592,7 +592,10 @@ public final class CrossaRuntime {
                 "if ! command -v cmake >/dev/null 2>&1; then\n"
                 "    echo 'Crossa iOS build requires CMake to provision libcurl.' >&2\n    exit 1\nfi\n"
                 "if [ \"${PLATFORM_NAME:-}\" = \"iphonesimulator\" ]; then platform=simulator; else platform=device; fi\n"
-                "arch=${CURRENT_ARCH:?Crossa requires an Xcode architecture}\n"
+                "arch=${CURRENT_ARCH:-}\n"
+                "if [ -z \"${arch}\" ] || [ \"${arch}\" = undefined_arch ]; then arch=${ARCHS:-}; fi\n"
+                "if [ -z \"${arch}\" ] || [ \"${arch}\" = undefined_arch ]; then\n"
+                "    echo 'Crossa requires a concrete Xcode architecture.' >&2\n    exit 1\nfi\n"
                 "build=\"${PROJECT_DIR}/.crossa/dependencies/${PLATFORM_NAME}/${arch}\"\n"
                 "cmake -S \"${PROJECT_DIR}/Dependencies\" -B \"${build}/build\" -G Xcode -DCROSSA_PLATFORM=\"${platform}\" -DCROSSA_ARCH=\"${arch}\" -DCROSSA_SDKROOT=\"${SDKROOT}\" -DCROSSA_DEPLOYMENT_TARGET=\"${IPHONEOS_DEPLOYMENT_TARGET}\" -DCROSSA_INSTALL_ROOT=\"${build}\"\n"
                 "cmake --build \"${build}/build\" --config Release\n";
@@ -606,12 +609,22 @@ public final class CrossaRuntime {
                 "artifact_root=${2:?artifact root is required}\n"
                 "xcode_configuration=Release\n"
                 "if [ \"${configuration}\" = debug ]; then xcode_configuration=Debug; fi\n"
+                "simulator_arch=$(uname -m)\n"
+                "case \"${simulator_arch}\" in\n"
+                "    arm64|x86_64) ;;\n"
+                "    *) echo \"Unsupported simulator architecture: ${simulator_arch}\" >&2; exit 1 ;;\n"
+                "esac\n"
                 "device_archive=\"${artifact_root}/archives/device.xcarchive\"\n"
                 "simulator_archive=\"${artifact_root}/archives/simulator.xcarchive\"\n"
                 "rm -rf \"${device_archive}\" \"${simulator_archive}\" \"${artifact_root}/Crossa.xcframework\"\n"
                 "derived_data=\"${artifact_root}/derived-data\"\n"
-                "xcodebuild archive -project \"${project_dir}/Crossa.xcodeproj\" -scheme Crossa -configuration \"${xcode_configuration}\" -destination 'generic/platform=iOS' -archivePath \"${device_archive}\" -derivedDataPath \"${derived_data}/device\"\n"
-                "xcodebuild archive -project \"${project_dir}/Crossa.xcodeproj\" -scheme Crossa -configuration \"${xcode_configuration}\" -destination 'generic/platform=iOS Simulator' -archivePath \"${simulator_archive}\" -derivedDataPath \"${derived_data}/simulator\"\n"
+                "xcodebuild archive -project \"${project_dir}/Crossa.xcodeproj\" -scheme Crossa -configuration \"${xcode_configuration}\" -destination 'generic/platform=iOS' ARCHS=arm64 -archivePath \"${device_archive}\" -derivedDataPath \"${derived_data}/device\"\n"
+                "xcodebuild archive -project \"${project_dir}/Crossa.xcodeproj\" -scheme Crossa -configuration \"${xcode_configuration}\" -destination 'generic/platform=iOS Simulator' ARCHS=\"${simulator_arch}\" -archivePath \"${simulator_archive}\" -derivedDataPath \"${derived_data}/simulator\"\n"
+                "for archive in \"${device_archive}\" \"${simulator_archive}\"; do\n"
+                "    framework=\"${archive}/Products/Library/Frameworks/Crossa.framework\"\n"
+                "    sed -i '' '/#import \"CrossaBridge.h\"/d' \"${framework}/Headers/Crossa.h\"\n"
+                "    find \"${framework}/Modules\" -name '*.swiftinterface' -type f -exec sed -i '' '/^@_exported import Crossa$/d' {} +\n"
+                "done\n"
                 "xcodebuild -create-xcframework -archive \"${device_archive}\" -framework Crossa.framework -archive \"${simulator_archive}\" -framework Crossa.framework -output \"${artifact_root}/Crossa.xcframework\"\n"
                 "mkdir -p \"${artifact_root}/symbols\" \"${artifact_root}/metadata\"\n"
                 "find \"${device_archive}\" \"${simulator_archive}\" -name '*.dSYM' -type d -exec cp -R {} \"${artifact_root}/symbols/\" \\;\n";
@@ -620,19 +633,20 @@ public final class CrossaRuntime {
         // Returns isolated CMake dependency provisioning for the iOS C++ runtime.
         [[nodiscard]] static string dependencyCmake() {
             return "cmake_minimum_required(VERSION 3.22)\n"
-                "project(CrossaIosDependencies LANGUAGES C CXX)\n\n"
-                "include(ExternalProject)\n"
                 "foreach(required CROSSA_PLATFORM CROSSA_ARCH CROSSA_SDKROOT CROSSA_DEPLOYMENT_TARGET CROSSA_INSTALL_ROOT)\n"
                 "    if(NOT DEFINED ${required})\n        message(FATAL_ERROR \"Missing ${required} for Crossa iOS dependencies.\")\n    endif()\n"
                 "endforeach()\n\n"
+                "set(CMAKE_SYSTEM_NAME iOS)\n"
                 "set(CMAKE_OSX_SYSROOT \"${CROSSA_SDKROOT}\")\n"
                 "set(CMAKE_OSX_ARCHITECTURES \"${CROSSA_ARCH}\")\n"
                 "set(CMAKE_OSX_DEPLOYMENT_TARGET \"${CROSSA_DEPLOYMENT_TARGET}\")\n"
+                "project(CrossaIosDependencies LANGUAGES C CXX)\n\n"
+                "include(ExternalProject)\n"
                 "set(CROSSA_CURL_INSTALL \"${CROSSA_INSTALL_ROOT}/curl\")\n"
                 "ExternalProject_Add(crossa_ios_curl\n"
                 "    URL \"" + IosBuildRequirements::curlArchiveUrl() + "\"\n"
                 "    URL_HASH \"SHA256=" + IosBuildRequirements::curlArchiveSha256() + "\"\n"
-                "    CMAKE_ARGS -DCMAKE_OSX_SYSROOT=${CROSSA_SDKROOT} -DCMAKE_OSX_ARCHITECTURES=${CROSSA_ARCH} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CROSSA_DEPLOYMENT_TARGET} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${CROSSA_CURL_INSTALL} -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DBUILD_TESTING=OFF -DCURL_USE_SECTRANSP=ON -DCURL_USE_OPENSSL=OFF -DCURL_ZLIB=ON -DCURL_DISABLE_LDAP=ON -DCURL_DISABLE_LDAPS=ON -DCURL_DISABLE_RTSP=ON -DCURL_DISABLE_DICT=ON -DCURL_DISABLE_TELNET=ON -DCURL_DISABLE_TFTP=ON -DCURL_DISABLE_POP3=ON -DCURL_DISABLE_IMAP=ON -DCURL_DISABLE_SMTP=ON -DCURL_DISABLE_GOPHER=ON -DCURL_DISABLE_MQTT=ON -DCURL_CA_BUNDLE=none -DCURL_CA_PATH=none\n"
+                "    CMAKE_ARGS -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=${CROSSA_SDKROOT} -DCMAKE_OSX_ARCHITECTURES=${CROSSA_ARCH} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CROSSA_DEPLOYMENT_TARGET} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${CROSSA_CURL_INSTALL} -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DBUILD_TESTING=OFF -DCURL_USE_SECTRANSP=ON -DCURL_USE_OPENSSL=OFF -DCURL_ZLIB=ON -DCURL_USE_LIBPSL=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DUSE_NGHTTP2=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_DISABLE_LDAP=ON -DCURL_DISABLE_LDAPS=ON -DCURL_DISABLE_RTSP=ON -DCURL_DISABLE_DICT=ON -DCURL_DISABLE_TELNET=ON -DCURL_DISABLE_TFTP=ON -DCURL_DISABLE_POP3=ON -DCURL_DISABLE_IMAP=ON -DCURL_DISABLE_SMTP=ON -DCURL_DISABLE_GOPHER=ON -DCURL_DISABLE_MQTT=ON -DCURL_CA_BUNDLE=none -DCURL_CA_PATH=none\n"
                 "    BUILD_BYPRODUCTS \"${CROSSA_CURL_INSTALL}/lib/libcurl.a\"\n"
                 ")\n\n"
                 "add_custom_target(crossa_ios_dependencies ALL DEPENDS crossa_ios_curl)\n";
