@@ -760,17 +760,10 @@ namespace crossa::packaging::android {
         );
         writeAndroidDependencies(outputDirectory);
         compiler::generators::native::NativeProgramGenerator nativeGenerator;
-        string operationHeaders;
-        for (const compiler::ir::Program* program : programs) {
-            if (program == nullptr) {
-                throw runtime_error("Android generation requires a linked IR program.");
-            }
-            operationHeaders += nativeGenerator.generateOperationHeader(*program);
-        }
         writeFile(
             outputDirectory / "library" / "src" / "main" / "cpp" /
                 "CrossaGeneratedOperations.h",
-            operationHeaders
+            nativeGenerator.generateOperationHeader(programs)
         );
         writeFile(
             outputDirectory / "library" / "src" / "main" / "cpp" /

@@ -16,6 +16,11 @@ public:
         const ir::Program& program
     ) const;
 
+    // Generates one project-wide immutable operation identifier declaration set.
+    [[nodiscard]] std::string generateOperationHeader(
+        const std::vector<const ir::Program*>& programs
+    ) const;
+
     // Generates a native factory that reconstructs the compiler validated IR.
     [[nodiscard]] std::string generateProgramHeader() const;
 

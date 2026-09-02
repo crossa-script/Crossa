@@ -3,7 +3,7 @@
   <component name="CidrCTestProjectState">
     <ctestState>
       <lineNumber testId="path:null test:crossa_check_nested_project_test" value="324" />
-      <lineNumber testId="path:null test:crossa_conditionals_test" value="289" />
+      <lineNumber testId="path:null test:crossa_conditionals_test" value="313" />
       <lineNumber testId="path:null test:crossa_explicit_run_test" value="328" />
       <lineNumber testId="path:null test:crossa_explicit_test_command_test" value="332" />
       <lineNumber testId="path:null test:crossa_script_config_test" value="348" />

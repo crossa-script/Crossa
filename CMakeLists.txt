@@ -220,10 +220,18 @@ add_executable(
     src/compiler/ir/Program.cpp
     src/compiler/source/SourceLocation.cpp
     src/compiler/types/SemanticType.cpp
+    src/network/HttpHeader.cpp
+    src/network/HttpMethod.cpp
+    src/network/NetworkConfiguration.cpp
+    src/network/NetworkInterceptor.cpp
+    src/network/NetworkPolicy.cpp
     src/network/json/JsonParser.cpp
     src/network/json/JsonSerializer.cpp
     src/network/json/JsonValue.cpp
+    src/network/request/PreparedRequest.cpp
     src/network/response/ResponseDecoder.cpp
+    src/network/response/HttpResponse.cpp
+    src/network/utils/UrlUtils.cpp
     src/runtime/RequestHandle.cpp
     src/runtime/RuntimeValue.cpp
     src/runtime/errors/CrossaError.cpp
