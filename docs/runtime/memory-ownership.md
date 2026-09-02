@@ -22,3 +22,25 @@ The transport tracks each checked-out curl handle with its operation handle. Tra
 - `CrossaState` and `CrossaError` are the terminal native data contract.
 - Platform bindings retain native-backed handles for large results and do not eagerly duplicate every model or list element.
 - A handle or native view must never outlive the immutable storage it references.
+
+## Runtime Shutdown Ownership
+
+`NativeRuntime` transitions from `Running` to `ShutdownRequested` to `Stopped`.
+The first shutdown request rejects new operation registrations and cancels every
+registered operation. Scheduler termination is awaited before runtime-owned
+result/error storage, interpreter state, network state, and operation records
+are destroyed.
+
+The ABI registry normally removes its runtime entry and performs this shutdown
+on the calling non-worker thread. If an ABI callback asks to release its own
+runtime from a scheduler worker, the registry moves the runtime into its
+joinable reaper queue. The callback only requests shutdown; the reaper joins
+workers and then releases the final runtime reference from a safe non-worker
+context. No Crossa worker is detached.
+
+Operation handles are lightweight runtime bookkeeping. Terminal completion
+removes the operation from both the active execution set and the handle map;
+releasing an already removed handle returns `CrossaStatusInvalidHandle` without
+touching the scheduler task or its result. Result and error handles remain
+owned independently by `CrossaRuntimeContext` until released or until their
+runtime is released.

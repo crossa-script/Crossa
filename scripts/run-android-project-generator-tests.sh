@@ -32,7 +32,7 @@ requireFile() {
 }
 
 requireText() {
-    if ! rg -F --quiet -- "$2" "$1"; then
+    if ! grep -Fq -- "$2" "$1"; then
         printf '%s\n' "Generated Android file does not contain expected text: $2" >&2
         exit 1
     fi

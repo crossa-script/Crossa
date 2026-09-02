@@ -21,26 +21,26 @@ public:
     CrossaRuntimeContext& operator=(const CrossaRuntimeContext&) = delete;
 
     // Stores one terminal native value and returns its opaque result handle.
-    [[nodiscard]] CrossaResultHandle retainResult(runtime::RuntimeValue value);
+    [[nodiscard]] CrossaResultHandle retainResult(runtime::RuntimeValue value) noexcept;
 
     // Releases one result handle and its retained native storage.
-    [[nodiscard]] CrossaStatus releaseResult(CrossaResultHandle result);
+    [[nodiscard]] CrossaStatus releaseResult(CrossaResultHandle result) noexcept;
 
     // Returns one retained result value or null when the handle is invalid.
     [[nodiscard]] std::shared_ptr<const runtime::RuntimeValue> findResult(
         CrossaResultHandle result
-    ) const;
+    ) const noexcept;
 
     // Stores one terminal native error and returns its opaque error handle.
-    [[nodiscard]] CrossaErrorHandle retainError(runtime::CrossaError error);
+    [[nodiscard]] CrossaErrorHandle retainError(runtime::CrossaError error) noexcept;
 
     // Releases one error handle and its retained native storage.
-    [[nodiscard]] CrossaStatus releaseError(CrossaErrorHandle error);
+    [[nodiscard]] CrossaStatus releaseError(CrossaErrorHandle error) noexcept;
 
     // Returns one retained error or null when the handle is invalid.
     [[nodiscard]] std::shared_ptr<const runtime::CrossaError> findError(
         CrossaErrorHandle error
-    ) const;
+    ) const noexcept;
 
 private:
     std::uint64_t nextResult_ = 1;

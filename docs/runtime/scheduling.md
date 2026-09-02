@@ -14,4 +14,11 @@ underlying `RequestHandle`; it never exposes a scheduler pointer or a C++
 request object across the ABI. An operation identifier is not reused, and its
 release drops only bridge bookkeeping, never result ownership.
 
-Runtime shutdown stops new submissions, cancels queued and active handles, drains the now-cancelled queue, and joins every worker. Cancellation and timeout are separate terminal causes.
+Runtime shutdown stops new submissions, cancels queued and active handles, drains the now-cancelled queue, and joins every worker from a non-worker owner. A worker may request shutdown, but never waits for or joins itself. Cancellation and timeout are separate terminal causes.
+
+The scheduler exposes separate shutdown-request and termination-wait phases. The
+request phase is idempotent and wakes every worker. The wait phase has one
+joining owner; concurrent non-worker callers wait for the same termination
+publication. Runtime operation records are removed when their terminal state is
+published, while the scheduler's copied `RequestHandle` keeps execution safe
+until the worker returns.

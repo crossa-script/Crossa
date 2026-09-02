@@ -138,6 +138,12 @@ Each ABI runtime handle resolves to one `shared_ptr<NativeRuntime>`. That
 registry does not create a second result arena. A result or error is therefore
 identified by its owning runtime handle plus its local result/error handle.
 
+Runtime shutdown is split into an idempotent request and a worker join. When a
+callback running on a Crossa worker releases its runtime, the ABI registry
+defers the final runtime reference to its joinable non-worker reaper. This
+prevents self-join and prevents destruction of scheduler-owned thread objects
+on the worker that is still executing the callback.
+
 An accepted operation may be cancelled or released independently of a terminal
 result. Retained result/error handles remain readable after the operation
 handle is released, but never after `crossaReleaseRuntime`. Runtime release
@@ -148,7 +154,9 @@ result views before releasing their runtime during normal lifecycle teardown.
 ABI accesses acquire a temporary strong `NativeRuntime` reference from the
 registry and release the registry mutex before accessing result storage. This
 prevents a concurrent runtime release from leaving an ABI call with a dangling
-result-context reference.
+result-context reference. Terminal operation completion removes execution
+ownership independently of the optional operation handle, so ignored platform
+operation identifiers do not retain completed execution state.
 
 ## Result Views
 

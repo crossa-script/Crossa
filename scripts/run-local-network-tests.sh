@@ -83,7 +83,7 @@ runCase() {
 }
 
 localOutput="$(runCase "$projectRoot/tests/local-network/request.cra" 0 '' true)"
-networkLogs="$(printf '%s\n' "$localOutput" | rg 'Network request|Network response')"
+networkLogs="$(printf '%s\n' "$localOutput" | grep -E 'Network request|Network response')"
 if [[ "$localOutput" != *'Network request headers:'* ]]; then
     fail 'Enabled request header logging did not appear.'
 fi

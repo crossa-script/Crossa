@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -101,6 +102,8 @@ namespace crossa::bindings::android {
                 static_cast<jlong>(error)
             );
             if (environment->ExceptionCheck()) environment->ExceptionClear();
+            environment->DeleteGlobalRef(callback_);
+            callback_ = nullptr;
             if (attached) javaVm_->DetachCurrentThread();
         }
 
@@ -174,37 +177,56 @@ namespace crossa::bindings::android {
 
     // Creates one generated runtime through the project-specific factory seam.
     static jlong nativeConfigure(JNIEnv*, jobject) {
-        const auto creator = AndroidJniMetadata::runtimeCreator();
-        return creator == nullptr ? 0 : static_cast<jlong>(creator());
+        try {
+            const auto creator = AndroidJniMetadata::runtimeCreator();
+            return creator == nullptr ? 0 : static_cast<jlong>(creator());
+        } catch (...) {
+            return 0;
+        }
     }
 
     // Starts a generated Async operation through the shared C ABI.
     static jlong nativeInvokeAsync(JNIEnv* environment, jobject, jlong runtime, jlong operation, jobjectArray arguments) {
-        vector<CrossaAbiArgument> converted;
-        vector<string> strings;
-        if (!convertArguments(environment, arguments, &converted, &strings)) return 0;
-        CrossaOperationHandle invocation = 0;
-        return crossaInvokeAsync(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaOperationId>(operation), converted.data(), converted.size(), &invocation) == CrossaStatusOk ? static_cast<jlong>(invocation) : 0;
+        try {
+            vector<CrossaAbiArgument> converted;
+            vector<string> strings;
+            if (!convertArguments(environment, arguments, &converted, &strings)) return 0;
+            CrossaOperationHandle invocation = 0;
+            return crossaInvokeAsync(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaOperationId>(operation), converted.data(), converted.size(), &invocation) == CrossaStatusOk ? static_cast<jlong>(invocation) : 0;
+        } catch (...) {
+            return 0;
+        }
     }
 
     // Bridges one ABI completion to a persistent Kotlin callback reference.
-    static void complete(void* userData, CrossaAbiCompletionKind kind, CrossaResultHandle result, CrossaErrorHandle error) {
+    static void complete(void* userData, CrossaAbiCompletionKind kind, CrossaResultHandle result, CrossaErrorHandle error) noexcept {
         unique_ptr<AndroidCompletionContext> context(static_cast<AndroidCompletionContext*>(userData));
         context->complete(kind, result, error);
     }
 
     // Starts a generated AsyncAfter operation through the shared C ABI.
     static jlong nativeInvokeAsyncAfter(JNIEnv* environment, jobject, jlong runtime, jlong operation, jobjectArray arguments, jobject callback) {
-        vector<CrossaAbiArgument> converted;
-        vector<string> strings;
-        if (callback == nullptr || !convertArguments(environment, arguments, &converted, &strings)) return 0;
-        auto context = make_unique<AndroidCompletionContext>(AndroidJniMetadata::javaVm_, environment, callback);
-        if (!context->isValid()) return 0;
-        CrossaOperationHandle invocation = 0;
-        const CrossaStatus status = crossaInvokeAsyncAfter(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaOperationId>(operation), converted.data(), converted.size(), complete, context.get(), &invocation);
-        if (status != CrossaStatusOk) return 0;
-        (void)context.release();
-        return static_cast<jlong>(invocation);
+        AndroidCompletionContext* callbackContext = nullptr;
+        try {
+            vector<CrossaAbiArgument> converted;
+            vector<string> strings;
+            if (callback == nullptr || !convertArguments(environment, arguments, &converted, &strings)) return 0;
+            auto context = make_unique<AndroidCompletionContext>(AndroidJniMetadata::javaVm_, environment, callback);
+            if (!context->isValid()) return 0;
+            callbackContext = context.release();
+            CrossaOperationHandle invocation = 0;
+            const CrossaStatus status = crossaInvokeAsyncAfter(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaOperationId>(operation), converted.data(), converted.size(), complete, callbackContext, &invocation);
+            if (status != CrossaStatusOk) {
+                delete callbackContext;
+                callbackContext = nullptr;
+                return 0;
+            }
+            callbackContext = nullptr;
+            return static_cast<jlong>(invocation);
+        } catch (...) {
+            delete callbackContext;
+            return 0;
+        }
     }
 
     // Requests cancellation for a generated runtime operation.
@@ -235,7 +257,7 @@ namespace crossa::bindings::android {
     // Reads the native list size without materializing a Kotlin collection.
     static jint nativeListSize(JNIEnv*, jobject, jlong runtime, jlong result) {
         size_t size = 0;
-        return crossaGetListSize(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaResultHandle>(result), &size) == CrossaStatusOk ? static_cast<jint>(size) : -1;
+        return crossaGetListSize(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaResultHandle>(result), &size) == CrossaStatusOk && size <= static_cast<size_t>(numeric_limits<jint>::max()) ? static_cast<jint>(size) : -1;
     }
 
     // Resolves one borrowed model index from a native list result.
@@ -258,8 +280,12 @@ namespace crossa::bindings::android {
 
     // Copies one runtime-owned UTF-8 view only at the Kotlin boundary.
     static jstring newString(JNIEnv* environment, CrossaStringView value, CrossaStatus status) {
-        if (status != CrossaStatusOk) return environment->NewStringUTF("");
-        return environment->NewStringUTF(string(value.data, value.size).c_str());
+        try {
+            if (status != CrossaStatusOk || value.data == nullptr) return environment->NewStringUTF("");
+            return environment->NewStringUTF(string(value.data, value.size).c_str());
+        } catch (...) {
+            return environment->NewStringUTF("");
+        }
     }
 
     // Reads a scalar string root result through the ABI.
@@ -274,6 +300,26 @@ namespace crossa::bindings::android {
         CrossaStringView value{};
         const CrossaStatus status = crossaGetErrorMessage(static_cast<CrossaRuntimeHandle>(runtime), static_cast<CrossaErrorHandle>(error), &value);
         return newString(environment, value, status);
+    }
+
+    static jlong nativeErrorMetadata(JNIEnv*, jobject, jlong runtime, jlong error) {
+        int32_t domain = 0;
+        int32_t code = 0;
+        uint8_t retryable = 0;
+        const CrossaStatus status = crossaGetErrorMetadata(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaErrorHandle>(error),
+            &domain,
+            &code,
+            &retryable
+        );
+        if (status != CrossaStatusOk) return 0;
+        return static_cast<jlong>(
+            (uint64_t{1} << 63) |
+            (static_cast<uint64_t>(retryable != 0) << 62) |
+            ((static_cast<uint64_t>(code) & 0x7fffffffU) << 32) |
+            (static_cast<uint32_t>(domain))
+        );
     }
 
     // Releases one terminal error after Kotlin has copied its message.
@@ -292,33 +338,34 @@ namespace crossa::bindings::android {
     }
 
     bool AndroidJniMetadata::initialize(JavaVM* javaVm, JNIEnv* environment, const char* bridgeClassName, AndroidJniBridge::RuntimeCreator runtimeCreator) noexcept {
-        lock_guard lock(mutex_);
-        if (javaVm_ != nullptr) return javaVm_ == javaVm && runtimeCreator_ == runtimeCreator;
-        jclass bridgeClass = findGlobalClass(environment, bridgeClassName);
-        packagePrefix_ = bridgeClassName;
-        const size_t bridgeStart = packagePrefix_.rfind('/');
-        if (bridgeStart == string::npos) return false;
-        packagePrefix_.erase(bridgeStart + 1);
-        argumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument").c_str());
-        intArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$IntValue").c_str());
-        longArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$LongValue").c_str());
-        doubleArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$DoubleValue").c_str());
-        stringArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$StringValue").c_str());
-        boolArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$BooleanValue").c_str());
-        callbackClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaNativeCallback").c_str());
-        if (bridgeClass == nullptr || argumentClass_ == nullptr || intArgumentClass_ == nullptr || longArgumentClass_ == nullptr || doubleArgumentClass_ == nullptr || stringArgumentClass_ == nullptr || boolArgumentClass_ == nullptr || callbackClass_ == nullptr) return false;
-        intValue_ = environment->GetFieldID(intArgumentClass_, "value", "I");
-        longValue_ = environment->GetFieldID(longArgumentClass_, "value", "J");
-        doubleValue_ = environment->GetFieldID(doubleArgumentClass_, "value", "D");
-        stringValue_ = environment->GetFieldID(stringArgumentClass_, "value", "Ljava/lang/String;");
-        boolValue_ = environment->GetFieldID(boolArgumentClass_, "value", "Z");
-        callbackComplete_ = environment->GetMethodID(callbackClass_, "onComplete", "(IJJ)V");
-        if (intValue_ == nullptr || longValue_ == nullptr || doubleValue_ == nullptr || stringValue_ == nullptr || boolValue_ == nullptr || callbackComplete_ == nullptr) return false;
-        const string argumentDescriptor = "[L" + packagePrefix_ + "CrossaArgument;";
-        const string callbackDescriptor = "L" + packagePrefix_ + "CrossaNativeCallback;";
-        const string invokeDescriptor = "(JJ" + argumentDescriptor + ")J";
-        const string completionDescriptor = "(JJ" + argumentDescriptor + callbackDescriptor + ")J";
-        JNINativeMethod methods[] = {
+        try {
+            lock_guard lock(mutex_);
+            if (javaVm_ != nullptr) return javaVm_ == javaVm && runtimeCreator_ == runtimeCreator;
+            jclass bridgeClass = findGlobalClass(environment, bridgeClassName);
+            packagePrefix_ = bridgeClassName;
+            const size_t bridgeStart = packagePrefix_.rfind('/');
+            if (bridgeStart == string::npos) return false;
+            packagePrefix_.erase(bridgeStart + 1);
+            argumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument").c_str());
+            intArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$IntValue").c_str());
+            longArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$LongValue").c_str());
+            doubleArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$DoubleValue").c_str());
+            stringArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$StringValue").c_str());
+            boolArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$BooleanValue").c_str());
+            callbackClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaNativeCallback").c_str());
+            if (bridgeClass == nullptr || argumentClass_ == nullptr || intArgumentClass_ == nullptr || longArgumentClass_ == nullptr || doubleArgumentClass_ == nullptr || stringArgumentClass_ == nullptr || boolArgumentClass_ == nullptr || callbackClass_ == nullptr) return false;
+            intValue_ = environment->GetFieldID(intArgumentClass_, "value", "I");
+            longValue_ = environment->GetFieldID(longArgumentClass_, "value", "J");
+            doubleValue_ = environment->GetFieldID(doubleArgumentClass_, "value", "D");
+            stringValue_ = environment->GetFieldID(stringArgumentClass_, "value", "Ljava/lang/String;");
+            boolValue_ = environment->GetFieldID(boolArgumentClass_, "value", "Z");
+            callbackComplete_ = environment->GetMethodID(callbackClass_, "onComplete", "(IJJ)V");
+            if (intValue_ == nullptr || longValue_ == nullptr || doubleValue_ == nullptr || stringValue_ == nullptr || boolValue_ == nullptr || callbackComplete_ == nullptr) return false;
+            const string argumentDescriptor = "[L" + packagePrefix_ + "CrossaArgument;";
+            const string callbackDescriptor = "L" + packagePrefix_ + "CrossaNativeCallback;";
+            const string invokeDescriptor = "(JJ" + argumentDescriptor + ")J";
+            const string completionDescriptor = "(JJ" + argumentDescriptor + callbackDescriptor + ")J";
+            JNINativeMethod methods[] = {
             {const_cast<char*>("nativeConfigure"), const_cast<char*>("()J"), reinterpret_cast<void*>(nativeConfigure)},
             {const_cast<char*>("nativeInvokeAsync"), const_cast<char*>(invokeDescriptor.c_str()), reinterpret_cast<void*>(nativeInvokeAsync)},
             {const_cast<char*>("nativeInvokeAsyncAfter"), const_cast<char*>(completionDescriptor.c_str()), reinterpret_cast<void*>(nativeInvokeAsyncAfter)},
@@ -335,6 +382,7 @@ namespace crossa::bindings::android {
             {const_cast<char*>("nativeResultDouble"), const_cast<char*>("(JJ)D"), reinterpret_cast<void*>(nativeResultDouble)},
             {const_cast<char*>("nativeResultString"), const_cast<char*>("(JJ)Ljava/lang/String;"), reinterpret_cast<void*>(nativeResultString)},
             {const_cast<char*>("nativeErrorMessage"), const_cast<char*>("(JJ)Ljava/lang/String;"), reinterpret_cast<void*>(nativeErrorMessage)},
+            {const_cast<char*>("nativeErrorMetadata"), const_cast<char*>("(JJ)J"), reinterpret_cast<void*>(nativeErrorMetadata)},
             {const_cast<char*>("nativeReleaseError"), const_cast<char*>("(JJ)V"), reinterpret_cast<void*>(nativeReleaseError)},
             {const_cast<char*>("nativeResultBoolean"), const_cast<char*>("(JJ)Z"), reinterpret_cast<void*>(nativeResultBoolean)},
             {const_cast<char*>("nativeModelInt"), const_cast<char*>("(JJJI)I"), reinterpret_cast<void*>(nativeModelInt)},
@@ -342,17 +390,24 @@ namespace crossa::bindings::android {
             {const_cast<char*>("nativeModelDouble"), const_cast<char*>("(JJJI)D"), reinterpret_cast<void*>(nativeModelDouble)},
             {const_cast<char*>("nativeModelString"), const_cast<char*>("(JJJI)Ljava/lang/String;"), reinterpret_cast<void*>(nativeModelString)},
             {const_cast<char*>("nativeModelBoolean"), const_cast<char*>("(JJJI)Z"), reinterpret_cast<void*>(nativeModelBoolean)}
-        };
-        if (environment->RegisterNatives(bridgeClass, methods, sizeof(methods) / sizeof(methods[0])) != JNI_OK) return false;
-        environment->DeleteGlobalRef(bridgeClass);
-        javaVm_ = javaVm;
-        runtimeCreator_ = runtimeCreator;
-        return true;
+            };
+            if (environment->RegisterNatives(bridgeClass, methods, sizeof(methods) / sizeof(methods[0])) != JNI_OK) return false;
+            environment->DeleteGlobalRef(bridgeClass);
+            javaVm_ = javaVm;
+            runtimeCreator_ = runtimeCreator;
+            return true;
+        } catch (...) {
+            return false;
+        }
     }
 
     AndroidJniBridge::RuntimeCreator AndroidJniMetadata::runtimeCreator() noexcept {
-        lock_guard lock(mutex_);
-        return runtimeCreator_;
+        try {
+            lock_guard lock(mutex_);
+            return runtimeCreator_;
+        } catch (...) {
+            return nullptr;
+        }
     }
 
     bool AndroidJniBridge::initialize(JavaVM* javaVm, JNIEnv* environment, const char* bridgeClassName, RuntimeCreator runtimeCreator) noexcept {

@@ -58,6 +58,13 @@ public:
         std::vector<RuntimeValue> arguments
     );
 
+    [[nodiscard]] RequestHandle invokeAsyncOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        std::vector<RuntimeValue> arguments,
+        RequestHandle requestHandle,
+        std::function<void(CrossaState<RuntimeValue>)> completion
+    );
+
     // Schedules one generated completion operation on the shared scheduler.
     [[nodiscard]] scheduler::ScheduledTask invokeAsyncAfterOperation(
         const compiler::ir::IrFunctionDeclaration& function,
@@ -68,6 +75,13 @@ public:
     [[nodiscard]] RequestHandle invokeAsyncAfterOperation(
         const compiler::ir::IrFunctionDeclaration& function,
         std::vector<RuntimeValue> arguments,
+        std::function<void(CrossaState<RuntimeValue>)> completion
+    );
+
+    [[nodiscard]] RequestHandle invokeAsyncAfterOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        std::vector<RuntimeValue> arguments,
+        RequestHandle requestHandle,
         std::function<void(CrossaState<RuntimeValue>)> completion
     );
 

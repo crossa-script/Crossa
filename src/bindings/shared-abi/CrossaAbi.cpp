@@ -3,7 +3,11 @@
 #include <memory>
 #include <mutex>
 #include <new>
+#include <condition_variable>
+#include <deque>
+#include <limits>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -21,17 +25,46 @@ namespace crossa::bindings::sharedabi {
     // Owns validated opaque runtime handles and their native runtimes.
     class CrossaAbiRuntimeRegistry final {
     public:
+        ~CrossaAbiRuntimeRegistry() {
+            {
+                lock_guard<mutex> lock(mutex_);
+                for (auto& [handle, nativeRuntime] : runtimes_) {
+                    (void)handle;
+                    retired_.push_back(std::move(nativeRuntime));
+                }
+                runtimes_.clear();
+                reaperStopping_ = true;
+            }
+            condition_.notify_all();
+            if (reaper_.joinable()) {
+                reaper_.join();
+            }
+        }
+
         // Removes one runtime after its scheduler has stopped using result storage.
         static void release(CrossaRuntimeHandle runtime) {
+            CrossaAbiRuntimeRegistry& registry = instance();
             shared_ptr<runtime::NativeRuntime> nativeRuntime;
+            bool deferred = false;
             {
-                lock_guard<mutex> lock(instance().mutex_);
-                const auto found = instance().runtimes_.find(runtime);
-                if (found == instance().runtimes_.end()) return;
+                lock_guard<mutex> lock(registry.mutex_);
+                const auto found = registry.runtimes_.find(runtime);
+                if (found == registry.runtimes_.end()) return;
                 nativeRuntime = found->second;
-                instance().runtimes_.erase(found);
+                registry.runtimes_.erase(found);
+                if (nativeRuntime->isWorkerThread()) {
+                    registry.retired_.push_back(nativeRuntime);
+                    try {
+                        registry.startReaperLocked();
+                    } catch (...) {
+                    }
+                    deferred = true;
+                }
             }
             nativeRuntime->shutdown();
+            if (!deferred) {
+                nativeRuntime.reset();
+            }
         }
 
         static CrossaStatus createNative(
@@ -58,15 +91,45 @@ namespace crossa::bindings::sharedabi {
             return CrossaStatusOk;
         }
 
-        static shared_ptr<runtime::NativeRuntime> findNative(CrossaRuntimeHandle runtime) {
-            lock_guard<mutex> lock(instance().mutex_);
-            const auto found = instance().runtimes_.find(runtime);
-            return found == instance().runtimes_.end() ? nullptr : found->second;
+        static shared_ptr<runtime::NativeRuntime> findNative(CrossaRuntimeHandle runtime) noexcept {
+            try {
+                lock_guard<mutex> lock(instance().mutex_);
+                const auto found = instance().runtimes_.find(runtime);
+                return found == instance().runtimes_.end() ? nullptr : found->second;
+            } catch (...) {
+                return nullptr;
+            }
         }
 
     private:
         // Creates the process-local registry for the stable C ABI.
         CrossaAbiRuntimeRegistry() : nextHandle_(1) {}
+
+        void startReaperLocked() {
+            if (reaper_.joinable()) {
+                condition_.notify_one();
+                return;
+            }
+            reaper_ = thread([this]() { reapRetiredRuntimes(); });
+        }
+
+        void reapRetiredRuntimes() {
+            while (true) {
+                shared_ptr<runtime::NativeRuntime> nativeRuntime;
+                {
+                    unique_lock<mutex> lock(mutex_);
+                    condition_.wait(lock, [this]() {
+                        return reaperStopping_ || !retired_.empty();
+                    });
+                    if (retired_.empty() && reaperStopping_) {
+                        return;
+                    }
+                    nativeRuntime = std::move(retired_.front());
+                    retired_.pop_front();
+                }
+                nativeRuntime->shutdown();
+            }
+        }
 
         // Returns the sole registry instance used by ABI functions.
         static CrossaAbiRuntimeRegistry& instance() {
@@ -78,6 +141,10 @@ namespace crossa::bindings::sharedabi {
         CrossaRuntimeHandle nextHandle_;
         unordered_map<CrossaRuntimeHandle, shared_ptr<runtime::NativeRuntime>>
             runtimes_;
+        deque<shared_ptr<runtime::NativeRuntime>> retired_;
+        condition_variable condition_;
+        thread reaper_;
+        bool reaperStopping_ = false;
     };
 
     // Resolves one result handle while preserving its native storage lifetime.
@@ -109,6 +176,10 @@ namespace crossa::bindings::sharedabi {
                 const CrossaAbiArgument& argument = arguments[index];
                 switch (argument.kind) {
                     case CrossaAbiArgumentInt:
+                        if (argument.integerValue < numeric_limits<int32_t>::min() ||
+                            argument.integerValue > numeric_limits<int32_t>::max()) {
+                            return false;
+                        }
                         values->push_back(runtime::RuntimeValue::createInt(
                             argument.integerValue
                         ));
@@ -218,16 +289,23 @@ extern "C" {
 
     // Destroys a runtime after invalidating all results and errors it owns.
     void crossaReleaseRuntime(CrossaRuntimeHandle runtime) {
-        crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::release(runtime);
+        try {
+            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::release(runtime);
+        } catch (...) {
+        }
     }
 
     // Stops accepted work while preserving runtime-owned result handles.
     CrossaStatus crossaRuntimeShutdown(CrossaRuntimeHandle runtime) {
-        const auto nativeRuntime =
-            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
-        if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
-        nativeRuntime->shutdown();
-        return CrossaStatusOk;
+        try {
+            const auto nativeRuntime =
+                crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
+            if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
+            nativeRuntime->shutdown();
+            return CrossaStatusOk;
+        } catch (...) {
+            return CrossaStatusInternalError;
+        }
     }
 
     // Starts an Async operation and returns its cancellable lifecycle handle.
@@ -240,14 +318,14 @@ extern "C" {
     ) {
         if (invocation == nullptr) return CrossaStatusInvalidArgument;
         *invocation = 0;
-        const auto nativeRuntime =
-            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
-        if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
-        vector<crossa::runtime::RuntimeValue> values;
-        if (!crossa::bindings::sharedabi::CrossaAbiValueAccess::convertArguments(
-                arguments, argumentCount, &values
-            )) return CrossaStatusInvalidArgument;
         try {
+            const auto nativeRuntime =
+                crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
+            if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
+            vector<crossa::runtime::RuntimeValue> values;
+            if (!crossa::bindings::sharedabi::CrossaAbiValueAccess::convertArguments(
+                    arguments, argumentCount, &values
+                )) return CrossaStatusInvalidArgument;
             *invocation = nativeRuntime->startAsync(operation, std::move(values));
             return CrossaStatusOk;
         } catch (...) {
@@ -269,29 +347,54 @@ extern "C" {
             return CrossaStatusInvalidArgument;
         }
         *invocation = 0;
-        const auto nativeRuntime =
-            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
-        if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
-        vector<crossa::runtime::RuntimeValue> values;
-        if (!crossa::bindings::sharedabi::CrossaAbiValueAccess::convertArguments(
-                arguments, argumentCount, &values
-            )) return CrossaStatusInvalidArgument;
         try {
+            const auto nativeRuntime =
+                crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
+            if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
+            vector<crossa::runtime::RuntimeValue> values;
+            if (!crossa::bindings::sharedabi::CrossaAbiValueAccess::convertArguments(
+                    arguments, argumentCount, &values
+                )) return CrossaStatusInvalidArgument;
             *invocation = nativeRuntime->startAsyncAfter(
                 operation,
                 std::move(values),
                 [nativeRuntime, completion, userData](
                     crossa::runtime::CrossaState<CrossaResultHandle> state
                 ) {
-                    if (state.isSuccess()) {
-                        completion(userData, CrossaAbiCompletionSuccess,
-                                   state.getData(), 0);
-                    } else if (state.isCancelled()) {
-                        completion(userData, CrossaAbiCompletionCancelled, 0, 0);
-                    } else {
-                        const CrossaErrorHandle error = nativeRuntime->resultContext()
-                            .retainError(state.getError());
-                        completion(userData, CrossaAbiCompletionFailed, 0, error);
+                    CrossaResultHandle result = 0;
+                    CrossaErrorHandle error = 0;
+                    bool callbackAttempted = false;
+                    try {
+                        CrossaAbiCompletionKind kind = CrossaAbiCompletionCancelled;
+                        if (state.isSuccess()) {
+                            kind = CrossaAbiCompletionSuccess;
+                            result = state.getData();
+                        } else if (state.isFailed()) {
+                            kind = CrossaAbiCompletionFailed;
+                            error = nativeRuntime->resultContext().retainError(
+                                state.getError()
+                            );
+                        }
+                        callbackAttempted = true;
+                        completion(userData, kind, result, error);
+                    } catch (...) {
+                        if (result != 0) {
+                            (void)nativeRuntime->resultContext().releaseResult(result);
+                        }
+                        if (error != 0) {
+                            (void)nativeRuntime->resultContext().releaseError(error);
+                        }
+                        if (!callbackAttempted) {
+                            try {
+                                completion(
+                                    userData,
+                                    CrossaAbiCompletionFailed,
+                                    0,
+                                    0
+                                );
+                            } catch (...) {
+                            }
+                        }
                     }
                 }
             );
@@ -306,11 +409,15 @@ extern "C" {
         CrossaRuntimeHandle runtime,
         CrossaOperationHandle operation
     ) {
-        const auto nativeRuntime =
-            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
-        if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
-        return nativeRuntime->cancelOperation(operation)
-            ? CrossaStatusOk : CrossaStatusInvalidHandle;
+        try {
+            const auto nativeRuntime =
+                crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
+            if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
+            return nativeRuntime->cancelOperation(operation)
+                ? CrossaStatusOk : CrossaStatusInvalidHandle;
+        } catch (...) {
+            return CrossaStatusInternalError;
+        }
     }
 
     // Releases one caller-owned native operation lifecycle.
@@ -318,27 +425,39 @@ extern "C" {
         CrossaRuntimeHandle runtime,
         CrossaOperationHandle operation
     ) {
-        const auto nativeRuntime =
-            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
-        if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
-        return nativeRuntime->releaseOperation(operation)
-            ? CrossaStatusOk : CrossaStatusInvalidHandle;
+        try {
+            const auto nativeRuntime =
+                crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
+            if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
+            return nativeRuntime->releaseOperation(operation)
+                ? CrossaStatusOk : CrossaStatusInvalidHandle;
+        } catch (...) {
+            return CrossaStatusInternalError;
+        }
     }
 
     // Releases one result and makes future accesses fail deterministically.
     CrossaStatus crossaReleaseResult(CrossaRuntimeHandle runtime, CrossaResultHandle result) {
-        const auto nativeRuntime =
-            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
-        return nativeRuntime == nullptr ? CrossaStatusInvalidHandle :
-            nativeRuntime->resultContext().releaseResult(result);
+        try {
+            const auto nativeRuntime =
+                crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
+            return nativeRuntime == nullptr ? CrossaStatusInvalidHandle :
+                nativeRuntime->resultContext().releaseResult(result);
+        } catch (...) {
+            return CrossaStatusInternalError;
+        }
     }
 
     // Releases one runtime-owned error handle.
     CrossaStatus crossaReleaseError(CrossaRuntimeHandle runtime, CrossaErrorHandle error) {
-        const auto nativeRuntime =
-            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
-        return nativeRuntime == nullptr ? CrossaStatusInvalidHandle :
-            nativeRuntime->resultContext().releaseError(error);
+        try {
+            const auto nativeRuntime =
+                crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
+            return nativeRuntime == nullptr ? CrossaStatusInvalidHandle :
+                nativeRuntime->resultContext().releaseError(error);
+        } catch (...) {
+            return CrossaStatusInternalError;
+        }
     }
 
     // Reads a borrowed runtime-owned error message.
@@ -347,15 +466,19 @@ extern "C" {
         CrossaErrorHandle error,
         CrossaStringView* value
     ) {
-        if (value == nullptr) return CrossaStatusInvalidArgument;
-        const auto nativeRuntime =
-            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
-        if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
-        const auto nativeError = nativeRuntime->resultContext().findError(error);
-        if (nativeError == nullptr) return CrossaStatusInvalidHandle;
-        value->data = nativeError->getMessage().data();
-        value->size = nativeError->getMessage().size();
-        return CrossaStatusOk;
+        try {
+            if (value == nullptr) return CrossaStatusInvalidArgument;
+            const auto nativeRuntime =
+                crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
+            if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
+            const auto nativeError = nativeRuntime->resultContext().findError(error);
+            if (nativeError == nullptr) return CrossaStatusInvalidHandle;
+            value->data = nativeError->getMessage().data();
+            value->size = nativeError->getMessage().size();
+            return CrossaStatusOk;
+        } catch (...) {
+            return CrossaStatusInternalError;
+        }
     }
 
     // Reads stable error metadata from the canonical runtime result context.
@@ -366,18 +489,22 @@ extern "C" {
         int32_t* code,
         uint8_t* retryable
     ) {
-        if (domain == nullptr || code == nullptr || retryable == nullptr) {
-            return CrossaStatusInvalidArgument;
+        try {
+            if (domain == nullptr || code == nullptr || retryable == nullptr) {
+                return CrossaStatusInvalidArgument;
+            }
+            const auto nativeRuntime =
+                crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
+            if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
+            const auto nativeError = nativeRuntime->resultContext().findError(error);
+            if (nativeError == nullptr) return CrossaStatusInvalidHandle;
+            *domain = static_cast<int32_t>(nativeError->getDomain());
+            *code = static_cast<int32_t>(nativeError->getCode());
+            *retryable = nativeError->isRetryable() ? 1 : 0;
+            return CrossaStatusOk;
+        } catch (...) {
+            return CrossaStatusInternalError;
         }
-        const auto nativeRuntime =
-            crossa::bindings::sharedabi::CrossaAbiRuntimeRegistry::findNative(runtime);
-        if (nativeRuntime == nullptr) return CrossaStatusInvalidHandle;
-        const auto nativeError = nativeRuntime->resultContext().findError(error);
-        if (nativeError == nullptr) return CrossaStatusInvalidHandle;
-        *domain = static_cast<int32_t>(nativeError->getDomain());
-        *code = static_cast<int32_t>(nativeError->getCode());
-        *retryable = nativeError->isRetryable() ? 1 : 0;
-        return CrossaStatusOk;
     }
 
     // Reads a result category without exposing native implementation types.
@@ -426,6 +553,10 @@ extern "C" {
         const auto root = crossa::bindings::sharedabi::CrossaAbiValueAccess::findResult(runtime, result);
         if (root == nullptr) return CrossaStatusInvalidHandle;
         if (root->getKind() != crossa::runtime::RuntimeValueKind::Int) return CrossaStatusTypeMismatch;
+        if (root->getInt() < numeric_limits<int32_t>::min() ||
+            root->getInt() > numeric_limits<int32_t>::max()) {
+            return CrossaStatusOutOfBounds;
+        }
         *value = static_cast<int32_t>(root->getInt());
         return CrossaStatusOk;
     }
@@ -479,6 +610,10 @@ extern "C" {
         if (root == nullptr) return CrossaStatusInvalidHandle;
         if (member == nullptr) return CrossaStatusOutOfBounds;
         if (member->getKind() != crossa::runtime::RuntimeValueKind::Int) return CrossaStatusTypeMismatch;
+        if (member->getInt() < numeric_limits<int32_t>::min() ||
+            member->getInt() > numeric_limits<int32_t>::max()) {
+            return CrossaStatusOutOfBounds;
+        }
         *value = static_cast<int32_t>(member->getInt());
         return CrossaStatusOk;
     }

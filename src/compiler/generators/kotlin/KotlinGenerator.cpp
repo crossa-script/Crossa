@@ -200,8 +200,10 @@ namespace crossa::compiler::generators::kotlin {
         }
         arguments += ")";
         const string identifier = operationLiteral(sourceIdentity, function);
+        writer.writeLine("val runtime = CrossaRuntime.requireHandle()");
         if (function.getExecutionPolicy() == ir::IrExecutionPolicy::Async) {
-            writer.writeLine("CrossaNativeBridge.invokeAsync(CrossaRuntime.requireHandle(), " + identifier + ", " + arguments + ")");
+            writer.writeLine("val invocation = CrossaNativeBridge.invokeAsync(runtime, " + identifier + ", " + arguments + ")");
+            writer.writeLine("CrossaNativeBridge.releaseOperation(runtime, invocation)");
         } else {
             const types::SemanticType& resultType = function.getReturnType();
             string mapper;
@@ -221,19 +223,19 @@ namespace crossa::compiler::generators::kotlin {
             } else {
                 switch (resultType.getKind()) {
                     case types::SemanticTypeKind::Int:
-                        mapper = "{ result -> result.intValue() }";
+                        mapper = "{ result -> result.intValue().also { result.close() } }";
                         break;
                     case types::SemanticTypeKind::Long:
-                        mapper = "{ result -> result.longValue() }";
+                        mapper = "{ result -> result.longValue().also { result.close() } }";
                         break;
                     case types::SemanticTypeKind::Double:
-                        mapper = "{ result -> result.doubleValue() }";
+                        mapper = "{ result -> result.doubleValue().also { result.close() } }";
                         break;
                     case types::SemanticTypeKind::String:
-                        mapper = "{ result -> result.stringValue() }";
+                        mapper = "{ result -> result.stringValue().also { result.close() } }";
                         break;
                     case types::SemanticTypeKind::Bool:
-                        mapper = "{ result -> result.booleanValue() }";
+                        mapper = "{ result -> result.booleanValue().also { result.close() } }";
                         break;
                     case types::SemanticTypeKind::Unit:
                     case types::SemanticTypeKind::Json:
@@ -242,7 +244,8 @@ namespace crossa::compiler::generators::kotlin {
                         failUnsupported("native-backed Android result type");
                 }
             }
-            writer.writeLine("CrossaNativeBridge.invokeAsyncAfter(CrossaRuntime.requireHandle(), " + identifier + ", " + arguments + ", " + mapper + ", onState)");
+            writer.writeLine("val invocation = CrossaNativeBridge.invokeAsyncAfter(runtime, " + identifier + ", " + arguments + ", " + mapper + ", onState)");
+            writer.writeLine("CrossaNativeBridge.releaseOperation(runtime, invocation)");
         }
         writer.endBlock();
     }

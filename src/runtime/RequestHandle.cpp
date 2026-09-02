@@ -45,4 +45,23 @@ namespace crossa::runtime {
         );
     }
 
+    bool RequestHandle::completeCancellation() const noexcept {
+        Lifecycle expected = Lifecycle::CancellationRequested;
+        if (state_->lifecycle.compare_exchange_strong(
+            expected,
+            Lifecycle::Completed,
+            memory_order_acq_rel,
+            memory_order_acquire
+        )) {
+            return true;
+        }
+        expected = Lifecycle::Active;
+        return state_->lifecycle.compare_exchange_strong(
+            expected,
+            Lifecycle::Completed,
+            memory_order_acq_rel,
+            memory_order_acquire
+        );
+    }
+
 }

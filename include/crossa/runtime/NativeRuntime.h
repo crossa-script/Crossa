@@ -5,6 +5,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "crossa/bindings/shared-abi/CrossaRuntimeContext.h"
@@ -25,6 +26,8 @@ public:
         const compiler::ir::Program* configurationProgram,
         const utils::Log& log
     );
+
+    ~NativeRuntime();
 
     NativeRuntime(const NativeRuntime&) = delete;
     NativeRuntime& operator=(const NativeRuntime&) = delete;
@@ -67,14 +70,28 @@ public:
     // Stops the scheduler and prevents future native operation execution.
     void shutdown();
 
+    [[nodiscard]] bool isWorkerThread() const noexcept;
+
 private:
+    enum class Lifecycle {
+        Running,
+        ShutdownRequested,
+        Stopped
+    };
+
     // Resolves a generated operation ID or raises a native runtime error.
     [[nodiscard]] const compiler::ir::IrFunctionDeclaration& requireOperation(
         std::uint64_t operationId
     ) const;
 
-    // Stores one request handle behind a non-reused native operation identifier.
-    [[nodiscard]] std::uint64_t retainOperation(RequestHandle request);
+    [[nodiscard]] std::uint64_t reserveOperation(RequestHandle* request);
+
+    void removeActiveOperation(std::uint64_t operation) noexcept;
+
+    void deliverAsyncAfter(
+        CrossaState<RuntimeValue> state,
+        std::function<void(CrossaState<CrossaResultHandle>)> completion
+    );
 
     compiler::ir::Program program_;
     const utils::Log& log_;
@@ -86,7 +103,9 @@ private:
     bindings::sharedabi::CrossaRuntimeContext resultContext_;
     std::mutex operationMutex_;
     std::uint64_t nextOperation_ = 1;
-    std::unordered_map<std::uint64_t, RequestHandle> activeOperations_;
+    Lifecycle lifecycle_ = Lifecycle::Running;
+    std::unordered_map<std::uint64_t, RequestHandle> operationHandles_;
+    std::unordered_set<std::uint64_t> activeOperations_;
 };
 
 }

@@ -37,13 +37,30 @@ public:
         std::function<RuntimeValue(const RequestHandle&)> task
     );
 
+    [[nodiscard]] ScheduledTask submit(
+        RequestHandle requestHandle,
+        std::function<RuntimeValue(const RequestHandle&)> task
+    );
+
     // Submits fire-and-forget work and returns its cancellation handle.
     [[nodiscard]] RequestHandle submitDetached(
         std::function<void(const RequestHandle&)> task
     );
 
+    [[nodiscard]] RequestHandle submitDetached(
+        RequestHandle requestHandle,
+        std::function<void(const RequestHandle&)> task,
+        std::function<void(CrossaState<RuntimeValue>)> completion
+    );
+
     // Submits one result-producing task and delivers its terminal state on a worker.
     [[nodiscard]] RequestHandle submitWithCompletion(
+        std::function<RuntimeValue(const RequestHandle&)> task,
+        std::function<void(CrossaState<RuntimeValue>)> completion
+    );
+
+    [[nodiscard]] RequestHandle submitWithCompletion(
+        RequestHandle requestHandle,
         std::function<RuntimeValue(const RequestHandle&)> task,
         std::function<void(CrossaState<RuntimeValue>)> completion
     );
@@ -56,6 +73,10 @@ public:
 
     // Stops submissions, cancels outstanding work, and joins all workers.
     void shutdown();
+
+    void requestShutdown() noexcept;
+
+    void awaitTermination();
 
 private:
     // Stores one queue entry with the handle used during shutdown cancellation.
@@ -91,6 +112,8 @@ private:
     std::unordered_map<std::thread::id, RequestHandle> activeHandles_;
     std::size_t activeTasks_;
     bool stopping_;
+    bool joining_;
+    bool terminated_;
 };
 
 }

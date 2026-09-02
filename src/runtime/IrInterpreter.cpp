@@ -75,6 +75,20 @@ namespace crossa::runtime {
         const compiler::ir::IrFunctionDeclaration& function,
         vector<RuntimeValue> arguments
     ) {
+        return invokeAsyncOperation(
+            function,
+            std::move(arguments),
+            RequestHandle(),
+            [](CrossaState<RuntimeValue>) {}
+        );
+    }
+
+    RequestHandle IrInterpreter::invokeAsyncOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        vector<RuntimeValue> arguments,
+        RequestHandle requestHandle,
+        std::function<void(CrossaState<RuntimeValue>)> completion
+    ) {
         if (function.getExecutionPolicy() != compiler::ir::IrExecutionPolicy::Async) {
             fail("Generated asynchronous invocation requires an Async operation.");
         }
@@ -83,6 +97,7 @@ namespace crossa::runtime {
         }
         initializeGlobals();
         return scheduler_.submitDetached(
+            requestHandle,
             [this, &function, arguments = std::move(arguments)](
                 const RequestHandle& requestHandle
             ) mutable {
@@ -92,7 +107,8 @@ namespace crossa::runtime {
                     0,
                     requestHandle
                 );
-            }
+            },
+            std::move(completion)
         );
     }
 
@@ -128,6 +144,20 @@ namespace crossa::runtime {
         vector<RuntimeValue> arguments,
         std::function<void(CrossaState<RuntimeValue>)> completion
     ) {
+        return invokeAsyncAfterOperation(
+            function,
+            std::move(arguments),
+            RequestHandle(),
+            std::move(completion)
+        );
+    }
+
+    RequestHandle IrInterpreter::invokeAsyncAfterOperation(
+        const compiler::ir::IrFunctionDeclaration& function,
+        vector<RuntimeValue> arguments,
+        RequestHandle requestHandle,
+        std::function<void(CrossaState<RuntimeValue>)> completion
+    ) {
         if (function.getExecutionPolicy() != compiler::ir::IrExecutionPolicy::AsyncAfter) {
             fail("Generated completion invocation requires an AsyncAfter operation.");
         }
@@ -136,6 +166,7 @@ namespace crossa::runtime {
         }
         initializeGlobals();
         return scheduler_.submitWithCompletion(
+            requestHandle,
             [this, &function, arguments = std::move(arguments)](
                 const RequestHandle& requestHandle
             ) mutable {

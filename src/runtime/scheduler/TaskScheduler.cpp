@@ -19,7 +19,9 @@ namespace crossa::runtime::scheduler {
         : log_(log),
           maximumQueuedTasks_(options.getMaximumQueuedTasks()),
           activeTasks_(0),
-          stopping_(false) {
+          stopping_(false),
+          joining_(false),
+          terminated_(false) {
         workers_.reserve(options.getWorkerCount());
         try {
             for (size_t index = 0; index < options.getWorkerCount(); ++index) {
@@ -49,7 +51,13 @@ namespace crossa::runtime::scheduler {
     ScheduledTask TaskScheduler::submit(
         function<RuntimeValue(const RequestHandle&)> task
     ) {
-        RequestHandle requestHandle;
+        return submit(RequestHandle(), std::move(task));
+    }
+
+    ScheduledTask TaskScheduler::submit(
+        RequestHandle requestHandle,
+        function<RuntimeValue(const RequestHandle&)> task
+    ) {
         auto packaged = make_shared<packaged_task<CrossaState<RuntimeValue>()>>(
             [task = std::move(task), requestHandle]() {
                 return runTask(task, requestHandle);
@@ -67,9 +75,21 @@ namespace crossa::runtime::scheduler {
     RequestHandle TaskScheduler::submitDetached(
         function<void(const RequestHandle&)> task
     ) {
-        RequestHandle requestHandle;
+        return submitDetached(
+            RequestHandle(),
+            std::move(task),
+            std::function<void(CrossaState<RuntimeValue>)>()
+        );
+    }
+
+    RequestHandle TaskScheduler::submitDetached(
+        RequestHandle requestHandle,
+        function<void(const RequestHandle&)> task,
+        function<void(CrossaState<RuntimeValue>)> completion
+    ) {
         enqueue(ScheduledWork{
-            [this, task = std::move(task), requestHandle]() {
+            [this, task = std::move(task), completion = std::move(completion),
+             requestHandle]() mutable {
                 CrossaState<RuntimeValue> state = runTask(
                     [&task](const RequestHandle& handle) {
                         task(handle);
@@ -77,7 +97,16 @@ namespace crossa::runtime::scheduler {
                     },
                     requestHandle
                 );
-                if (state.isFailed()) {
+                if (completion) {
+                    try {
+                        completion(std::move(state));
+                    } catch (const exception& error) {
+                        log_.error("Detached scheduler completion failed: " +
+                            string(error.what()));
+                    } catch (...) {
+                        log_.error("Detached scheduler completion failed.");
+                    }
+                } else if (state.isFailed()) {
                     log_.error(
                         "Detached scheduler task failed: " +
                         state.getError().format()
@@ -96,7 +125,18 @@ namespace crossa::runtime::scheduler {
         function<RuntimeValue(const RequestHandle&)> task,
         function<void(CrossaState<RuntimeValue>)> completion
     ) {
-        RequestHandle requestHandle;
+        return submitWithCompletion(
+            RequestHandle(),
+            std::move(task),
+            std::move(completion)
+        );
+    }
+
+    RequestHandle TaskScheduler::submitWithCompletion(
+        RequestHandle requestHandle,
+        function<RuntimeValue(const RequestHandle&)> task,
+        function<void(CrossaState<RuntimeValue>)> completion
+    ) {
         enqueue(ScheduledWork{
             [this, task = std::move(task), completion = std::move(completion),
              requestHandle]() mutable {
@@ -131,6 +171,13 @@ namespace crossa::runtime::scheduler {
 
     // Stops submissions, cancels outstanding work, and joins all workers.
     void TaskScheduler::shutdown() {
+        requestShutdown();
+        if (!isWorkerThread()) {
+            awaitTermination();
+        }
+    }
+
+    void TaskScheduler::requestShutdown() noexcept {
         {
             lock_guard lock(mutex_);
             if (stopping_) {
@@ -147,7 +194,30 @@ namespace crossa::runtime::scheduler {
         }
         taskAvailable_.notify_all();
         queueSpaceAvailable_.notify_all();
+    }
+
+    void TaskScheduler::awaitTermination() {
+        if (isWorkerThread()) {
+            return;
+        }
+        {
+            unique_lock lock(mutex_);
+            if (terminated_) {
+                return;
+            }
+            if (joining_) {
+                idle_.wait(lock, [this]() { return terminated_; });
+                return;
+            }
+            joining_ = true;
+        }
         joinWorkers();
+        {
+            lock_guard lock(mutex_);
+            terminated_ = true;
+            joining_ = false;
+        }
+        idle_.notify_all();
         log_.debug("Scheduler stopped");
     }
 
@@ -180,20 +250,23 @@ namespace crossa::runtime::scheduler {
             requestHandle.throwIfCancellationRequested();
             RuntimeValue value = task(requestHandle);
             if (!requestHandle.tryComplete()) {
+                (void)requestHandle.completeCancellation();
                 return CrossaState<RuntimeValue>::cancelled();
             }
             return CrossaState<RuntimeValue>::success(std::move(value));
         } catch (const CrossaException& error) {
             if (error.getError().getCode() == CrossaErrorCode::Cancellation) {
-                (void)requestHandle.tryComplete();
+                (void)requestHandle.completeCancellation();
                 return CrossaState<RuntimeValue>::cancelled();
             }
             if (!requestHandle.tryComplete()) {
+                (void)requestHandle.completeCancellation();
                 return CrossaState<RuntimeValue>::cancelled();
             }
             return CrossaState<RuntimeValue>::failed(error.getError());
         } catch (const exception& error) {
             if (!requestHandle.tryComplete()) {
+                (void)requestHandle.completeCancellation();
                 return CrossaState<RuntimeValue>::cancelled();
             }
             return CrossaState<RuntimeValue>::failed(
@@ -201,6 +274,7 @@ namespace crossa::runtime::scheduler {
             );
         } catch (...) {
             if (!requestHandle.tryComplete()) {
+                (void)requestHandle.completeCancellation();
                 return CrossaState<RuntimeValue>::cancelled();
             }
             return CrossaState<RuntimeValue>::failed(
@@ -227,6 +301,9 @@ namespace crossa::runtime::scheduler {
                 });
                 if (stopping_ && tasks_.empty()) {
                     workerIds_.erase(workerId);
+                    if (workerIds_.empty()) {
+                        idle_.notify_all();
+                    }
                     return;
                 }
                 work = std::move(tasks_.front());

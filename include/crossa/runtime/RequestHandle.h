@@ -44,6 +44,8 @@ private:
     // Publishes completion only if cancellation has not already won the race.
     [[nodiscard]] bool tryComplete() const noexcept;
 
+    [[nodiscard]] bool completeCancellation() const noexcept;
+
     std::shared_ptr<State> state_;
 };
 

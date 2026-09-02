@@ -7,23 +7,23 @@ namespace crossa::runtime {
 
 // Identifies the stable subsystem that produced a native Crossa failure.
 enum class CrossaErrorDomain {
-    Http,
-    Transport,
-    Serialization,
-    Runtime,
-    Cancellation
+    Http = 0,
+    Transport = 1,
+    Serialization = 2,
+    Runtime = 3,
+    Cancellation = 4
 };
 
 // Identifies every stable native failure category exposed by CrossaState.
 enum class CrossaErrorCode {
-    HttpStatus,
-    Timeout,
-    Connection,
-    Tls,
-    InvalidJson,
-    ResponseTypeMismatch,
-    Cancellation,
-    Runtime
+    HttpStatus = 0,
+    Timeout = 1,
+    Connection = 2,
+    Tls = 3,
+    InvalidJson = 4,
+    ResponseTypeMismatch = 5,
+    Cancellation = 6,
+    Runtime = 7
 };
 
 // Carries a stable native error category, readable cause, and optional metadata.
