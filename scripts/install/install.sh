@@ -19,10 +19,12 @@ normalize_version() {
     local requested_version="$1"
 
     if [[ "${requested_version}" == v* ]]; then
-        printf '%s' "${requested_version}"
-    else
-        printf 'v%s' "${requested_version}"
+        requested_version="${requested_version#v}"
     fi
+    if [[ ! "${requested_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        fail "Invalid Crossa release version: ${requested_version}"
+    fi
+    printf 'v%s' "${requested_version}"
 }
 
 detect_platform() {
@@ -106,6 +108,8 @@ verify_checksum() {
     expected="$(
         awk -v name="${archive_name}" '$2 == name { print $1 }' "${checksums_path}"
     )"
+    [[ "${expected}" != *$'\n'* && "${expected}" =~ ^[[:xdigit:]]{64}$ ]] ||
+        fail "Checksum manifest contains an invalid or duplicate entry for ${archive_name}."
 
     [[ -n "${expected}" ]] ||
         fail "Checksum for ${archive_name} was not found."
@@ -185,6 +189,13 @@ install_crossa() {
 
     mkdir -p "${temporary_directory}/extracted"
 
+    while IFS= read -r archive_member; do
+        case "${archive_member}" in
+            "${package_name}/"|"${package_name}/crossa") ;;
+            *) fail "Archive contains an unexpected or unsafe member: ${archive_member}" ;;
+        esac
+    done < <(tar -tzf "${temporary_directory}/${archive_name}")
+
     tar \
         -xzf "${temporary_directory}/${archive_name}" \
         -C "${temporary_directory}/extracted"
@@ -192,8 +203,10 @@ install_crossa() {
     local source_binary
     source_binary="${temporary_directory}/extracted/${package_name}/crossa"
 
-    [[ -f "${source_binary}" ]] ||
+    [[ -f "${source_binary}" && ! -L "${source_binary}" ]] ||
         fail "Crossa executable was not found inside ${archive_name}."
+    [[ "$(wc -c < "${source_binary}")" -le 268435456 ]] ||
+        fail "Crossa executable exceeds the configured extraction limit."
 
     mkdir -p "${CROSSA_BIN_DIR}"
 

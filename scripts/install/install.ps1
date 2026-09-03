@@ -42,11 +42,11 @@ function Resolve-CrossaVersion {
     param([string]$RequestedVersion)
 
     if ($RequestedVersion) {
-        if ($RequestedVersion.StartsWith("v")) {
-            return $RequestedVersion
+        $normalizedVersion = $RequestedVersion.TrimStart("v")
+        if ($normalizedVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+            Fail "Invalid Crossa release version: $RequestedVersion"
         }
-
-        return "v$RequestedVersion"
+        return "v$normalizedVersion"
     }
 
     $latestUrl = "https://github.com/$CrossaRepository/releases/latest"
@@ -65,6 +65,9 @@ function Resolve-CrossaVersion {
     }
 
     if (-not $tag.StartsWith("v")) {
+        Fail "Invalid latest Crossa release tag: $tag"
+    }
+    if ($tag.Substring(1) -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
         Fail "Invalid latest Crossa release tag: $tag"
     }
 
@@ -92,6 +95,13 @@ function Verify-CrossaChecksum {
     }
 
     $expectedChecksum = ($checksumLine -split "\s+")[0].ToLowerInvariant()
+    $matchingLines = @(Get-Content $ChecksumsPath | Where-Object {
+        $parts = $_ -split "\s+"
+        $parts.Length -ge 2 -and $parts[1] -eq $ArchiveName
+    })
+    if ($matchingLines.Count -ne 1 -or $expectedChecksum -notmatch '^[0-9a-f]{64}$') {
+        Fail "Checksum manifest contains an invalid or duplicate entry for $ArchiveName."
+    }
     $actualChecksum = (
         Get-FileHash `
             -Algorithm SHA256 `
@@ -139,6 +149,21 @@ function Install-Crossa {
             -ChecksumsPath $checksumsPath `
             -ArchiveName $archiveName
 
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
+        try {
+            foreach ($entry in $zip.Entries) {
+                $entryName = $entry.FullName.Replace('\', '/')
+                if ($entryName -ne "$packageName/" -and
+                    $entryName -ne "$packageName/crossa.exe") {
+                    Fail "Archive contains an unexpected or unsafe member: $entryName"
+                }
+            }
+        }
+        finally {
+            $zip.Dispose()
+        }
+
         $extractDirectory = Join-Path $temporaryDirectory "extracted"
 
         Expand-Archive `
@@ -148,7 +173,9 @@ function Install-Crossa {
 
         $sourceBinary = Join-Path $extractDirectory "$packageName/crossa.exe"
 
-        if (-not (Test-Path $sourceBinary)) {
+        $sourceItem = if (Test-Path $sourceBinary) { Get-Item $sourceBinary } else { $null }
+        if (-not $sourceItem -or $sourceItem.PSIsContainer -or
+            ($sourceItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
             Fail "crossa.exe was not found inside $archiveName."
         }
 

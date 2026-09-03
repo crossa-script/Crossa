@@ -15,6 +15,8 @@ namespace crossa::network::request {
         int64_t timeoutMilliseconds,
         bool followRedirects,
         size_t maximumResponseBytes,
+        size_t maximumResponseHeaderBytes,
+        size_t maximumResponseHeaderCount,
         optional<json::JsonValue> retryPolicy,
         optional<json::JsonValue> multipart,
         optional<json::JsonValue> proxy,
@@ -30,6 +32,8 @@ namespace crossa::network::request {
           timeoutMilliseconds_(timeoutMilliseconds),
           followRedirects_(followRedirects),
           maximumResponseBytes_(maximumResponseBytes),
+          maximumResponseHeaderBytes_(maximumResponseHeaderBytes),
+          maximumResponseHeaderCount_(maximumResponseHeaderCount),
           retryPolicy_(std::move(retryPolicy)),
           multipart_(std::move(multipart)),
           proxy_(std::move(proxy)),
@@ -37,6 +41,41 @@ namespace crossa::network::request {
           uploadProgress_(uploadProgress),
           downloadStreaming_(downloadStreaming),
           telemetry_(std::move(telemetry)) {}
+
+    PreparedRequest::PreparedRequest(
+        HttpMethod method,
+        string url,
+        vector<HttpHeader> headers,
+        optional<string> body,
+        int64_t timeoutMilliseconds,
+        bool followRedirects,
+        size_t maximumResponseBytes,
+        optional<json::JsonValue> retryPolicy,
+        optional<json::JsonValue> multipart,
+        optional<json::JsonValue> proxy,
+        optional<json::JsonValue> certificatePolicy,
+        optional<bool> uploadProgress,
+        optional<bool> downloadStreaming,
+        optional<json::JsonValue> telemetry
+    )
+        : PreparedRequest(
+              std::move(method),
+              std::move(url),
+              std::move(headers),
+              std::move(body),
+              timeoutMilliseconds,
+              followRedirects,
+              maximumResponseBytes,
+              1024U * 1024U,
+              256U,
+              std::move(retryPolicy),
+              std::move(multipart),
+              std::move(proxy),
+              std::move(certificatePolicy),
+              uploadProgress,
+              downloadStreaming,
+              std::move(telemetry)
+          ) {}
 
     // Adds or replaces one header using case-insensitive name matching.
     void PreparedRequest::setHeader(HttpHeader header, bool overwrite) {
@@ -95,6 +134,14 @@ namespace crossa::network::request {
     // Returns the maximum response body bytes.
     size_t PreparedRequest::getMaximumResponseBytes() const noexcept {
         return maximumResponseBytes_;
+    }
+
+    size_t PreparedRequest::getMaximumResponseHeaderBytes() const noexcept {
+        return maximumResponseHeaderBytes_;
+    }
+
+    size_t PreparedRequest::getMaximumResponseHeaderCount() const noexcept {
+        return maximumResponseHeaderCount_;
     }
 
     const optional<json::JsonValue>&

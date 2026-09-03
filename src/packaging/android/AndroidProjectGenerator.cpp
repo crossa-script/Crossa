@@ -35,7 +35,7 @@ namespace crossa::packaging::android {
             "runtime/CrossaState.kt",
             "runtime/CrossaError.kt",
             "runtime/CrossaNativeResult.kt",
-            "runtime/CrossaConfigurationOverrides.kt",
+            "runtime/CrossaOperation.kt",
             "runtime/CrossaRuntime.kt",
             "internal/CrossaArgument.kt",
             "internal/CrossaNativeBridge.kt"
@@ -477,7 +477,8 @@ namespace crossa::packaging::android {
             "}\n\n"
             "kotlin { jvmToolchain(" +
                 to_string(AndroidBuildRequirements::javaToolchainVersion()) +
-                ") }\n"
+                ") }\n\n"
+            "dependencies { implementation(\"org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2\") }\n"
         );
         writeFile(
             outputDirectory / "library" / "consumer-rules.pro",
@@ -487,6 +488,8 @@ namespace crossa::packaging::android {
                 ".runtime.CrossaRuntime { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaState { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaOperation { public *; }\n"
             "-keep class " + packageName +
                 ".internal.CrossaNativeBridge { <methods>; }\n"
             "-keep class " + packageName +
@@ -512,6 +515,8 @@ namespace crossa::packaging::android {
                 ".runtime.CrossaRuntime { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaState { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaOperation { public *; }\n"
             "-keep class " + packageName +
                 ".internal.CrossaNativeBridge { <methods>; }\n"
         );
@@ -539,7 +544,7 @@ namespace crossa::packaging::android {
             "    public val code: Int,\n"
             "    public val message: String,\n"
             "    public val retryable: Boolean\n"
-            ")\n"
+            ") : Exception(message)\n"
         );
         writeFile(
             sourceDirectory / "runtime" / "CrossaNativeResult.kt",
@@ -569,6 +574,18 @@ namespace crossa::packaging::android {
             "}\n"
         );
         writeFile(
+            sourceDirectory / "runtime" / "CrossaOperation.kt",
+            "package " + packageName + ".runtime\n\n"
+            "import " + packageName + ".internal.CrossaNativeBridge\n\n"
+            "public class CrossaOperation internal constructor(\n"
+            "    private val runtime: Long,\n"
+            "    private var handle: Long\n"
+            ") : AutoCloseable {\n"
+            "    @Synchronized public fun cancel() { if (handle != 0L) CrossaNativeBridge.cancel(runtime, handle) }\n"
+            "    @Synchronized override fun close() { if (handle != 0L) { CrossaNativeBridge.releaseOperation(runtime, handle); handle = 0L } }\n"
+            "}\n"
+        );
+        writeFile(
             sourceDirectory / "internal" / "CrossaArgument.kt",
             "package " + packageName + ".internal\n\n"
             "public sealed class CrossaArgument private constructor() {\n"
@@ -592,6 +609,11 @@ namespace crossa::packaging::android {
             "import " + packageName + ".runtime.CrossaError\n"
             "import " + packageName + ".runtime.CrossaNativeResult\n"
             "import " + packageName + ".runtime.CrossaState\n\n"
+            "import kotlinx.coroutines.suspendCancellableCoroutine\n"
+            "import kotlin.coroutines.resume\n"
+            "import kotlin.coroutines.resumeWithException\n"
+            "import java.util.concurrent.atomic.AtomicBoolean\n"
+            "import java.util.concurrent.atomic.AtomicLong\n\n"
             "internal fun interface CrossaNativeCallback {\n"
             "    fun onComplete(state: Int, valueHandle: Long, errorHandle: Long)\n"
             "}\n\n"
@@ -626,6 +648,35 @@ namespace crossa::packaging::android {
             "                else -> onState(CrossaState.Cancelled)\n"
             "            }\n"
             "        })\n"
+            "    }\n"
+            "    internal suspend fun <T> invokeAsyncAfterAwait(runtime: Long, operationId: Long, arguments: Array<CrossaArgument>, mapper: (CrossaNativeResult) -> T): T = suspendCancellableCoroutine { continuation ->\n"
+            "        val operation = AtomicLong(0L)\n"
+            "        val cancelled = AtomicBoolean(false)\n"
+            "        val invocation = nativeInvokeAsyncAfter(runtime, operationId, arguments, CrossaNativeCallback { state, valueHandle, errorHandle ->\n"
+            "            when (state) {\n"
+            "                0 -> {\n"
+            "                    val result = CrossaNativeResult(runtime, valueHandle)\n"
+            "                    try {\n"
+            "                        if (continuation.isActive) continuation.resume(mapper(result)) else result.close()\n"
+            "                    } catch (error: Throwable) {\n"
+            "                        result.close()\n"
+            "                        if (continuation.isActive) continuation.resumeWithException(error)\n"
+            "                    }\n"
+            "                }\n"
+            "                1 -> {\n"
+            "                    try {\n"
+            "                        val message = nativeErrorMessage(runtime, errorHandle)\n"
+            "                        val metadata = nativeErrorMetadata(runtime, errorHandle)\n"
+            "                        val error = CrossaError(metadata.toInt(), ((metadata ushr 32) and 0x7fffffffL).toInt(), message, ((metadata ushr 62) and 1L) != 0L)\n"
+            "                        if (continuation.isActive) continuation.resumeWithException(error)\n"
+            "                    } finally { nativeReleaseError(runtime, errorHandle) }\n"
+            "                }\n"
+            "                else -> if (continuation.isActive) continuation.cancel()\n"
+            "            }\n"
+            "        })\n"
+            "        operation.set(invocation)\n"
+            "        if (cancelled.get()) { nativeCancel(runtime, invocation); nativeReleaseOperation(runtime, invocation) }\n"
+            "        continuation.invokeOnCancellation { cancelled.set(true); operation.get().takeIf { it != 0L }?.let { nativeCancel(runtime, it); nativeReleaseOperation(runtime, it) } }\n"
             "    }\n"
             "    internal fun releaseResult(runtime: Long, handle: Long) { nativeReleaseResult(runtime, handle) }\n"
             "    internal fun listSize(result: CrossaNativeResult): Int = nativeListSize(result.runtimeHandle(), result.requireHandle())\n"
@@ -672,41 +723,13 @@ namespace crossa::packaging::android {
             "}\n"
         );
         writeFile(
-            sourceDirectory / "runtime" / "CrossaConfigurationOverrides.kt",
-            "package " + packageName + ".runtime\n\n"
-            "public data class CrossaConfigurationOverrides(\n"
-            "    public val baseUrl: String? = null,\n"
-            "    public val timeoutRequest: Long? = null,\n"
-            "    public val commonHeaders: List<Header>? = null,\n"
-            "    public val interceptor: Interceptor? = null,\n"
-            "    public val workerThreads: Int? = null,\n"
-            "    public val maxQueuedTasks: Int? = null,\n"
-            "    public val maxResponseBytes: Long? = null,\n"
-            "    public val maxJsonDepth: Int? = null,\n"
-            "    public val followRedirects: Boolean? = null,\n"
-            "    public val uploadProgress: Boolean? = null,\n"
-            "    public val downloadStreaming: Boolean? = null,\n"
-            "    public val requestCoalescing: Boolean? = null\n"
-            ") {\n"
-            "    public data class Header(public val name: String, public val value: String)\n\n"
-            "    public data class Interceptor(\n"
-            "        public val enabled: Boolean? = null,\n"
-            "        public val logRequests: Boolean? = null,\n"
-            "        public val logResponses: Boolean? = null,\n"
-            "        public val logHeaders: Boolean? = null,\n"
-            "        public val logBody: Boolean? = null,\n"
-            "        public val excludedLogHeaders: List<String>? = null\n"
-            "    )\n"
-            "}\n"
-        );
-        writeFile(
             sourceDirectory / "runtime" / "CrossaRuntime.kt",
             "package " + packageName + ".runtime\n\n"
             "import " + packageName + ".internal.CrossaNativeBridge\n\n"
             "public object CrossaRuntime : AutoCloseable {\n"
             "    init { System.loadLibrary(\"crossa_runtime\") }\n\n"
             "    private var handle: Long = 0L\n\n"
-            "    @Synchronized public fun configure(overrides: CrossaConfigurationOverrides) {\n"
+            "    @Synchronized public fun configure() {\n"
             "        require(handle == 0L) { \"Crossa runtime is already configured.\" }\n"
             "        handle = CrossaNativeBridge.configure()\n"
             "        check(handle != 0L) { \"Crossa native runtime creation failed.\" }\n"

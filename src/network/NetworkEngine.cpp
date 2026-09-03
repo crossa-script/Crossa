@@ -269,6 +269,8 @@ string NetworkEngine::refreshAccessToken(
         configuration_.getTimeoutMilliseconds(),
         configuration_.shouldFollowRedirects(),
         configuration_.getMaximumResponseBytes(),
+        configuration_.getMaximumResponseHeaderBytes(),
+        configuration_.getMaximumResponseHeaderCount(),
         nullopt,
         nullopt,
         configuration_.getProxy(),

@@ -5,6 +5,8 @@
 #include <system_error>
 #include <utility>
 
+#include "crossa/compiler/CompilerResourceLimits.h"
+
 #include "crossa/compiler/ast/AstPrinter.h"
 #include "crossa/compiler/lexer/Lexer.h"
 #include "crossa/compiler/lexer/TokenType.h"
@@ -44,7 +46,10 @@ namespace crossa::compiler::project {
     )
         : projectRoot_(std::move(projectRoot)),
           log_(log),
-          linkedModuleCount_(0) {}
+          linkedModuleCount_(0),
+          importDepth_(0),
+          indexedSourceCount_(0),
+          indexedSourceBytes_(0) {}
 
     // Executes indexing and graph traversal for the entry source.
     ast::SourceUnit ProjectLinker::run(
@@ -109,6 +114,30 @@ namespace crossa::compiler::project {
                 entry.is_regular_file(entryError);
             if (!entryError && !isSymlink && isRegularFile &&
                 entry.path().extension() == ".cra") {
+                if (indexedSourceCount_ >=
+                    CompilerResourceLimits::MaximumProjectSourceFiles) {
+                    throw runtime_error(
+                        "Crossa project contains more source files than the configured limit."
+                    );
+                }
+                if (indexedSourceBytes_ >=
+                    CompilerResourceLimits::MaximumProjectSourceBytes) {
+                    throw runtime_error(
+                        "Crossa project source files exceed the configured byte limit."
+                    );
+                }
+                const uintmax_t fileBytes = entry.file_size(entryError);
+                if (entryError || fileBytes >
+                    CompilerResourceLimits::MaximumProjectSourceBytes ||
+                    indexedSourceBytes_ >
+                        CompilerResourceLimits::MaximumProjectSourceBytes -
+                        static_cast<size_t>(fileBytes)) {
+                    throw runtime_error(
+                        "Crossa project source files exceed the configured byte limit."
+                    );
+                }
+                indexedSourceBytes_ += static_cast<size_t>(fileBytes);
+                ++indexedSourceCount_;
                 const filesystem::path normalizedPath =
                     filesystem::weakly_canonical(entry.path(), entryError);
                 if (!entryError) {
@@ -151,6 +180,19 @@ namespace crossa::compiler::project {
         ast::SourceUnit sourceUnit,
         bool entrySource
     ) {
+        if (linkedModuleCount_ >=
+            CompilerResourceLimits::MaximumImportedModules) {
+            fail(
+                source::SourceLocation(sourcePath.string(), 1, 1),
+                "Imported module count exceeded the configured limit."
+            );
+        }
+        if (importDepth_ >= CompilerResourceLimits::MaximumImportDepth) {
+            fail(
+                source::SourceLocation(sourcePath.string(), 1, 1),
+                "Import depth exceeded the configured limit."
+            );
+        }
         const string pathKey = getPathKey(sourcePath);
         const auto existingState = visitStates_.find(pathKey);
         if (existingState != visitStates_.end()) {
@@ -166,6 +208,7 @@ namespace crossa::compiler::project {
 
         visitStates_.emplace(pathKey, VisitState::Visiting);
         activePath_.push_back(sourcePath);
+        ++importDepth_;
         log_.debug("Linking source module: " + sourcePath.string());
 
         vector<unique_ptr<ast::Declaration>> declarations =
@@ -231,6 +274,7 @@ namespace crossa::compiler::project {
         }
 
         activePath_.pop_back();
+        --importDepth_;
         visitStates_[pathKey] = VisitState::Visited;
         ++linkedModuleCount_;
         log_.debug("Source module linked: " + sourcePath.string());

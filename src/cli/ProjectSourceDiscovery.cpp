@@ -4,6 +4,8 @@
 #include <stdexcept>
 #include <system_error>
 
+#include "crossa/compiler/CompilerResourceLimits.h"
+
 using namespace std;
 
 namespace crossa::cli {
@@ -13,6 +15,7 @@ vector<filesystem::path> ProjectSourceDiscovery::find(
     const filesystem::path& projectDirectory
 ) {
     vector<filesystem::path> sourcePaths;
+    size_t totalBytes = 0;
     error_code error;
     filesystem::recursive_directory_iterator iterator(
         projectDirectory,
@@ -31,6 +34,23 @@ vector<filesystem::path> ProjectSourceDiscovery::find(
         if (iterator->is_regular_file(error) &&
             iterator->path().extension() == ".cra" &&
             iterator->path().filename() != "config.cra") {
+            if (sourcePaths.size() >=
+                compiler::CompilerResourceLimits::MaximumProjectSourceFiles) {
+                throw runtime_error(
+                    "Crossa project contains more source files than the configured limit."
+                );
+            }
+            error_code sizeError;
+            const uintmax_t fileBytes = iterator->file_size(sizeError);
+            if (sizeError || fileBytes >
+                compiler::CompilerResourceLimits::MaximumProjectSourceBytes ||
+                totalBytes > compiler::CompilerResourceLimits::MaximumProjectSourceBytes -
+                    static_cast<size_t>(fileBytes)) {
+                throw runtime_error(
+                    "Crossa project source files exceed the configured byte limit."
+                );
+            }
+            totalBytes += static_cast<size_t>(fileBytes);
             sourcePaths.push_back(iterator->path());
         }
         iterator.increment(error);

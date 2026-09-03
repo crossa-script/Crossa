@@ -11,6 +11,9 @@ using namespace std;
 
 namespace crossa::bindings::android {
 
+    constexpr size_t MaximumJniArguments = 256U;
+    constexpr size_t MaximumJniStringBytes = 8U * 1024U * 1024U;
+
     // Caches reusable JVM references and dispatches generated runtime operations.
     class AndroidJniMetadata final {
     public:
@@ -135,6 +138,8 @@ namespace crossa::bindings::android {
     ) {
         if (converted == nullptr || strings == nullptr) return false;
         const jsize size = arguments == nullptr ? 0 : environment->GetArrayLength(arguments);
+        if (environment->ExceptionCheck() || size < 0 ||
+            static_cast<size_t>(size) > MaximumJniArguments) return false;
         converted->clear();
         strings->clear();
         converted->reserve(static_cast<size_t>(size));
@@ -158,9 +163,23 @@ namespace crossa::bindings::android {
             } else if (environment->IsInstanceOf(argument, AndroidJniMetadata::stringArgumentClass_)) {
                 convertedArgument.kind = CrossaAbiArgumentString;
                 jstring value = static_cast<jstring>(environment->GetObjectField(argument, AndroidJniMetadata::stringValue_));
-                if (value == nullptr) return false;
+                if (value == nullptr) {
+                    environment->DeleteLocalRef(argument);
+                    return false;
+                }
+                const jsize stringLength = environment->GetStringUTFLength(value);
+                if (environment->ExceptionCheck() || stringLength < 0 ||
+                    static_cast<size_t>(stringLength) > MaximumJniStringBytes) {
+                    environment->DeleteLocalRef(value);
+                    environment->DeleteLocalRef(argument);
+                    return false;
+                }
                 const char* utf8 = environment->GetStringUTFChars(value, nullptr);
-                if (utf8 == nullptr) return false;
+                if (utf8 == nullptr) {
+                    environment->DeleteLocalRef(value);
+                    environment->DeleteLocalRef(argument);
+                    return false;
+                }
                 strings->emplace_back(utf8);
                 environment->ReleaseStringUTFChars(value, utf8);
                 environment->DeleteLocalRef(value);

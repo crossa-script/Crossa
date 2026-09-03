@@ -4,6 +4,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "crossa/compiler/CompilerResourceLimits.h"
+
 using namespace std;
 
 namespace crossa::compiler::parser {
@@ -16,7 +18,8 @@ namespace crossa::compiler::parser {
         : tokens_(tokens),
           sourceFile_(sourceFile),
           sourcePath_(make_shared<const string>(sourceFile.getPath().string())),
-          current_(0) {}
+          current_(0),
+          recursiveParseDepth_(0) {}
 
     // Parses the complete token stream into one AST source unit.
     ast::SourceUnit Parser::parse() {
@@ -312,6 +315,10 @@ namespace crossa::compiler::parser {
     unique_ptr<ast::Statement> Parser::parseIfStatement(
         source::SourceLocation location
     ) {
+        if (++recursiveParseDepth_ >
+            CompilerResourceLimits::MaximumParseRecursionDepth) {
+            fail(peek(), "Parser recursion depth exceeded the configured limit.");
+        }
         consume(lexer::TokenType::LeftParen, "Expected '(' after 'if'.");
         unique_ptr<ast::Expression> condition = parseExpression();
         consume(lexer::TokenType::RightParen, "Expected ')' after the if condition.");
@@ -330,12 +337,14 @@ namespace crossa::compiler::parser {
             }
         }
 
-        return make_unique<ast::IfStatement>(
+        unique_ptr<ast::Statement> result = make_unique<ast::IfStatement>(
             std::move(condition),
             std::move(thenStatements),
             std::move(elseStatements),
             location
         );
+        --recursiveParseDepth_;
+        return result;
     }
 
     vector<unique_ptr<ast::Statement>> Parser::parseBlockStatements() {
@@ -367,15 +376,21 @@ namespace crossa::compiler::parser {
 
     // Parses one type reference including nested List<T> forms.
     ast::TypeReference Parser::parseTypeReference() {
+        if (++recursiveParseDepth_ >
+            CompilerResourceLimits::MaximumParseRecursionDepth) {
+            fail(peek(), "Parser recursion depth exceeded the configured limit.");
+        }
         if (match(lexer::TokenType::KeywordList)) {
             const source::SourceLocation location = getLocation(previous());
             consume(lexer::TokenType::LeftAngle, "Expected '<' after 'List'.");
             ast::TypeReference elementType = parseTypeReference();
             consume(lexer::TokenType::RightAngle, "Expected '>' after the List type.");
-            return ast::TypeReference::createList(
+            ast::TypeReference result = ast::TypeReference::createList(
                 std::move(elementType),
                 location
             );
+            --recursiveParseDepth_;
+            return result;
         }
 
         if (match(lexer::TokenType::KeywordInt) ||
@@ -385,10 +400,12 @@ namespace crossa::compiler::parser {
             match(lexer::TokenType::KeywordBool) ||
             match(lexer::TokenType::KeywordJson) ||
             match(lexer::TokenType::Identifier)) {
-            return ast::TypeReference::createNamed(
+            ast::TypeReference result = ast::TypeReference::createNamed(
                 getLexeme(previous()),
                 getLocation(previous())
             );
+            --recursiveParseDepth_;
+            return result;
         }
 
         fail(peek(), "Expected a Crossa type reference.");
@@ -396,7 +413,13 @@ namespace crossa::compiler::parser {
 
     // Parses one expression using arithmetic precedence.
     unique_ptr<ast::Expression> Parser::parseExpression() {
-        return parseLogicalOrExpression();
+        if (++recursiveParseDepth_ >
+            CompilerResourceLimits::MaximumParseRecursionDepth) {
+            fail(peek(), "Parser recursion depth exceeded the configured limit.");
+        }
+        unique_ptr<ast::Expression> result = parseLogicalOrExpression();
+        --recursiveParseDepth_;
+        return result;
     }
 
     unique_ptr<ast::Expression> Parser::parseLogicalOrExpression() {

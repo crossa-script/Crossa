@@ -9,7 +9,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: crossa-release
@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
 
@@ -82,7 +82,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -184,7 +184,7 @@ jobs:
           Compress-Archive -Path $packageDirectory -DestinationPath "$packageName.zip" -Force
 
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: crossa-${{ matrix.artifact }}
           path: crossa-v${{ inputs.version }}-${{ matrix.artifact }}.${{ matrix.extension }}
@@ -194,15 +194,19 @@ jobs:
     name: Publish Release
     needs: build
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
 
       - name: Download builds
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           path: release-assets
           merge-multiple: true
@@ -231,6 +235,11 @@ jobs:
             exit 1
           fi
           sha256sum "${archives[@]}" > SHA256SUMS
+
+      - name: Attest release archives
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec512d44f96c5fb7e
+        with:
+          subject-path: release-assets/crossa-*
 
       - name: Create GitHub Release
         shell: bash

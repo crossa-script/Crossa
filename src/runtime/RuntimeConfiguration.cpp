@@ -172,6 +172,14 @@ private:
             networkConfiguration.setMaximumJsonDepth(
                 readSize(entry.getValue(), name)
             );
+        } else if (name == "maxResponseHeaderBytes") {
+            networkConfiguration.setMaximumResponseHeaderBytes(
+                readSize(entry.getValue(), name)
+            );
+        } else if (name == "maxResponseHeaderCount") {
+            networkConfiguration.setMaximumResponseHeaderCount(
+                readSize(entry.getValue(), name)
+            );
         } else if (name == "followRedirects") {
             networkConfiguration.setFollowRedirects(
                 readBool(entry.getValue())

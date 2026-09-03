@@ -37,7 +37,7 @@ elif command -v c++ >/dev/null 2>&1; then
 
     while IFS= read -r sourceFile; do
         sourceFiles+=("$sourceFile")
-    done < <(find src -type f -name '*.cpp' ! -path 'src/bindings/android/*' -print | sort)
+    done < <(find src -type f -name '*.cpp' ! -path 'src/bindings/android/*' ! -path 'src/bindings/ios/*' -print | sort)
 
     c++ \
         -std=c++20 \

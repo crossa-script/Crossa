@@ -55,6 +55,15 @@ against `SHA256SUMS`, and installs the compiled CLI into:
 The installer does not clone the repository, build Crossa locally, require
 `sudo`, or modify shell profiles.
 
+Release archives are published with SHA-256 checksums. Installers validate the
+checksum manifest and archive member layout before extraction, then install
+through a temporary file. Release jobs use least-privilege permissions and pin
+third-party actions to immutable commits.
+
+The iOS packaging flow emits an XCFramework ZIP and the checksum required by
+Swift Package Manager. The release publication must publish that ZIP, its
+checksum, the artifact manifest, and the substituted `Package.swift.release.template`.
+
 Windows x86_64 uses the standalone PowerShell installer:
 
 ```powershell

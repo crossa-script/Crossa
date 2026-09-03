@@ -25,6 +25,25 @@ public:
         std::int64_t timeoutMilliseconds,
         bool followRedirects,
         std::size_t maximumResponseBytes,
+        std::size_t maximumResponseHeaderBytes,
+        std::size_t maximumResponseHeaderCount,
+        std::optional<json::JsonValue> retryPolicy,
+        std::optional<json::JsonValue> multipart,
+        std::optional<json::JsonValue> proxy,
+        std::optional<json::JsonValue> certificatePolicy,
+        std::optional<bool> uploadProgress,
+        std::optional<bool> downloadStreaming,
+        std::optional<json::JsonValue> telemetry
+    );
+
+    PreparedRequest(
+        HttpMethod method,
+        std::string url,
+        std::vector<HttpHeader> headers,
+        std::optional<std::string> body,
+        std::int64_t timeoutMilliseconds,
+        bool followRedirects,
+        std::size_t maximumResponseBytes,
         std::optional<json::JsonValue> retryPolicy,
         std::optional<json::JsonValue> multipart,
         std::optional<json::JsonValue> proxy,
@@ -61,6 +80,10 @@ public:
     // Returns the maximum response body bytes.
     [[nodiscard]] std::size_t getMaximumResponseBytes() const noexcept;
 
+    [[nodiscard]] std::size_t getMaximumResponseHeaderBytes() const noexcept;
+
+    [[nodiscard]] std::size_t getMaximumResponseHeaderCount() const noexcept;
+
     [[nodiscard]] const std::optional<json::JsonValue>&
     getRetryPolicy() const noexcept;
 
@@ -94,6 +117,8 @@ private:
     std::int64_t timeoutMilliseconds_;
     bool followRedirects_;
     std::size_t maximumResponseBytes_;
+    std::size_t maximumResponseHeaderBytes_;
+    std::size_t maximumResponseHeaderCount_;
     std::optional<json::JsonValue> retryPolicy_;
     std::optional<json::JsonValue> multipart_;
     std::optional<json::JsonValue> proxy_;

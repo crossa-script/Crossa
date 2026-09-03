@@ -161,7 +161,9 @@ namespace crossa::network {
             command += " --data-raw " +
                 escapeShellArgument(*request.getBody());
         }
-        command += " " + escapeShellArgument(request.getUrl());
+        command += " " + escapeShellArgument(
+            utils::UrlUtils::stripQuery(request.getUrl())
+        );
         return command;
     }
 
@@ -169,6 +171,21 @@ namespace crossa::network {
     bool NetworkInterceptor::isHeaderExcluded(
         const string& name
     ) const noexcept {
+        static constexpr const char* SensitiveHeaders[] = {
+            "authorization",
+            "proxy-authorization",
+            "cookie",
+            "set-cookie",
+            "x-api-key",
+            "x-auth-token",
+            "x-access-token",
+            "x-refresh-token"
+        };
+        for (const char* sensitiveName : SensitiveHeaders) {
+            if (headerNamesEqual(name, sensitiveName)) {
+                return true;
+            }
+        }
         for (const string& excludedName : configuration_.getExcludedLogHeaders()) {
             if (headerNamesEqual(name, excludedName)) {
                 return true;

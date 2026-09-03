@@ -202,6 +202,7 @@ private:
     const source::SourceFile& sourceFile_;
     std::shared_ptr<const std::string> sourcePath_;
     std::size_t current_;
+    std::size_t recursiveParseDepth_;
 };
 
 }

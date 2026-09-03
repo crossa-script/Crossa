@@ -100,6 +100,9 @@ private:
     std::vector<std::filesystem::path> activePath_;
     std::vector<std::unique_ptr<ast::Declaration>> linkedDeclarations_;
     std::size_t linkedModuleCount_;
+    std::size_t importDepth_;
+    std::size_t indexedSourceCount_;
+    std::size_t indexedSourceBytes_;
 };
 
 }

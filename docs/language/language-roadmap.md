@@ -875,6 +875,8 @@ workerThreads: Int
 maxQueuedTasks: Int
 maxResponseBytes: Int
 maxJsonDepth: Int
+maxResponseHeaderBytes: Int
+maxResponseHeaderCount: Int
 followRedirects: Bool
 ```
 

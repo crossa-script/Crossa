@@ -1965,7 +1965,9 @@ namespace crossa::compiler::semantic {
         if (name == "workerThreads" ||
             name == "maxQueuedTasks" ||
             name == "maxResponseBytes" ||
-            name == "maxJsonDepth") {
+            name == "maxJsonDepth" ||
+            name == "maxResponseHeaderBytes" ||
+            name == "maxResponseHeaderCount") {
             return types::SemanticType::createInt();
         }
         if (name == "followRedirects") {

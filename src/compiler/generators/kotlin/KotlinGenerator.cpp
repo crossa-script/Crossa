@@ -192,7 +192,12 @@ namespace crossa::compiler::generators::kotlin {
             if (!parameters.empty()) signature += ", ";
             signature += "onState: (CrossaState<" + typeMapper_.mapValueType(function.getReturnType()) + ">) -> Unit";
         }
-        writer.beginBlock(signature + ")");
+        writer.beginBlock(
+            signature + ")" +
+            (function.getExecutionPolicy() == ir::IrExecutionPolicy::Sync
+                ? ""
+                : " : CrossaOperation")
+        );
         string arguments = "arrayOf(";
         for (size_t index = 0; index < parameters.size(); ++index) {
             if (index > 0) arguments += ", ";
@@ -201,12 +206,11 @@ namespace crossa::compiler::generators::kotlin {
         arguments += ")";
         const string identifier = operationLiteral(sourceIdentity, function);
         writer.writeLine("val runtime = CrossaRuntime.requireHandle()");
+        string mapper;
         if (function.getExecutionPolicy() == ir::IrExecutionPolicy::Async) {
-            writer.writeLine("val invocation = CrossaNativeBridge.invokeAsync(runtime, " + identifier + ", " + arguments + ")");
-            writer.writeLine("CrossaNativeBridge.releaseOperation(runtime, invocation)");
+            writer.writeLine("return CrossaOperation(runtime, CrossaNativeBridge.invokeAsync(runtime, " + identifier + ", " + arguments + "))");
         } else {
             const types::SemanticType& resultType = function.getReturnType();
-            string mapper;
             if (resultType.getKind() == types::SemanticTypeKind::List &&
                 resultType.getElementType() != nullptr &&
                 resultType.getElementType()->getKind() ==
@@ -244,10 +248,29 @@ namespace crossa::compiler::generators::kotlin {
                         failUnsupported("native-backed Android result type");
                 }
             }
-            writer.writeLine("val invocation = CrossaNativeBridge.invokeAsyncAfter(runtime, " + identifier + ", " + arguments + ", " + mapper + ", onState)");
-            writer.writeLine("CrossaNativeBridge.releaseOperation(runtime, invocation)");
+            writer.writeLine("return CrossaOperation(runtime, CrossaNativeBridge.invokeAsyncAfter(runtime, " + identifier + ", " + arguments + ", " + mapper + ", onState))");
         }
         writer.endBlock();
+        if (function.getExecutionPolicy() == ir::IrExecutionPolicy::AsyncAfter) {
+            string awaitSignature = "public suspend fun " +
+                identifierEscaper_.escape(function.getName()) + "(";
+            for (size_t index = 0; index < parameters.size(); ++index) {
+                if (index > 0) awaitSignature += ", ";
+                awaitSignature += identifierEscaper_.escape(parameters[index].getName()) +
+                    ": " + typeMapper_.mapValueType(parameters[index].getType());
+            }
+            writer.beginBlock(
+                awaitSignature + "): " + typeMapper_.mapValueType(
+                    function.getReturnType()
+                )
+            );
+            writer.writeLine("val runtime = CrossaRuntime.requireHandle()");
+            writer.writeLine(
+                "return CrossaNativeBridge.invokeAsyncAfterAwait(runtime, " +
+                identifier + ", " + arguments + ", " + mapper + ")"
+            );
+            writer.endBlock();
+        }
     }
 
     // Emits a lazy native-backed Android model view using declaration-order fields.
@@ -304,6 +327,7 @@ namespace crossa::compiler::generators::kotlin {
         } else {
             imports.insert(basePackageName + ".runtime.CrossaNativeList");
             imports.insert(basePackageName + ".runtime.CrossaNativeResult");
+            imports.insert(basePackageName + ".runtime.CrossaOperation");
             imports.insert(basePackageName + ".runtime.CrossaRuntime");
             imports.insert(basePackageName + ".runtime.CrossaState");
             imports.insert(basePackageName + ".internal.CrossaArgument");

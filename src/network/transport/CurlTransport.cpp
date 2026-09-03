@@ -4,6 +4,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <curl/curl.h>
+#include <limits>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -104,6 +105,14 @@ private:
         response::TransferMetrics metrics;
     };
 
+    struct ResponseHeaderBuffer final {
+        vector<HttpHeader> headers;
+        size_t maximumBytes;
+        size_t maximumCount;
+        size_t receivedBytes;
+        bool overflowed;
+    };
+
     struct ProgressContext final {
         const runtime::RequestHandle* requestHandle;
         response::TransferMetrics* metrics;
@@ -138,12 +147,23 @@ private:
         void* context
     ) noexcept {
         auto& buffer = *static_cast<ResponseBuffer*>(context);
-        const size_t byteCount = elementSize * elementCount;
-        if (byteCount > buffer.maximumBytes - buffer.body.size()) {
+        if (elementCount != 0 && elementSize >
+            numeric_limits<size_t>::max() / elementCount) {
             buffer.overflowed = true;
             return 0;
         }
-        buffer.body.append(data, byteCount);
+        const size_t byteCount = elementSize * elementCount;
+        if (buffer.body.size() > buffer.maximumBytes ||
+            byteCount > buffer.maximumBytes - buffer.body.size()) {
+            buffer.overflowed = true;
+            return 0;
+        }
+        try {
+            buffer.body.append(data, byteCount);
+        } catch (...) {
+            buffer.overflowed = true;
+            return 0;
+        }
         buffer.metrics.downloadBytes = buffer.body.size();
         ++buffer.metrics.downloadChunks;
         return byteCount;
@@ -156,8 +176,20 @@ private:
         size_t elementCount,
         void* context
     ) noexcept {
+        auto& buffer = *static_cast<ResponseHeaderBuffer*>(context);
+        if (elementCount != 0 && elementSize >
+            numeric_limits<size_t>::max() / elementCount) {
+            buffer.overflowed = true;
+            return 0;
+        }
         const size_t byteCount = elementSize * elementCount;
-        auto& headers = *static_cast<vector<HttpHeader>*>(context);
+        if (buffer.receivedBytes > buffer.maximumBytes ||
+            byteCount > buffer.maximumBytes - buffer.receivedBytes ||
+            buffer.headers.size() >= buffer.maximumCount) {
+            buffer.overflowed = true;
+            return 0;
+        }
+        buffer.receivedBytes += byteCount;
         try {
             string line(data, byteCount);
             const size_t separator = line.find(':');
@@ -167,7 +199,7 @@ private:
             string name = trim(line.substr(0, separator));
             string value = trim(line.substr(separator + 1));
             if (!name.empty()) {
-                headers.emplace_back(std::move(name), std::move(value));
+                buffer.headers.emplace_back(std::move(name), std::move(value));
             }
         } catch (...) {
             return 0;
@@ -232,7 +264,13 @@ private:
             false,
             {}
         };
-        vector<HttpHeader> responseHeaders;
+        ResponseHeaderBuffer responseHeaderBuffer{
+            {},
+            request.getMaximumResponseHeaderBytes(),
+            request.getMaximumResponseHeaderCount(),
+            0,
+            false
+        };
         array<char, CURL_ERROR_SIZE> errorBuffer{};
         ProgressContext progressContext{
             &requestHandle,
@@ -247,7 +285,7 @@ private:
                 handle,
                 request,
                 responseBuffer,
-                responseHeaders,
+                responseHeaderBuffer,
                 errorBuffer,
                 requestHeaders,
                 progressContext
@@ -273,6 +311,13 @@ private:
                 )
             );
         }
+        if (responseHeaderBuffer.overflowed) {
+            throw runtime::CrossaException(
+                runtime::CrossaError::runtime(
+                    "HTTP response headers exceeded the configured limit."
+                )
+            );
+        }
         if (result != CURLE_OK) {
             const string detail = errorBuffer.front() == '\0'
                 ? curl_easy_strerror(result)
@@ -294,7 +339,7 @@ private:
         }
         return response::HttpResponse(
             statusCode,
-            std::move(responseHeaders),
+            std::move(responseHeaderBuffer.headers),
             std::move(responseBuffer.body),
             responseBuffer.metrics
         );
@@ -305,111 +350,122 @@ private:
         CURL* handle,
         const request::PreparedRequest& request,
         ResponseBuffer& responseBuffer,
-        vector<HttpHeader>& responseHeaders,
+        ResponseHeaderBuffer& responseHeaders,
         array<char, CURL_ERROR_SIZE>& errorBuffer,
         curl_slist* requestHeaders,
         ProgressContext& progressContext
     ) {
-        curl_easy_setopt(handle, CURLOPT_URL, request.getUrl().c_str());
-        curl_easy_setopt(handle, CURLOPT_HTTPHEADER, requestHeaders);
-        curl_easy_setopt(handle, CURLOPT_ERRORBUFFER, errorBuffer.data());
-        curl_easy_setopt(handle, CURLOPT_NOSIGNAL, 1L);
-        curl_easy_setopt(handle, CURLOPT_TIMEOUT_MS,
-                         request.getTimeoutMilliseconds());
-        curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT_MS,
-                         request.getTimeoutMilliseconds());
-        curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION,
-                         request.shouldFollowRedirects() ? 1L : 0L);
-        curl_easy_setopt(handle, CURLOPT_MAXREDIRS, 5L);
+        setOption(handle, CURLOPT_URL, request.getUrl().c_str());
+        setOption(handle, CURLOPT_HTTPHEADER, requestHeaders);
+        setOption(handle, CURLOPT_ERRORBUFFER, errorBuffer.data());
+        setOption(handle, CURLOPT_NOSIGNAL, 1L);
+        setOption(handle, CURLOPT_TIMEOUT_MS, request.getTimeoutMilliseconds());
+        setOption(handle, CURLOPT_CONNECTTIMEOUT_MS, request.getTimeoutMilliseconds());
+        setOption(handle, CURLOPT_FOLLOWLOCATION,
+                  request.shouldFollowRedirects() ? 1L : 0L);
+        setOption(handle, CURLOPT_MAXREDIRS, 5L);
 #if LIBCURL_VERSION_NUM >= 0x075500
-        curl_easy_setopt(handle, CURLOPT_PROTOCOLS_STR, "http,https");
-        curl_easy_setopt(handle, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+        setOption(handle, CURLOPT_PROTOCOLS_STR, "http,https");
+        setOption(
+            handle,
+            CURLOPT_REDIR_PROTOCOLS_STR,
+            request.getUrl().starts_with("https://") ? "https" : "http,https"
+        );
 #else
-        curl_easy_setopt(
+        setOption(
             handle,
             CURLOPT_PROTOCOLS,
             static_cast<long>(CURLPROTO_HTTP | CURLPROTO_HTTPS)
         );
-        curl_easy_setopt(
+        setOption(
             handle,
             CURLOPT_REDIR_PROTOCOLS,
-            static_cast<long>(CURLPROTO_HTTP | CURLPROTO_HTTPS)
+            request.getUrl().starts_with("https://")
+                ? static_cast<long>(CURLPROTO_HTTPS)
+                : static_cast<long>(CURLPROTO_HTTP | CURLPROTO_HTTPS)
         );
 #endif
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 1L);
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 2L);
-        curl_easy_setopt(handle, CURLOPT_TCP_KEEPALIVE, 1L);
-        curl_easy_setopt(handle, CURLOPT_ACCEPT_ENCODING, "");
-        curl_easy_setopt(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
+        setOption(handle, CURLOPT_SSL_VERIFYPEER, 1L);
+        setOption(handle, CURLOPT_SSL_VERIFYHOST, 2L);
+        setOption(handle, CURLOPT_TCP_KEEPALIVE, 1L);
+        setOption(handle, CURLOPT_ACCEPT_ENCODING, "");
+        setOption(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
         const NetworkPolicy::Proxy proxy = NetworkPolicy::parseProxy(
             request.getProxy()
         );
         if (!proxy.url.empty()) {
-            curl_easy_setopt(handle, CURLOPT_PROXY, proxy.url.c_str());
+            setOption(handle, CURLOPT_PROXY, proxy.url.c_str());
             if (!proxy.username.empty()) {
-                curl_easy_setopt(handle, CURLOPT_PROXYUSERNAME,
-                                 proxy.username.c_str());
+                setOption(handle, CURLOPT_PROXYUSERNAME, proxy.username.c_str());
             }
             if (!proxy.password.empty()) {
-                curl_easy_setopt(handle, CURLOPT_PROXYPASSWORD,
-                                 proxy.password.c_str());
+                setOption(handle, CURLOPT_PROXYPASSWORD, proxy.password.c_str());
             }
         } else {
-            curl_easy_setopt(handle, CURLOPT_PROXY, nullptr);
-            curl_easy_setopt(handle, CURLOPT_PROXYUSERNAME, nullptr);
-            curl_easy_setopt(handle, CURLOPT_PROXYPASSWORD, nullptr);
+            setOption(handle, CURLOPT_PROXY, nullptr);
+            setOption(handle, CURLOPT_PROXYUSERNAME, nullptr);
+            setOption(handle, CURLOPT_PROXYPASSWORD, nullptr);
         }
         const NetworkPolicy::Certificate certificate =
             NetworkPolicy::parseCertificate(request.getCertificatePolicy());
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 1L);
-        curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 2L);
+        setOption(handle, CURLOPT_SSL_VERIFYPEER, 1L);
+        setOption(handle, CURLOPT_SSL_VERIFYHOST, 2L);
 #if defined(CROSSA_ANDROID_EMBEDDED_CA_BUNDLE)
         curl_blob caBundle{
             const_cast<char*>(kCrossaAndroidCaBundle),
             kCrossaAndroidCaBundleSize,
             CURL_BLOB_NOCOPY
         };
-        curl_easy_setopt(handle, CURLOPT_CAINFO_BLOB, &caBundle);
+        setOption(handle, CURLOPT_CAINFO_BLOB, &caBundle);
 #endif
         if (!certificate.caInfo.empty()) {
-            curl_easy_setopt(handle, CURLOPT_CAINFO, certificate.caInfo.c_str());
+            setOption(handle, CURLOPT_CAINFO, certificate.caInfo.c_str());
         }
 #if !defined(CROSSA_ANDROID_EMBEDDED_CA_BUNDLE)
         else {
-            curl_easy_setopt(handle, CURLOPT_CAINFO, nullptr);
+            setOption(handle, CURLOPT_CAINFO, nullptr);
         }
 #endif
         if (!certificate.clientCertificate.empty()) {
-            curl_easy_setopt(handle, CURLOPT_SSLCERT,
-                             certificate.clientCertificate.c_str());
+            setOption(handle, CURLOPT_SSLCERT, certificate.clientCertificate.c_str());
         } else {
-            curl_easy_setopt(handle, CURLOPT_SSLCERT, nullptr);
+            setOption(handle, CURLOPT_SSLCERT, nullptr);
         }
         if (!certificate.clientKey.empty()) {
-            curl_easy_setopt(handle, CURLOPT_SSLKEY,
-                             certificate.clientKey.c_str());
+            setOption(handle, CURLOPT_SSLKEY, certificate.clientKey.c_str());
         } else {
-            curl_easy_setopt(handle, CURLOPT_SSLKEY, nullptr);
+            setOption(handle, CURLOPT_SSLKEY, nullptr);
         }
 #if LIBCURL_VERSION_NUM >= 0x072700
         if (!certificate.pinnedPublicKey.empty()) {
-            curl_easy_setopt(handle, CURLOPT_PINNEDPUBLICKEY,
-                             certificate.pinnedPublicKey.c_str());
+            setOption(handle, CURLOPT_PINNEDPUBLICKEY, certificate.pinnedPublicKey.c_str());
         } else {
-            curl_easy_setopt(handle, CURLOPT_PINNEDPUBLICKEY, nullptr);
+            setOption(handle, CURLOPT_PINNEDPUBLICKEY, nullptr);
         }
 #endif
-        curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, writeBody);
-        curl_easy_setopt(handle, CURLOPT_WRITEDATA, &responseBuffer);
-        curl_easy_setopt(handle, CURLOPT_HEADERFUNCTION, writeHeader);
-        curl_easy_setopt(handle, CURLOPT_HEADERDATA, &responseHeaders);
-        curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 0L);
-        curl_easy_setopt(handle, CURLOPT_XFERINFOFUNCTION, observeProgress);
+        setOption(handle, CURLOPT_WRITEFUNCTION, writeBody);
+        setOption(handle, CURLOPT_WRITEDATA, &responseBuffer);
+        setOption(handle, CURLOPT_HEADERFUNCTION, writeHeader);
+        setOption(handle, CURLOPT_HEADERDATA, &responseHeaders);
+        setOption(handle, CURLOPT_NOPROGRESS, 0L);
+        setOption(handle, CURLOPT_XFERINFOFUNCTION, observeProgress);
         responseBuffer.metrics.streamed = request.getDownloadStreaming()
             .value_or(false);
-        curl_easy_setopt(handle, CURLOPT_XFERINFODATA, &progressContext);
+        setOption(handle, CURLOPT_XFERINFODATA, &progressContext);
         if (!request.getUploadProgress().value_or(false)) {
-            curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 1L);
+            setOption(handle, CURLOPT_NOPROGRESS, 1L);
+        }
+    }
+
+    template<typename Value>
+    static void setOption(CURL* handle, CURLoption option, Value value) {
+        const CURLcode result = curl_easy_setopt(handle, option, value);
+        if (result != CURLE_OK) {
+            throw runtime::CrossaException(
+                runtime::CrossaError::runtime(
+                    "Unable to configure native HTTP transport option."
+                )
+            );
         }
     }
 
@@ -477,26 +533,26 @@ private:
     ) {
         const HttpMethod method = request.getMethod();
         if (multipart != nullptr && method != HttpMethod::Head) {
-            curl_easy_setopt(handle, CURLOPT_MIMEPOST, multipart);
+            setOption(handle, CURLOPT_MIMEPOST, multipart);
         } else if (request.getBody().has_value() && method != HttpMethod::Head) {
-            curl_easy_setopt(
+            setOption(
                 handle,
                 CURLOPT_POSTFIELDS,
                 request.getBody()->data()
             );
-            curl_easy_setopt(
+            setOption(
                 handle,
                 CURLOPT_POSTFIELDSIZE_LARGE,
                 static_cast<curl_off_t>(request.getBody()->size())
             );
         }
-        curl_easy_setopt(
+        setOption(
             handle,
             CURLOPT_CUSTOMREQUEST,
             HttpMethodUtils::toString(method).data()
         );
         if (method == HttpMethod::Head) {
-            curl_easy_setopt(handle, CURLOPT_NOBODY, 1L);
+            setOption(handle, CURLOPT_NOBODY, 1L);
         }
     }
 

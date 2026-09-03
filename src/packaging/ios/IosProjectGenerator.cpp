@@ -610,11 +610,7 @@ public final class CrossaRuntime {
                 "artifact_root=${2:?artifact root is required}\n"
                 "xcode_configuration=Release\n"
                 "if [ \"${configuration}\" = debug ]; then xcode_configuration=Debug; fi\n"
-                "simulator_arch=$(uname -m)\n"
-                "case \"${simulator_arch}\" in\n"
-                "    arm64|x86_64) ;;\n"
-                "    *) echo \"Unsupported simulator architecture: ${simulator_arch}\" >&2; exit 1 ;;\n"
-                "esac\n"
+                "simulator_arch=arm64\n"
                 "device_archive=\"${artifact_root}/archives/device.xcarchive\"\n"
                 "simulator_archive=\"${artifact_root}/archives/simulator.xcarchive\"\n"
                 "rm -rf \"${device_archive}\" \"${simulator_archive}\" \"${artifact_root}/Crossa.xcframework\"\n"
@@ -628,7 +624,10 @@ public final class CrossaRuntime {
                 "done\n"
                 "xcodebuild -create-xcframework -archive \"${device_archive}\" -framework Crossa.framework -archive \"${simulator_archive}\" -framework Crossa.framework -output \"${artifact_root}/Crossa.xcframework\"\n"
                 "mkdir -p \"${artifact_root}/symbols\" \"${artifact_root}/metadata\"\n"
-                "find \"${device_archive}\" \"${simulator_archive}\" -name '*.dSYM' -type d -exec cp -R {} \"${artifact_root}/symbols/\" \\;\n";
+                "find \"${device_archive}\" \"${simulator_archive}\" -name '*.dSYM' -type d -exec cp -R {} \"${artifact_root}/symbols/\" \\;\n"
+                "mkdir -p \"${artifact_root}/package\"\n"
+                "(cd \"${artifact_root}\" && zip -qry \"package/Crossa.xcframework.zip\" Crossa.xcframework)\n"
+                "swift package compute-checksum \"${artifact_root}/package/Crossa.xcframework.zip\" > \"${artifact_root}/package/Crossa.xcframework.checksum\"\n";
         }
 
         // Returns isolated CMake dependency provisioning for the iOS C++ runtime.
@@ -653,12 +652,16 @@ public final class CrossaRuntime {
                 "add_custom_target(crossa_ios_dependencies ALL DEPENDS crossa_ios_curl)\n";
         }
 
-        // Writes a local binary Swift Package wrapper around the produced XCFramework.
+        // Writes Swift Package manifests for local development and release publication.
         static void writePackageWrapper(const filesystem::path& directory) {
             writeFile(directory / "Package.swift",
                 "// swift-tools-version: 6.0\n"
                 "import PackageDescription\n\n"
                 "let package = Package(name: \"Crossa\", products: [.library(name: \"Crossa\", targets: [\"Crossa\"])], targets: [.binaryTarget(name: \"Crossa\", path: \"Artifacts/Crossa.xcframework\")])\n");
+            writeFile(directory / "Package.swift.release.template",
+                "// swift-tools-version: 6.0\n"
+                "import PackageDescription\n\n"
+                "let package = Package(name: \"Crossa\", products: [.library(name: \"Crossa\", targets: [\"Crossa\"])], targets: [.binaryTarget(name: \"Crossa\", url: \"https://github.com/crossa-script/Crossa/releases/download/v<CROSSA_VERSION>/Crossa.xcframework.zip\", checksum: \"<CROSSA_XCFRAMEWORK_CHECKSUM>\")])\n");
         }
 
         // Writes stable artifact metadata input without volatile build-machine values.

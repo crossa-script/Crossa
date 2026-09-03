@@ -37,6 +37,8 @@ namespace crossa::network::request {
             ),
             configuration_.shouldFollowRedirects(),
             configuration_.getMaximumResponseBytes(),
+            configuration_.getMaximumResponseHeaderBytes(),
+            configuration_.getMaximumResponseHeaderCount(),
             spec.getRetryPolicy().has_value()
                 ? spec.getRetryPolicy()
                 : configuration_.getRetryPolicy(),

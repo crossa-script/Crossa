@@ -4,6 +4,7 @@
 #include <mutex>
 #include <new>
 #include <condition_variable>
+#include <cmath>
 #include <deque>
 #include <limits>
 #include <string>
@@ -21,6 +22,14 @@
 using namespace std;
 
 namespace crossa::bindings::sharedabi {
+
+    class CrossaAbiResourceLimits final {
+    public:
+        static constexpr size_t MaximumArgumentCount = 256U;
+        static constexpr size_t MaximumPathCount = 256U;
+        static constexpr size_t MaximumStringBytes = 8U * 1024U * 1024U;
+        static constexpr size_t MaximumRuntimeCount = 256U;
+    };
 
     // Owns validated opaque runtime handles and their native runtimes.
     class CrossaAbiRuntimeRegistry final {
@@ -84,6 +93,10 @@ namespace crossa::bindings::sharedabi {
                 return CrossaStatusInternalError;
             }
             lock_guard<mutex> lock(instance().mutex_);
+            if (instance().runtimes_.size() >=
+                CrossaAbiResourceLimits::MaximumRuntimeCount) {
+                return CrossaStatusInternalError;
+            }
             if (instance().nextHandle_ == 0) return CrossaStatusInternalError;
             const CrossaRuntimeHandle handle = instance().nextHandle_++;
             instance().runtimes_.emplace(handle, std::move(nativeRuntime));
@@ -170,6 +183,9 @@ namespace crossa::bindings::sharedabi {
             if (values == nullptr || (arguments == nullptr && argumentCount != 0)) {
                 return false;
             }
+            if (argumentCount > CrossaAbiResourceLimits::MaximumArgumentCount) {
+                return false;
+            }
             values->clear();
             values->reserve(argumentCount);
             for (size_t index = 0; index < argumentCount; ++index) {
@@ -190,6 +206,7 @@ namespace crossa::bindings::sharedabi {
                         ));
                         break;
                     case CrossaAbiArgumentDouble:
+                        if (!isfinite(argument.doubleValue)) return false;
                         values->push_back(runtime::RuntimeValue::createDouble(
                             argument.doubleValue
                         ));
@@ -202,6 +219,10 @@ namespace crossa::bindings::sharedabi {
                     case CrossaAbiArgumentString:
                         if (argument.stringValue.data == nullptr &&
                             argument.stringValue.size != 0) return false;
+                        if (argument.stringValue.size >
+                            CrossaAbiResourceLimits::MaximumStringBytes) {
+                            return false;
+                        }
                         values->push_back(runtime::RuntimeValue::createString(string(
                             argument.stringValue.data == nullptr ? "" :
                                 argument.stringValue.data,
@@ -251,7 +272,8 @@ namespace crossa::bindings::sharedabi {
             const CrossaAbiPathSegment* path,
             size_t pathCount
         ) {
-            if (path == nullptr && pathCount != 0) return nullptr;
+            if (pathCount > CrossaAbiResourceLimits::MaximumPathCount ||
+                (path == nullptr && pathCount != 0)) return nullptr;
             const runtime::RuntimeValue* value = &result;
             for (size_t index = 0; index < pathCount; ++index) {
                 const CrossaAbiPathSegment& segment = path[index];

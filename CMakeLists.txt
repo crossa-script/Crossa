@@ -8,6 +8,23 @@ option(
     OFF
 )
 
+option(CROSSA_ENABLE_ASAN "Enable AddressSanitizer and undefined behavior checks" OFF)
+option(CROSSA_ENABLE_TSAN "Enable ThreadSanitizer checks" OFF)
+
+if(CROSSA_ENABLE_ASAN AND CROSSA_ENABLE_TSAN)
+    message(FATAL_ERROR "CROSSA_ENABLE_ASAN and CROSSA_ENABLE_TSAN are mutually exclusive.")
+endif()
+
+function(crossa_apply_sanitizers target)
+    if(CROSSA_ENABLE_ASAN)
+        target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+    elseif(CROSSA_ENABLE_TSAN)
+        target_compile_options(${target} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
+        target_link_options(${target} PRIVATE -fsanitize=thread)
+    endif()
+endfunction()
+
 find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -31,6 +48,7 @@ add_executable(
     include/crossa/compiler/source/SourceFile.h
     include/crossa/compiler/source/SourceLocation.h
     include/crossa/compiler/source/SourceLoader.h
+    include/crossa/compiler/CompilerResourceLimits.h
     include/crossa/compiler/lexer/TokenType.h
     include/crossa/compiler/lexer/Token.h
     include/crossa/compiler/lexer/Lexer.h
@@ -229,6 +247,8 @@ target_link_libraries(
         Threads::Threads
 )
 
+crossa_apply_sanitizers(crossa)
+
 enable_testing()
 
 add_executable(
@@ -266,6 +286,7 @@ add_executable(
 target_compile_features(crossa_runtime_tests PRIVATE cxx_std_20)
 target_include_directories(crossa_runtime_tests PRIVATE include)
 target_link_libraries(crossa_runtime_tests PRIVATE Threads::Threads)
+crossa_apply_sanitizers(crossa_runtime_tests)
 
 add_test(NAME crossa_runtime_tests COMMAND crossa_runtime_tests)
 
@@ -326,6 +347,7 @@ target_compile_features(crossa_language_tests PRIVATE cxx_std_20)
 target_compile_definitions(crossa_language_tests PRIVATE CROSSA_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
 target_include_directories(crossa_language_tests PRIVATE include)
 target_link_libraries(crossa_language_tests PRIVATE Threads::Threads)
+crossa_apply_sanitizers(crossa_language_tests)
 
 add_test(NAME crossa_language_tests COMMAND crossa_language_tests)
 add_test(NAME crossa_script_test COMMAND crossa test.cra)

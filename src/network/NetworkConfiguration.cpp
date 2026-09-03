@@ -23,7 +23,9 @@ namespace crossa::network {
           downloadStreaming_(false),
           requestCoalescing_(false),
           maximumResponseBytes_(8U * 1024U * 1024U),
-          maximumJsonDepth_(128) {}
+          maximumJsonDepth_(128),
+          maximumResponseHeaderBytes_(1024U * 1024U),
+          maximumResponseHeaderCount_(256) {}
 
     // Sets the base URL used only by relative request URLs.
     void NetworkConfiguration::setBaseUrl(string baseUrl) {
@@ -159,6 +161,30 @@ namespace crossa::network {
         maximumJsonDepth_ = maximumJsonDepth;
     }
 
+    void NetworkConfiguration::setMaximumResponseHeaderBytes(
+        size_t maximumResponseHeaderBytes
+    ) {
+        if (maximumResponseHeaderBytes == 0 ||
+            maximumResponseHeaderBytes > 16U * 1024U * 1024U) {
+            throw invalid_argument(
+                "Maximum response header bytes must be between 1 and 16777216."
+            );
+        }
+        maximumResponseHeaderBytes_ = maximumResponseHeaderBytes;
+    }
+
+    void NetworkConfiguration::setMaximumResponseHeaderCount(
+        size_t maximumResponseHeaderCount
+    ) {
+        if (maximumResponseHeaderCount == 0 ||
+            maximumResponseHeaderCount > 4096U) {
+            throw invalid_argument(
+                "Maximum response header count must be between 1 and 4096."
+            );
+        }
+        maximumResponseHeaderCount_ = maximumResponseHeaderCount;
+    }
+
     // Returns the configured base URL.
     const string& NetworkConfiguration::getBaseUrl() const noexcept {
         return baseUrl_;
@@ -260,6 +286,14 @@ namespace crossa::network {
     // Returns the maximum parsed JSON nesting depth.
     size_t NetworkConfiguration::getMaximumJsonDepth() const noexcept {
         return maximumJsonDepth_;
+    }
+
+    size_t NetworkConfiguration::getMaximumResponseHeaderBytes() const noexcept {
+        return maximumResponseHeaderBytes_;
+    }
+
+    size_t NetworkConfiguration::getMaximumResponseHeaderCount() const noexcept {
+        return maximumResponseHeaderCount_;
     }
 
 }

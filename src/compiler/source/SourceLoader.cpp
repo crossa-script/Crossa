@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "crossa/compiler/CompilerResourceLimits.h"
+
 using namespace std;
 
 namespace crossa::compiler::source {
@@ -29,10 +31,27 @@ namespace crossa::compiler::source {
             throw runtime_error("Unable to read Crossa source file: " + path.string());
         }
 
-        string content{
+        error_code sizeError;
+        const uintmax_t sourceSize = filesystem::file_size(path, sizeError);
+        if (sizeError || sourceSize > CompilerResourceLimits::MaximumSourceBytes) {
+            throw runtime_error(
+                "Crossa source file exceeds the configured byte limit: " +
+                path.string()
+            );
+        }
+
+        string content;
+        content.reserve(static_cast<size_t>(sourceSize));
+        content.assign(
             istreambuf_iterator<char>(input),
             istreambuf_iterator<char>()
-        };
+        );
+        if (content.size() > CompilerResourceLimits::MaximumSourceBytes) {
+            throw runtime_error(
+                "Crossa source file exceeds the configured byte limit: " +
+                path.string()
+            );
+        }
 
         log.debug("Source content loaded: " + to_string(content.size()) + " bytes");
 

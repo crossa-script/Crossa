@@ -95,32 +95,22 @@ failures. Any required failure makes the command exit non-zero and prints a
 
 ## Build-Variant Configuration
 
-`config.cra` provides the default values. The generated library has one typed
-`CrossaConfigurationOverrides` data class for every Android flavor/build type.
-Its nested data classes represent structured policies. The selected override
-can replace any supported config key; a null property keeps the default.
-Native runtime creation validates the complete merged result before it creates
-the network engine or scheduler.
+`config.cra` is compiled into the generated native program and becomes the
+immutable runtime configuration. Build variants may select different generated
+projects, but they do not mutate configuration after native runtime creation.
 
-```text
-config.cra defaults
-    -> selected flavor/build-type override
-    -> native type validation
-    -> RuntimeConfiguration
-    -> native scheduler and NetworkEngine
-```
-
-The override document is a build input and must not rewrite `config.cra`.
-Values embedded in an AAR are inspectable by applications, so secrets must use
-runtime-provided secure storage rather than flavor literals.
+The generated runtime uses the embedded `config.cra` program as its immutable
+configuration source. Values embedded in an AAR are inspectable by applications,
+so secrets must use runtime-provided secure storage rather than flavor literals.
 
 ## Native Boundary
 
 Kotlin APIs call a small JNI bridge once to create a native runtime with the
-merged configuration. Generated APIs expose
-`configure(overrides: CrossaConfigurationOverrides)` to apply one typed
-in-memory update before subsequent requests. Request invocation, cancellation,
-terminal completion, models, and lists use opaque handles. Native C++ owns
+embedded configuration. Generated APIs expose both cancellable callback
+operations and `suspend` operations backed by
+`suspendCancellableCoroutine`; cancellation reaches the native operation
+handle. Request invocation, cancellation, terminal completion, models, and
+lists use opaque handles. Native C++ owns
 HTTP, retries, serialization, response decoding, state transitions, and
 scheduling.
 

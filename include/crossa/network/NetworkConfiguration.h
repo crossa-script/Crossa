@@ -72,6 +72,10 @@ public:
     // Sets the maximum parsed JSON nesting depth.
     void setMaximumJsonDepth(std::size_t maximumJsonDepth);
 
+    void setMaximumResponseHeaderBytes(std::size_t maximumResponseHeaderBytes);
+
+    void setMaximumResponseHeaderCount(std::size_t maximumResponseHeaderCount);
+
     // Returns the configured base URL.
     [[nodiscard]] const std::string& getBaseUrl() const noexcept;
 
@@ -132,6 +136,10 @@ public:
     // Returns the maximum parsed JSON nesting depth.
     [[nodiscard]] std::size_t getMaximumJsonDepth() const noexcept;
 
+    [[nodiscard]] std::size_t getMaximumResponseHeaderBytes() const noexcept;
+
+    [[nodiscard]] std::size_t getMaximumResponseHeaderCount() const noexcept;
+
 private:
     std::string baseUrl_;
     std::int64_t timeoutMilliseconds_;
@@ -154,6 +162,8 @@ private:
     std::optional<json::JsonValue> telemetry_;
     std::size_t maximumResponseBytes_;
     std::size_t maximumJsonDepth_;
+    std::size_t maximumResponseHeaderBytes_;
+    std::size_t maximumResponseHeaderCount_;
 };
 
 }
