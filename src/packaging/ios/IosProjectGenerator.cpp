@@ -522,6 +522,7 @@ public final class CrossaRuntime {
                 "BUILD_LIBRARY_FOR_DISTRIBUTION = YES\n"
                 "SKIP_INSTALL = NO\n"
                 "DEFINES_MODULE = YES\n"
+                "LD_DYLIB_INSTALL_NAME = @rpath/$(PRODUCT_NAME).framework/$(PRODUCT_NAME)\n"
                 "GCC_C_LANGUAGE_STANDARD = gnu17\n"
                 "CLANG_CXX_LANGUAGE_STANDARD = c++20\n"
                 "GCC_SYMBOLS_PRIVATE_EXTERN = YES\n"

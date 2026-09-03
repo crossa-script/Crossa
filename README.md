@@ -1,392 +1,30 @@
 # Crossa
 
-Crossa is a compiler-powered native runtime and scripting/code-generation platform. It transforms backend contracts and `.cra` source files into high-performance native SDKs and platform APIs for Android and iOS.
+Crossa turns backend contracts and `.cra` source files into native behavior and generated APIs for Android and iOS.
 
-Crossa is not a general-purpose programming language or another platform networking client. Its intentionally small language describes typed behavior, while the C++ compiler and runtime own performance-critical execution.
+The idea is simple: describe the behavior once, let C++ own compilation and runtime work, and expose a small platform-friendly API to the application.
 
-## Project Status
+> **Current status:** Crossa is in the foundation phase. The C++ frontend, typed IR, native runtime, HTTP/JSON networking, Android AAR generation, iOS XCFramework generation, and CLI are available. Some platform bridges and advanced optimizations are still evolving.
 
-> **Foundation phase:** Crossa currently contains its architecture and language specifications, the canonical C++ frontend, typed IR, native IR execution, a bounded shared scheduler, native HTTP transport, JSON request/response support, schema-aware response validation, Android Gradle project generation, and standalone CLI release packaging. XCFramework output, complete generated bindings, cancellation, and streaming remain in progress.
+## Crossa in one minute
 
-The frontend validates variables, models, config blocks, functions, execution policies, top-level calls, returns, arithmetic, lexical scopes, `List<T>`, `Json`, interpolated strings, and `CrossaRequest`, then lowers them to platform-neutral IR. The native interpreter executes only reachable calls; declarations without calls are compiled but remain inert.
-
-The first production runtime module will be Networking. Future modules may include WebSockets, raw and binary sockets, Database, Streaming, Cache, Compression, Cryptography, File Transport, and Telemetry.
-
-## How Crossa Fits Together
-
-```text
-Backend Contracts                 .cra Sources
-       |                               |
-       v                               v
-Backend Adapters              C++ Language Frontend
-       |                    Lexer / Parser / Semantics
-       +---------------+---------------+
-                       |
-                       v
-                  Shared Crossa IR
-                       |
-                       v
-              Optimization / Linking
-                       |
-            +----------+----------+
-            |                     |
-            v                     v
-      Native C++ Runtime    Kotlin / Swift APIs
-            |
-            v
-       Stable Native ABI
-            |
-       Android / iOS
+```mermaid
+flowchart LR
+    A[".cra + backend contracts"] --> B["C++ compiler frontend"]
+    B --> C["Typed Crossa IR"]
+    C --> D["Native C++ runtime"]
+    D --> E["Android AAR"]
+    D --> F["iOS XCFramework"]
 ```
 
-Different inputs share one semantic, IR, runtime, and generator architecture. Kotlin and Swift remain thin integration surfaces for runtime-backed behavior.
+- `.cra` is a small typed language for models, functions, and requests.
+- C++ is the single compiler frontend and owns runtime execution, networking, scheduling, and memory.
+- Kotlin and Swift are thin integration surfaces; Crossa does not create a separate Retrofit, Ktor, or URLSession implementation for each request.
 
-## The `.cra` Language
+## Start quickly
 
-Crossa source files use the `.cra` extension. The initial language includes typed variables, functions, models, `List<T>`, string interpolation, execution policies, and native request expressions.
-
-```cra
-model User(
-    id: Int,
-    name: String
-)
-
-@AsyncAfter
-fun getUsers(id: Int): List<User> {
-    re CrossaRequest {
-        url: "/v1/users/#id",
-        method: GET,
-        queryParams: {
-            include: "profile"
-        }
-    }
-}
-```
-
-Here, `List<User>` is the logical success type. `CrossaRequest` lowers into a native request plan, executes through the shared C++ scheduler and Networking runtime, and produces `Success(data)` or `Failed(error)` semantics for generated platform APIs.
-
-## Android Networking Benchmark
-
-The Android demo compares the same `GET https://jsonplaceholder.typicode.com/posts` request across three clients:
-
-- Retrofit with OkHttp, interceptors, request headers, response mapping, and a new HTTP client per request.
-- Ktor Client with coroutines, response mapping, and a new HTTP client per request.
-- Crossa generated Android AAR from `.cra` files using `@AsyncAfter` callback APIs.
-
-Each scenario sends 5 requests with a 2000ms delay between calls. Cache is disabled by creating a fresh client for every request and sending:
-
-```text
-Cache-Control: no-cache, no-store, max-age=0
-Pragma: no-cache
-Expires: 0
-```
-
-The benchmark screen shows the average, min, max, per-request timings, request headers, response status, mapped first post, and response preview for each client.
-
-Latest emulator run:
-
-| Rank | Client | Average | Success |
-|------|--------|---------|---------|
-| 1 | Crossa AAR `@AsyncAfter` | 200.20ms | 5/5 |
-| 2 | Ktor Client | 959.20ms | 5/5 |
-| 3 | Retrofit + OkHttp | 1038.20ms | 5/5 |
-
-The result validates that the generated Crossa AAR can be built by the CLI, linked into the Android demo, called from Compose UI, execute the API request, map the JSON response into generated models, and report benchmark numbers beside Retrofit and Ktor.
-
-## Native-First Architecture
-
-For runtime-backed features, C++ owns:
-
-- Request planning, encoding, transport, cancellation, and timeouts.
-- Response buffering, schema-aware parsing, and native model storage.
-- Memory ownership, scheduling, errors, and async state.
-- The canonical `.cra` frontend and language-to-IR lowering.
-
-Crossa does not generate separate Retrofit, Ktor, OkHttp, or URLSession implementations for `CrossaRequest`. Large results should remain native-backed where practical to reduce allocations, copies, JNI/Swift crossings, and managed object duplication.
-
-## Documentation
-
-- [Technical Architecture](ARCHITECTURE.md) — system boundaries and engineering rules.
-- [Agent Instructions](AGENTS.md) — repository workflow and coding-agent requirements.
-- [Language Foundation](docs/language/language-foundation.md) — current `.cra` syntax and semantics.
-- [Language Roadmap](docs/language/language-roadmap.md) — implementation order and milestones.
-- [Project Blueprint](CROSSA_PROJECT_BLUEPRINT.md) — broader product direction; current architecture and language documents take precedence where the blueprint is outdated.
-
-## Installation
-
-Crossa installs from compiled GitHub Release artifacts. The installers do not
-clone this repository, build Crossa locally, require `sudo`, or modify shell
-profile files.
-
-### macOS ARM64
-
-Install the latest stable release:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash
-```
-
-Install a specific version:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash -s -- 0.1.0
-```
-
-The macOS installer downloads:
-
-```text
-crossa-vX.Y.Z-macos-arm64.tar.gz
-```
-
-### Linux x86_64
-
-Install the latest stable release:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash
-```
-
-Install a specific version:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash -s -- 0.1.0
-```
-
-The Linux installer downloads:
-
-```text
-crossa-vX.Y.Z-linux-x86_64.tar.gz
-```
-
-### Windows x86_64
-
-Install the latest stable release:
-
-```powershell
-irm https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.ps1 | iex
-```
-
-Install a specific version:
-
-```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.ps1 -OutFile install.ps1
-.\install.ps1 -Version 0.1.0
-```
-
-The Windows installer downloads:
-
-```text
-crossa-vX.Y.Z-windows-x86_64.zip
-```
-
-macOS and Linux install to:
-
-```text
-~/.crossa/bin/crossa
-```
-
-Windows installs to:
-
-```text
-%USERPROFILE%\.crossa\bin\crossa.exe
-```
-
-Each installer downloads `SHA256SUMS` from the same GitHub Release and verifies
-the archive before extracting it. If the Crossa bin directory is not on `PATH`,
-the installer prints the exact command to add it.
-
-Crossa installation flow:
-
-```text
-GitHub Release
-      |
-      v
-install.sh
-install.ps1
-      |
-      v
-Detect OS + CPU
-      |
-      v
-Resolve release version
-      |
-      v
-Download matching binary archive
-      |
-      v
-Verify SHA-256
-      |
-      v
-~/.crossa/bin/crossa
-      |
-      v
-crossa doctor
-```
-
-## Supported Platforms
-
-| Platform | Architecture | Release Asset | Installer |
-|----------|--------------|---------------|-----------|
-| macOS | ARM64 / Apple Silicon | `crossa-vX.Y.Z-macos-arm64.tar.gz` | `install.sh` |
-| Linux | x86_64 | `crossa-vX.Y.Z-linux-x86_64.tar.gz` | `install.sh` |
-| Windows | x86_64 | `crossa-vX.Y.Z-windows-x86_64.zip` | `install.ps1` |
-
-## Verify Installation
-
-```sh
-crossa --version
-crossa doctor
-```
-
-`crossa doctor` checks the Crossa installation and the Android development
-toolchain required for generated Android AAR builds.
-
-## CLI Commands
-
-| Command | What it does | Example |
-|---------|--------------|---------|
-| `crossa <file.cra>` | Runs a source file; equivalent to `crossa run`. | `crossa examples/imports/runPosts.cra` |
-| `crossa run <file.cra>` | Executes reachable top-level calls. | `crossa run file.cra` |
-| `crossa check <file.cra>` | Validates source, imports, semantics, and IR without execution. | `crossa check examples/imports/runPosts.cra` |
-| `crossa test <file.cra>` | Runs a source with assertion semantics. | `crossa test tests/test-runner/pass.cra` |
-| `crossa generate kotlin <file.cra> --output <directory>` | Generates deterministic Kotlin for pure translated IR. | `crossa generate kotlin tests/kotlin-generator/Math.cra --output generated/` |
-| `crossa generate-build android <project-directory> --output <directory> [--ndk-version <version>] [--gradle-version <version>] [--kotlin-version <version>]` | Generates an Android Gradle library project for AAR assembly, with optional per-project tool versions. | `crossa generate-build android ./crossa-project --output ./build/crossa-aar --ndk-version 28.1.13356709 --gradle-version 8.11.1 --kotlin-version 2.0.21` |
-| `crossa doctor` | Checks the default Android build toolchain on the current machine. | `crossa doctor` |
-| `crossa --version` | Prints the installed Crossa version. | `crossa --version` |
-
-### CLI Examples
-
-Run a `.cra` file with the default `run` command:
-
-```sh
-crossa examples/imports/runPosts.cra
-```
-
-Run, validate, or test a source explicitly:
-
-```sh
-crossa run test.cra
-crossa check examples/imports/runPosts.cra
-crossa test tests/test-runner/pass.cra
-```
-
-Show compiler pipeline details while executing a source:
-
-```sh
-crossa run --debug test.cra
-```
-
-Generate pure Kotlin output:
-
-```sh
-crossa generate kotlin tests/kotlin-generator/Math.cra --output ./generated
-```
-
-Generate an Android library with Crossa's default tool versions:
-
-```sh
-crossa generate-build android ./crossa-project --output ./build/crossa-aar
-```
-
-Generate an Android library with project-specific NDK, Gradle, and Kotlin versions:
-
-```sh
-crossa generate-build android ./crossa-project --output ./build/crossa-aar \
-  --ndk-version 28.1.13356709 \
-  --gradle-version 8.11.1 \
-  --kotlin-version 2.1.10
-```
-
-Inspect the installation, print the version, or view CLI usage:
-
-```sh
-crossa doctor
-crossa --version
-crossa --help
-```
-
-The Android version flags are used only by `generate-build android`: NDK is
-written to `library/build.gradle.kts`, Gradle selects the wrapper distribution,
-and Kotlin selects the Kotlin Android plugin. When omitted, Crossa uses its
-current defaults. Choose compatible Gradle, Kotlin, Android Gradle Plugin, and
-NDK versions for your project.
-
-## Release Artifacts
-
-Example release assets for `Crossa v0.1.0`:
-
-```text
-crossa-v0.1.0-macos-arm64.tar.gz
-crossa-v0.1.0-linux-x86_64.tar.gz
-crossa-v0.1.0-windows-x86_64.zip
-SHA256SUMS
-```
-
-## Development
-
-Configure, build, and run the current executable with CMake and Ninja:
-
-```sh
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
-./build/crossa test.cra
-```
-
-The executable accepts an optional command and one `.cra` source file. `run`
-validates, lowers, and executes top-level calls in source order through the
-shared scheduler and native network runtime. `test` uses the same native runtime
-with test-only `assert` calls and exits non-zero on an assertion or runtime
-failure. `check` loads imports and runs the lexer, parser, semantic analysis,
-and typed IR lowering, then stops without loading configuration or executing
-requests and functions. Normal execution displays program output and errors,
-without compiler lifecycle logs:
-
-```sh
-./build/crossa test.cra
-```
-
-Use explicit commands when the intent should be clear:
-
-```sh
-./build/crossa check examples/imports/runPosts.cra
-./build/crossa run file.cra
-./build/crossa test file.cra
-./build/crossa generate kotlin tests/kotlin-generator/Math.cra --output generated/
-./build/crossa doctor
-```
-
-`generate kotlin` stops after typed IR lowering and writes one deterministic
-`<SourceIdentity>.kt` file to the requested output directory. When the source
-directory has a `config.cra` with `packageName: "com.example.app"`, the
-generated file begins with that Kotlin package directive. It supports only the
-pure Kotlin IR backend; runtime-backed operations such as `CrossaRequest` fail
-explicitly rather than generating platform networking code.
-
-The command is optional for backward compatibility, so `crossa file.cra` is
-equivalent to `crossa run file.cra`.
-
-Use `crossa doctor` to inspect whether the current machine has the Crossa
-installation, Android SDK, NDK, CMake, Ninja, Java, cache, and temporary
-directory setup required for generated Android AAR builds. See
-[Crossa CLI](docs/development/cli.md) for the doctor status meanings.
-
-Test sources use assertions:
-
-```cra
-fun returnsTrue(): Bool {
-    re true
-}
-
-assert(returnsTrue(), "returnsTrue should pass")
-```
-
-Use `--debug` to display every current Crossa execution step, emitted token, parsed AST declaration, typed semantic declaration, and lowered IR instruction:
-
-```sh
-./build/crossa --debug test.cra
-```
-
-Put a call in the `.cra` file to execute it through the native IR interpreter:
+1. Install Crossa using the [installation instructions](#installation).
+2. Create a file named `hello.cra`:
 
 ```cra
 fun add(a: Int, b: Int): Int {
@@ -396,40 +34,249 @@ fun add(a: Int, b: Int): Int {
 print(add(1, 2))
 ```
 
+3. Run it:
+
 ```sh
-./build/crossa test.cra
+crossa run hello.cra
 ```
 
-Use `config.cra` beside the executing source for shared networking and runtime
-settings. Absolute HTTP/HTTPS request URLs bypass `baseUrl`; relative URLs use
-it. See [Native Networking](docs/features/networking.md) for request fields,
-header precedence, response decoding, limits, and current exclusions.
+Output:
 
-To configure, build, and run the debug test in one command:
+```text
+3
+```
+
+To validate the source without executing functions or requests:
+
+```sh
+crossa check hello.cra
+```
+
+## A networking example
+
+```cra
+model User(
+    id: Int,
+    name: String
+)
+
+@AsyncAfter
+fun getUser(id: Int): User {
+    re CrossaRequest {
+        url: "https://api.example.com/users/#id",
+        method: GET
+    }
+}
+```
+
+`User` is the logical success type. With `@AsyncAfter`, the terminal result is conceptually one of:
+
+```text
+Success(User)
+Failed(CrossaError)
+Cancelled
+```
+
+The native runtime plans and executes the request, decodes the JSON response, and exposes the result through the generated platform API.
+
+## How a request moves through Crossa
+
+```mermaid
+flowchart TD
+    A[".cra source"] --> B["Loader + lexer + parser"]
+    B --> C["AST + semantic analysis"]
+    C --> D["Typed IR"]
+    D --> E["Native request plan"]
+    E --> F["Bounded scheduler"]
+    F --> G["HTTP transport + response buffer"]
+    G --> H["JSON decoding + typed native model"]
+    H --> I["Success / Failed / Cancelled"]
+```
+
+The same path is shared by the CLI, Android, and iOS. Kotlin and Swift do not parse `.cra` or implement a second HTTP runtime.
+
+## Why Crossa?
+
+| Common problem | Crossa approach |
+|---|---|
+| Repeating request models and parsing on every platform | Define typed behavior once in `.cra` |
+| Different networking behavior between Android and iOS | Use one shared native runtime |
+| Large copies across native and managed runtimes | Keep results native-backed where practical |
+| Unpredictable runtime work per request | Compile through one frontend and one IR |
+| Manual SDK setup for every project | Generate Android and iOS artifacts |
+
+## What is available today?
+
+| Area | Status |
+|---|---|
+| `.cra` loading, imports, lexer, parser, semantic analysis, and IR | Available |
+| Variables, functions, models, `List<T>`, interpolation, `print`, and `assert` | Available |
+| `CrossaRequest` with URL/path/query/header/body and HTTP methods | Available |
+| JSON decoding for scalars, models, and lists | Available |
+| Native scheduler, structured errors, and cancellation | Available in the runtime |
+| Pure Kotlin generation | Available for pure translated IR |
+| Android Gradle project and AAR generation | Available for `arm64-v8a` |
+| iOS Debug/Release XCFramework generation | Available with Xcode and CMake |
+| Streaming delivery to platform APIs and generated direct decoders | In progress |
+
+## Installation
+
+<details>
+<summary>Expand installation instructions</summary>
+
+The installers download a compiled binary from GitHub Releases and verify it with `SHA256SUMS`. They do not clone this repository, require `sudo`, or edit shell profile files.
+
+### macOS ARM64 and Linux x86_64
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash
+```
+
+To install a specific version:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.sh | bash -s -- 0.1.0
+```
+
+### Windows x86_64
+
+To install the latest version:
+
+```powershell
+irm https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.ps1 | iex
+```
+
+To install a specific version:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/crossa-script/Crossa/main/scripts/install/install.ps1 -OutFile install.ps1
+.\install.ps1 -Version 0.1.0
+```
+
+### Installation location
+
+```text
+macOS / Linux: ~/.crossa/bin/crossa
+Windows:       %USERPROFILE%\.crossa\bin\crossa.exe
+```
+
+Set `CROSSA_HOME` before running the installer to use a different location. If the Crossa bin directory is not already on `PATH`, the installer prints the exact command to add it.
+
+### Supported release hosts
+
+| Operating system | Architecture | Release asset |
+|---|---|---|
+| macOS | ARM64 / Apple Silicon | `crossa-vX.Y.Z-macos-arm64.tar.gz` |
+| Linux | x86_64 | `crossa-vX.Y.Z-linux-x86_64.tar.gz` |
+| Windows | x86_64 | `crossa-vX.Y.Z-windows-x86_64.zip` |
+
+</details>
+
+## Verify the installation
+
+```sh
+crossa --version
+crossa doctor
+```
+
+`crossa doctor` checks the Crossa installation and the Android/iOS toolchains available on the machine. It does not install dependencies or modify environment variables.
+
+## Platform outputs
+
+```mermaid
+flowchart LR
+    A["Linked .cra project"] --> B["crossa generate-build android"]
+    A --> C["crossa generate-build ios"]
+    B --> D["Android Gradle project"] --> E["Debug / Release AAR"]
+    C --> F["Xcode framework project"] --> G["Debug / Release XCFramework"]
+```
+
+| Command | Output |
+|---|---|
+| `crossa generate kotlin` | Kotlin source for pure translated IR |
+| `crossa generate-build android` | Android Gradle library project for AAR assembly |
+| `crossa generate-build ios` | Xcode project and Debug/Release XCFrameworks |
+
+## Project documentation
+
+- [Technical Architecture](ARCHITECTURE.md) — system boundaries, ownership, and engineering rules.
+- [Language Foundation](docs/language/language-foundation.md) — current `.cra` syntax and semantics.
+- [Language Roadmap](docs/language/language-roadmap.md) — implementation order and future milestones.
+- [Native Networking](docs/features/networking.md) — request fields, response decoding, and limits.
+- [Crossa CLI](docs/development/cli.md) — commands, `doctor`, and interactive mode.
+- [Android AAR Generation](docs/platform/android.md) — generated Android projects and build requirements.
+- [iOS XCFramework](docs/platform/ios.md) — XCFramework generation and Xcode integration.
+- [Testing](docs/development/testing.md) — test layers and fixtures.
+
+<details>
+<summary>Expand the full CLI reference</summary>
+
+| Command | Purpose |
+|---|---|
+| `crossa <file.cra>` | Shortcut for `crossa run <file.cra>` |
+| `crossa run <file.cra>` | Execute reachable top-level calls |
+| `crossa check <file.cra>` | Validate source, imports, semantics, and IR without execution |
+| `crossa test <file.cra>` | Run a source file with assertions |
+| `crossa generate kotlin <file.cra> --output <dir>` | Generate Kotlin for pure IR |
+| `crossa generate-build android <project> --output <dir>` | Generate an Android Gradle project |
+| `crossa generate-build ios <project> --output <dir>` | Generate and build XCFrameworks |
+| `crossa doctor` | Check the local toolchain |
+| `crossa --version` | Print the installed version |
+
+### Examples
+
+```sh
+crossa run examples/imports/runPosts.cra
+crossa check examples/imports/runPosts.cra
+crossa test tests/test-runner/pass.cra
+crossa generate kotlin tests/kotlin-generator/Math.cra --output ./generated
+crossa generate-build android ./crossa-project --output ./build/crossa-aar
+crossa generate-build ios ./crossa-project --output ./build/crossa-xcframework
+```
+
+Show compiler and IR details during execution:
+
+```sh
+crossa run --debug test.cra
+```
+
+Android build tool versions can be overridden for one generated project:
+
+```sh
+crossa generate-build android ./crossa-project --output ./build/crossa-aar \
+  --ndk-version 28.1.13356709 \
+  --gradle-version 8.11.1 \
+  --kotlin-version 2.1.10
+```
+
+</details>
+
+<details>
+<summary>Expand source-build and development instructions</summary>
+
+Basic requirements are CMake, Ninja, a C++20 compiler, and libcurl. Android and iOS generation also requires the relevant platform toolchain.
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+./build/crossa run test.cra
+```
+
+Run the complete local test suite:
 
 ```sh
 ./test.sh
 ```
 
-The script builds and runs the complete compiler, linker, runtime, local mock
-network, and `.cra` scripting suite. It uses CMake when available and falls back
-to the installed C++ compiler. Native networking requires libcurl.
-
-Optional JSONPlaceholder integration tests can be enabled when network access is
-available:
+JSONPlaceholder integration tests are optional because they require external network access:
 
 ```sh
 CROSSA_RUN_NETWORK_INTEGRATION=1 ./test.sh
 ```
 
-With CMake, the same tests are enabled with
-`-DCROSSA_ENABLE_NETWORK_INTEGRATION=ON`.
+Architecture, ABI, IR, ownership, scheduler, transport, module-boundary, and major dependency changes require an ADR under `docs/decisions/`.
 
-See [Crossa Testing](docs/development/testing.md) for the test layers and fixtures.
-
-Compiler implementation follows the documented vertical slices: source loading, diagnostics, lexer, parser and AST, semantic analysis, typed IR, native execution, native Networking, then deterministic platform generators.
-
-Architecture, ABI, IR, ownership, scheduler, transport, parser, memory-layout, module-boundary, and major dependency changes require an ADR under `docs/decisions/`.
+</details>
 
 ## License
 
