@@ -13,11 +13,12 @@ namespace crossa::runtime {
     NativeRuntime::NativeRuntime(
         compiler::ir::Program program,
         const compiler::ir::Program* configurationProgram,
-        const utils::Log& log
+        const utils::Log& log,
+        const network::json::JsonValue* runtimeOverrides
     )
         : program_(std::move(program)),
           log_(log),
-          configuration_(RuntimeConfiguration::load(program_, configurationProgram)),
+          configuration_(RuntimeConfiguration::load(program_, configurationProgram, runtimeOverrides)),
           networkEngine_(
               configuration_.getNetworkConfiguration(),
               log_,

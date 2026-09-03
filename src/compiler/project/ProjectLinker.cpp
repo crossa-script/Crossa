@@ -117,13 +117,15 @@ namespace crossa::compiler::project {
                 if (indexedSourceCount_ >=
                     CompilerResourceLimits::MaximumProjectSourceFiles) {
                     throw runtime_error(
-                        "Crossa project contains more source files than the configured limit."
+                        "CRA1001 project source file count exceeded; limit=" +
+                        to_string(CompilerResourceLimits::MaximumProjectSourceFiles) + "."
                     );
                 }
                 if (indexedSourceBytes_ >=
                     CompilerResourceLimits::MaximumProjectSourceBytes) {
                     throw runtime_error(
-                        "Crossa project source files exceed the configured byte limit."
+                        "CRA1001 project source byte limit exceeded; limit=" +
+                        to_string(CompilerResourceLimits::MaximumProjectSourceBytes) + "."
                     );
                 }
                 const uintmax_t fileBytes = entry.file_size(entryError);
@@ -133,7 +135,8 @@ namespace crossa::compiler::project {
                         CompilerResourceLimits::MaximumProjectSourceBytes -
                         static_cast<size_t>(fileBytes)) {
                     throw runtime_error(
-                        "Crossa project source files exceed the configured byte limit."
+                        "CRA1001 project source byte limit exceeded; limit=" +
+                        to_string(CompilerResourceLimits::MaximumProjectSourceBytes) + "."
                     );
                 }
                 indexedSourceBytes_ += static_cast<size_t>(fileBytes);
@@ -184,13 +187,15 @@ namespace crossa::compiler::project {
             CompilerResourceLimits::MaximumImportedModules) {
             fail(
                 source::SourceLocation(sourcePath.string(), 1, 1),
-                "Imported module count exceeded the configured limit."
+                "CRA1001 imported module count exceeded; limit=" +
+                to_string(CompilerResourceLimits::MaximumImportedModules) + "."
             );
         }
         if (importDepth_ >= CompilerResourceLimits::MaximumImportDepth) {
             fail(
                 source::SourceLocation(sourcePath.string(), 1, 1),
-                "Import depth exceeded the configured limit."
+                "CRA1001 import depth exceeded; limit=" +
+                to_string(CompilerResourceLimits::MaximumImportDepth) + "."
             );
         }
         const string pathKey = getPathKey(sourcePath);

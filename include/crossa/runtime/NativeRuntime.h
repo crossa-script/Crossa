@@ -24,7 +24,8 @@ public:
     NativeRuntime(
         compiler::ir::Program program,
         const compiler::ir::Program* configurationProgram,
-        const utils::Log& log
+        const utils::Log& log,
+        const network::json::JsonValue* runtimeOverrides = nullptr
     );
 
     ~NativeRuntime();

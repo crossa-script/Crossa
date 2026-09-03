@@ -276,6 +276,25 @@ namespace crossa::compiler::generators::swift {
                 output << "        }, onState: onState)\n";
             }
             output << "    }\n";
+            if (function.getExecutionPolicy() == ir::IrExecutionPolicy::AsyncAfter) {
+                output << "\n    static func " << identifier(function.getName())
+                       << "(runtime: CrossaRuntime";
+                if (!function.getParameters().empty()) output << ", ";
+                emitParameters(function.getParameters(), output, false);
+                output << ") async throws -> " << type(function.getReturnType()) << " {\n";
+                output << "        let arguments: [CrossaArgument] = [";
+                for (size_t index = 0; index < parameters.size(); ++index) {
+                    if (index > 0) output << ", ";
+                    output << "CrossaArgument(" << identifier(parameters[index].getName())
+                           << ")";
+                }
+                output << "]\n";
+                output << "        return try await runtime.invokeAsyncAfterAwait(operation: "
+                       << operation << ", arguments: arguments, map: { result in\n";
+                output << "            " << resultMapper(function.getReturnType()) << "\n";
+                output << "        })\n";
+                output << "    }\n";
+            }
         }
 
         // Emits a deterministic function parameter list.

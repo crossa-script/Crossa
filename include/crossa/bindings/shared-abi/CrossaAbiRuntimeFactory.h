@@ -2,6 +2,7 @@
 
 #include "crossa/bindings/shared-abi/CrossaAbi.h"
 #include "crossa/compiler/ir/Program.h"
+#include "crossa/network/json/JsonValue.h"
 #include "crossa/utils/Log.h"
 
 namespace crossa::bindings::sharedabi {
@@ -12,6 +13,14 @@ public:
     static CrossaStatus create(
         compiler::ir::Program program,
         const compiler::ir::Program* configurationProgram,
+        const utils::Log& log,
+        CrossaRuntimeHandle* runtime
+    );
+
+    static CrossaStatus create(
+        compiler::ir::Program program,
+        const compiler::ir::Program* configurationProgram,
+        const network::json::JsonValue* runtimeOverrides,
         const utils::Log& log,
         CrossaRuntimeHandle* runtime
     );

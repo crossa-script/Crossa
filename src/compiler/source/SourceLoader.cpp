@@ -35,8 +35,9 @@ namespace crossa::compiler::source {
         const uintmax_t sourceSize = filesystem::file_size(path, sizeError);
         if (sizeError || sourceSize > CompilerResourceLimits::MaximumSourceBytes) {
             throw runtime_error(
-                "Crossa source file exceeds the configured byte limit: " +
-                path.string()
+                path.string() + ": CRA1001 source size limit exceeded; limit=" +
+                to_string(CompilerResourceLimits::MaximumSourceBytes) +
+                " bytes, observed=" + to_string(sourceSize) + " bytes."
             );
         }
 
@@ -48,8 +49,9 @@ namespace crossa::compiler::source {
         );
         if (content.size() > CompilerResourceLimits::MaximumSourceBytes) {
             throw runtime_error(
-                "Crossa source file exceeds the configured byte limit: " +
-                path.string()
+                path.string() + ": CRA1001 source size limit exceeded; limit=" +
+                to_string(CompilerResourceLimits::MaximumSourceBytes) +
+                " bytes, observed=" + to_string(content.size()) + " bytes."
             );
         }
 

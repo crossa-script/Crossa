@@ -14,7 +14,8 @@ public:
     // Loads defaults and applies the optional main or sibling config block.
     [[nodiscard]] static RuntimeConfiguration load(
         const compiler::ir::Program& program,
-        const compiler::ir::Program* configurationProgram
+        const compiler::ir::Program* configurationProgram,
+        const network::json::JsonValue* runtimeOverrides = nullptr
     );
 
     // Returns immutable native networking configuration.

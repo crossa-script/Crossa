@@ -392,6 +392,75 @@ private final class CrossaTypedCompletionOwner<Value>: CrossaCompletionOwner {
     }
 }
 
+private final class CrossaAsyncBridge<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, Error>?
+    private var operation: CrossaOperation?
+    private var completed = false
+    private var cancelled = false
+
+    internal func begin(_ continuation: CheckedContinuation<Value, Error>) -> Bool {
+        lock.lock()
+        let shouldCancel = cancelled
+        if !shouldCancel {
+            self.continuation = continuation
+        }
+        lock.unlock()
+        if shouldCancel {
+            continuation.resume(throwing: CancellationError())
+            return false
+        }
+        return true
+    }
+
+    internal func attach(_ operation: CrossaOperation) {
+        lock.lock()
+        let shouldCancel = cancelled || completed
+        if !shouldCancel {
+            self.operation = operation
+        }
+        lock.unlock()
+        if shouldCancel {
+            operation.cancel()
+        }
+    }
+
+    internal func cancel() {
+        lock.lock()
+        cancelled = true
+        let operation = self.operation
+        self.operation = nil
+        let continuation = completed ? nil : self.continuation
+        self.continuation = nil
+        completed = true
+        lock.unlock()
+        operation?.cancel()
+        continuation?.resume(throwing: CancellationError())
+    }
+
+    internal func complete(_ state: CrossaState<Value>) {
+        lock.lock()
+        guard !completed else {
+            lock.unlock()
+            return
+        }
+        completed = true
+        let continuation = self.continuation
+        self.continuation = nil
+        self.operation = nil
+        lock.unlock()
+        guard let continuation else { return }
+        switch state {
+        case .success(let value):
+            continuation.resume(returning: value)
+        case .failed(let error):
+            continuation.resume(throwing: error)
+        case .cancelled:
+            continuation.resume(throwing: CancellationError())
+        }
+    }
+}
+
 private func crossaCompletion(_ userData: UnsafeMutableRawPointer?, _ kind: CrossaAbiCompletionKind, _ result: UInt64, _ error: UInt64) {
     guard let userData else { return }
     Unmanaged<CrossaCompletionOwner>.fromOpaque(userData).takeRetainedValue().complete(kind: kind, result: result, error: error)
@@ -451,6 +520,21 @@ public final class CrossaRuntime {
             }
             return CrossaOperation(runtime: handle, handle: operationHandle)
         }
+    }
+
+    internal func invokeAsyncAfterAwait<Value>(operation: UInt64, arguments: [CrossaArgument], map: @escaping (CrossaNativeResult) -> Value) async throws -> Value {
+        let bridge = CrossaAsyncBridge<Value>()
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Value, Error>) in
+                guard bridge.begin(continuation) else { return }
+                let nativeOperation = invokeAsyncAfter(operation: operation, arguments: arguments, map: map) { state in
+                    bridge.complete(state)
+                }
+                bridge.attach(nativeOperation)
+            }
+        }, onCancel: {
+            bridge.cancel()
+        })
     }
 
     fileprivate static func readError(runtime: UInt64, error: UInt64) -> CrossaError {

@@ -80,13 +80,14 @@ namespace crossa::bindings::sharedabi {
             compiler::ir::Program program,
             const compiler::ir::Program* configurationProgram,
             const utils::Log& log,
-            CrossaRuntimeHandle* runtime
+            CrossaRuntimeHandle* runtime,
+            const network::json::JsonValue* runtimeOverrides = nullptr
         ) {
             if (runtime == nullptr) return CrossaStatusInvalidArgument;
             shared_ptr<runtime::NativeRuntime> nativeRuntime;
             try {
                 nativeRuntime = make_shared<runtime::NativeRuntime>(
-                    std::move(program), configurationProgram, log
+                    std::move(program), configurationProgram, log, runtimeOverrides
                 );
             } catch (...) {
                 *runtime = 0;
@@ -327,6 +328,18 @@ namespace crossa::bindings::sharedabi {
     ) {
         return CrossaAbiRuntimeRegistry::createNative(
             std::move(program), configurationProgram, log, runtime
+        );
+    }
+
+    CrossaStatus CrossaAbiRuntimeFactory::create(
+        compiler::ir::Program program,
+        const compiler::ir::Program* configurationProgram,
+        const network::json::JsonValue* runtimeOverrides,
+        const utils::Log& log,
+        CrossaRuntimeHandle* runtime
+    ) {
+        return CrossaAbiRuntimeRegistry::createNative(
+            std::move(program), configurationProgram, log, runtime, runtimeOverrides
         );
     }
 

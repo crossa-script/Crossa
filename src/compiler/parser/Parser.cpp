@@ -317,7 +317,8 @@ namespace crossa::compiler::parser {
     ) {
         if (++recursiveParseDepth_ >
             CompilerResourceLimits::MaximumParseRecursionDepth) {
-            fail(peek(), "Parser recursion depth exceeded the configured limit.");
+            fail(peek(), "CRA1001 parser recursion depth exceeded; limit=" +
+                to_string(CompilerResourceLimits::MaximumParseRecursionDepth) + ".");
         }
         consume(lexer::TokenType::LeftParen, "Expected '(' after 'if'.");
         unique_ptr<ast::Expression> condition = parseExpression();
@@ -378,7 +379,8 @@ namespace crossa::compiler::parser {
     ast::TypeReference Parser::parseTypeReference() {
         if (++recursiveParseDepth_ >
             CompilerResourceLimits::MaximumParseRecursionDepth) {
-            fail(peek(), "Parser recursion depth exceeded the configured limit.");
+            fail(peek(), "CRA1001 parser recursion depth exceeded; limit=" +
+                to_string(CompilerResourceLimits::MaximumParseRecursionDepth) + ".");
         }
         if (match(lexer::TokenType::KeywordList)) {
             const source::SourceLocation location = getLocation(previous());
@@ -415,7 +417,8 @@ namespace crossa::compiler::parser {
     unique_ptr<ast::Expression> Parser::parseExpression() {
         if (++recursiveParseDepth_ >
             CompilerResourceLimits::MaximumParseRecursionDepth) {
-            fail(peek(), "Parser recursion depth exceeded the configured limit.");
+            fail(peek(), "CRA1001 parser recursion depth exceeded; limit=" +
+                to_string(CompilerResourceLimits::MaximumParseRecursionDepth) + ".");
         }
         unique_ptr<ast::Expression> result = parseLogicalOrExpression();
         --recursiveParseDepth_;

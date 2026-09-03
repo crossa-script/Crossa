@@ -24,7 +24,8 @@ public:
     // Loads at most one config block from the supplied IR programs.
     static RuntimeConfiguration load(
         const compiler::ir::Program& program,
-        const compiler::ir::Program* configurationProgram
+        const compiler::ir::Program* configurationProgram,
+        const network::json::JsonValue* runtimeOverrides
     ) {
         network::NetworkConfiguration networkConfiguration;
         scheduler::SchedulerOptions defaults =
@@ -52,6 +53,14 @@ public:
             appliedKeys,
             configBlocks
         );
+        if (runtimeOverrides != nullptr) {
+            applyRuntimeOverrides(
+                *runtimeOverrides,
+                networkConfiguration,
+                workerCount,
+                maximumQueuedTasks
+            );
+        }
         if (configBlocks > 1) {
             throw runtime_error(
                 "Runtime configuration failed: only one config block is allowed."
@@ -103,6 +112,146 @@ public:
     }
 
 private:
+    // Applies one validated platform override object after compiled defaults.
+    static void applyRuntimeOverrides(
+        const network::json::JsonValue& overrides,
+        network::NetworkConfiguration& networkConfiguration,
+        optional<size_t>& workerCount,
+        optional<size_t>& maximumQueuedTasks
+    ) {
+        if (overrides.getKind() != network::json::JsonValueKind::Object) {
+            throw runtime_error("Runtime overrides must be a JSON object.");
+        }
+        for (const auto& [name, value] : overrides.getObject()) {
+            if (name == "baseUrl") {
+                networkConfiguration.setBaseUrl(readOverrideString(value, name));
+            } else if (name == "timeoutRequest") {
+                networkConfiguration.setTimeoutMilliseconds(readOverrideInt(value, name));
+            } else if (name == "commonHeaders") {
+                if (value.getKind() != network::json::JsonValueKind::Array) {
+                    throw runtime_error("Runtime override commonHeaders must be an array.");
+                }
+                vector<network::HttpHeader> headers;
+                headers.reserve(value.getArray().size());
+                for (const network::json::JsonValue& header : value.getArray()) {
+                    if (header.getKind() != network::json::JsonValueKind::Object) {
+                        throw runtime_error("Runtime override headers must be objects.");
+                    }
+                    const network::json::JsonValue* headerName = header.find("name");
+                    const network::json::JsonValue* headerValue = header.find("value");
+                    if (headerName == nullptr || headerValue == nullptr) {
+                        throw runtime_error("Runtime override headers require name and value.");
+                    }
+                    headers.emplace_back(
+                        readOverrideString(*headerName, "header.name"),
+                        readOverrideString(*headerValue, "header.value")
+                    );
+                }
+                networkConfiguration.setCommonHeaders(std::move(headers));
+            } else if (name == "interceptor") {
+                applyRuntimeInterceptor(value, networkConfiguration);
+            } else if (name == "workerThreads") {
+                workerCount = readOverrideSize(value, name);
+            } else if (name == "maxQueuedTasks") {
+                maximumQueuedTasks = readOverrideSize(value, name);
+            } else if (name == "maxResponseBytes") {
+                networkConfiguration.setMaximumResponseBytes(readOverrideSize(value, name));
+            } else if (name == "maxJsonDepth") {
+                networkConfiguration.setMaximumJsonDepth(readOverrideSize(value, name));
+            } else if (name == "followRedirects") {
+                networkConfiguration.setFollowRedirects(readOverrideBool(value, name));
+            } else if (name == "uploadProgress") {
+                networkConfiguration.setUploadProgress(readOverrideBool(value, name));
+            } else if (name == "downloadStreaming") {
+                networkConfiguration.setDownloadStreaming(readOverrideBool(value, name));
+            } else if (name == "requestCoalescing") {
+                networkConfiguration.setRequestCoalescing(readOverrideBool(value, name));
+            } else {
+                throw runtime_error("Unknown runtime override key '" + name + "'.");
+            }
+        }
+    }
+
+    // Applies the typed interceptor members supplied by the Android wrapper.
+    static void applyRuntimeInterceptor(
+        const network::json::JsonValue& value,
+        network::NetworkConfiguration& configuration
+    ) {
+        if (value.getKind() != network::json::JsonValueKind::Object) {
+            throw runtime_error("Runtime override interceptor must be an object.");
+        }
+        for (const auto& [name, member] : value.getObject()) {
+            if (name == "excludedLogHeaders") {
+                if (member.getKind() != network::json::JsonValueKind::Array) {
+                    throw runtime_error("Runtime override excludedLogHeaders must be an array.");
+                }
+                vector<string> headers;
+                headers.reserve(member.getArray().size());
+                for (const network::json::JsonValue& header : member.getArray()) {
+                    headers.push_back(readOverrideString(header, "excludedLogHeaders"));
+                }
+                configuration.setExcludedLogHeaders(std::move(headers));
+            } else {
+                const bool enabled = readOverrideBool(member, name);
+                if (name == "enabled") configuration.setInterceptorEnabled(enabled);
+                else if (name == "logRequests") configuration.setLogRequests(enabled);
+                else if (name == "logResponses") configuration.setLogResponses(enabled);
+                else if (name == "logHeaders") configuration.setLogHeaders(enabled);
+                else if (name == "logBody") configuration.setLogBody(enabled);
+                else throw runtime_error("Unknown runtime interceptor override '" + name + "'.");
+            }
+        }
+    }
+
+    // Reads one platform override string with a deterministic type diagnostic.
+    static string readOverrideString(
+        const network::json::JsonValue& value,
+        const string& name
+    ) {
+        if (value.getKind() != network::json::JsonValueKind::String) {
+            throw runtime_error("Runtime override '" + name + "' must be a String.");
+        }
+        return value.getString();
+    }
+
+    // Reads one platform override integer with checked native conversion.
+    static int64_t readOverrideInt(
+        const network::json::JsonValue& value,
+        const string& name
+    ) {
+        if (value.getKind() != network::json::JsonValueKind::Number) {
+            throw runtime_error("Runtime override '" + name + "' must be an Int.");
+        }
+        int64_t result = 0;
+        const string& number = value.getNumber();
+        const auto parsed = from_chars(number.data(), number.data() + number.size(), result);
+        if (parsed.ec != errc{} || parsed.ptr != number.data() + number.size()) {
+            throw runtime_error("Runtime override '" + name + "' is outside the native range.");
+        }
+        return result;
+    }
+
+    // Reads one positive platform override size through the native policy.
+    static size_t readOverrideSize(
+        const network::json::JsonValue& value,
+        const string& name
+    ) {
+        const int64_t result = readOverrideInt(value, name);
+        if (result <= 0) throw runtime_error("Runtime override '" + name + "' must be positive.");
+        return static_cast<size_t>(result);
+    }
+
+    // Reads one platform override Boolean with a deterministic type diagnostic.
+    static bool readOverrideBool(
+        const network::json::JsonValue& value,
+        const string& name
+    ) {
+        if (value.getKind() != network::json::JsonValueKind::Boolean) {
+            throw runtime_error("Runtime override '" + name + "' must be a Bool.");
+        }
+        return value.getBoolean();
+    }
+
     // Applies every config declaration found in one IR program.
     static void applyProgram(
         const compiler::ir::Program& program,
@@ -450,9 +599,10 @@ private:
 // Loads defaults and applies the optional main or sibling config block.
 RuntimeConfiguration RuntimeConfiguration::load(
     const compiler::ir::Program& program,
-    const compiler::ir::Program* configurationProgram
+    const compiler::ir::Program* configurationProgram,
+    const network::json::JsonValue* runtimeOverrides
 ) {
-    return RuntimeConfigurationLoader::load(program, configurationProgram);
+    return RuntimeConfigurationLoader::load(program, configurationProgram, runtimeOverrides);
 }
 
 // Returns immutable native networking configuration.

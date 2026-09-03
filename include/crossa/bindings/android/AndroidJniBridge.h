@@ -9,7 +9,7 @@ namespace crossa::bindings::android {
 // Registers the reusable Android JNI adapter for one generated Crossa runtime.
 class AndroidJniBridge final {
 public:
-    using RuntimeCreator = CrossaRuntimeHandle (*)();
+    using RuntimeCreator = CrossaRuntimeHandle (*)(const char*, size_t);
 
     // Caches JVM metadata and registers every generated bridge native method.
     [[nodiscard]] static bool initialize(

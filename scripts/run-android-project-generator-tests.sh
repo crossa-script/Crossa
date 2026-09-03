@@ -53,7 +53,6 @@ requireFile "$generatedProject/library/src/main/cpp/CrossaOpenSslInstall.cmake"
 requireFile "$generatedProject/library/src/main/cpp/crossa_runtime.cpp"
 requireFile "$generatedSources/api/Math.kt"
 requireFile "$generatedSources/runtime/CrossaRuntime.kt"
-requireFile "$generatedSources/runtime/CrossaConfigurationOverrides.kt"
 
 requireText "$generatedProject/library/build.gradle.kts" 'namespace = "com.example.crossa"'
 requireText "$generatedSources/api/Math.kt" 'package com.example.crossa.api'
@@ -69,9 +68,7 @@ requireText "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cm
 requireText "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cmake" 'SHA256=23c666d0edf20f14249b3d8f0368acaee9ab585b09e1de82107c66e1f3ec9533'
 requireText "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cmake" 'SHA256=0341f1ed97a26c811abaebd37d62b833956792b7607ea3f15d001613c76de202'
 requireText "$generatedProject/library/src/main/cpp/CrossaAndroidDependencies.cmake" 'SHA256=50a6277ec69113f00c5fd45f09e8b97a4b3e32daa35d3a95ab30137a55386cef'
-requireText "$generatedSources/runtime/CrossaRuntime.kt" 'fun configure(overrides: CrossaConfigurationOverrides)'
-requireText "$generatedSources/runtime/CrossaConfigurationOverrides.kt" 'data class CrossaConfigurationOverrides('
-requireText "$generatedSources/runtime/CrossaConfigurationOverrides.kt" 'data class Interceptor('
+requireText "$generatedSources/runtime/CrossaRuntime.kt" 'fun configure(overrides: CrossaConfigurationOverrides'
 requireText "$generatedNetworkProgram" 'make_unique<IrCrossaRequestExpression>'
 requireText "$generatedNetworkProgram" 'IrHttpMethod::Get'
 

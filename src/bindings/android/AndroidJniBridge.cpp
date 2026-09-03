@@ -195,10 +195,19 @@ namespace crossa::bindings::android {
     }
 
     // Creates one generated runtime through the project-specific factory seam.
-    static jlong nativeConfigure(JNIEnv*, jobject) {
+    static jlong nativeConfigure(JNIEnv* environment, jobject, jstring overrides) {
         try {
             const auto creator = AndroidJniMetadata::runtimeCreator();
-            return creator == nullptr ? 0 : static_cast<jlong>(creator());
+            if (creator == nullptr) return 0;
+            if (overrides == nullptr) return static_cast<jlong>(creator(nullptr, 0));
+            const jsize size = environment->GetStringUTFLength(overrides);
+            if (environment->ExceptionCheck() || size < 0 ||
+                static_cast<size_t>(size) > MaximumJniStringBytes) return 0;
+            const char* value = environment->GetStringUTFChars(overrides, nullptr);
+            if (value == nullptr) return 0;
+            const jlong runtime = static_cast<jlong>(creator(value, static_cast<size_t>(size)));
+            environment->ReleaseStringUTFChars(overrides, value);
+            return runtime;
         } catch (...) {
             return 0;
         }
@@ -385,7 +394,7 @@ namespace crossa::bindings::android {
             const string invokeDescriptor = "(JJ" + argumentDescriptor + ")J";
             const string completionDescriptor = "(JJ" + argumentDescriptor + callbackDescriptor + ")J";
             JNINativeMethod methods[] = {
-            {const_cast<char*>("nativeConfigure"), const_cast<char*>("()J"), reinterpret_cast<void*>(nativeConfigure)},
+            {const_cast<char*>("nativeConfigure"), const_cast<char*>("(Ljava/lang/String;)J"), reinterpret_cast<void*>(nativeConfigure)},
             {const_cast<char*>("nativeInvokeAsync"), const_cast<char*>(invokeDescriptor.c_str()), reinterpret_cast<void*>(nativeInvokeAsync)},
             {const_cast<char*>("nativeInvokeAsyncAfter"), const_cast<char*>(completionDescriptor.c_str()), reinterpret_cast<void*>(nativeInvokeAsyncAfter)},
             {const_cast<char*>("nativeCancel"), const_cast<char*>("(JJ)Z"), reinterpret_cast<void*>(nativeCancel)},

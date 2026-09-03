@@ -95,13 +95,17 @@ failures. Any required failure makes the command exit non-zero and prints a
 
 ## Build-Variant Configuration
 
-`config.cra` is compiled into the generated native program and becomes the
-immutable runtime configuration. Build variants may select different generated
-projects, but they do not mutate configuration after native runtime creation.
+`config.cra` is compiled into the generated native program and supplies the
+default runtime configuration. `CrossaConfigurationOverrides` is a typed
+Android-only initialization object; its non-null values are serialized once,
+validated in C++, and applied before native runtime creation. It does not
+mutate configuration after initialization.
 
-The generated runtime uses the embedded `config.cra` program as its immutable
-configuration source. Values embedded in an AAR are inspectable by applications,
-so secrets must use runtime-provided secure storage rather than flavor literals.
+The generated runtime uses the embedded `config.cra` program as its default
+configuration source and applies validated initialization overrides before
+creating the native runtime. Values embedded in an AAR or supplied as build
+variant literals are inspectable by applications, so secrets must use
+runtime-provided secure storage rather than flavor literals.
 
 ## Native Boundary
 

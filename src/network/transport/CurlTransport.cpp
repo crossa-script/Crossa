@@ -217,6 +217,44 @@ private:
         return value.substr(start, end - start + 1);
     }
 
+    static bool isSensitiveHeader(const string& name) noexcept {
+        static constexpr const char* SensitiveHeaders[] = {
+            "authorization",
+            "proxy-authorization",
+            "cookie",
+            "set-cookie",
+            "x-api-key",
+            "api-key",
+            "x-auth-token",
+            "x-access-token",
+            "x-refresh-token"
+        };
+        for (const char* sensitiveName : SensitiveHeaders) {
+            if (name.size() != string(sensitiveName).size()) continue;
+            bool equal = true;
+            for (size_t index = 0; index < name.size(); ++index) {
+                const char left = name[index] >= 'A' && name[index] <= 'Z'
+                    ? static_cast<char>(name[index] - 'A' + 'a')
+                    : name[index];
+                if (left != sensitiveName[index]) {
+                    equal = false;
+                    break;
+                }
+            }
+            if (equal) return true;
+        }
+        return false;
+    }
+
+    static bool containsSensitiveHeader(
+        const vector<HttpHeader>& headers
+    ) noexcept {
+        for (const HttpHeader& header : headers) {
+            if (isSensitiveHeader(header.getName())) return true;
+        }
+        return false;
+    }
+
     // Acquires one reusable easy handle without exceeding pool bounds.
     CURL* acquireHandle(const runtime::RequestHandle& requestHandle) {
         unique_lock lock(mutex_);
@@ -361,8 +399,9 @@ private:
         setOption(handle, CURLOPT_NOSIGNAL, 1L);
         setOption(handle, CURLOPT_TIMEOUT_MS, request.getTimeoutMilliseconds());
         setOption(handle, CURLOPT_CONNECTTIMEOUT_MS, request.getTimeoutMilliseconds());
-        setOption(handle, CURLOPT_FOLLOWLOCATION,
-                  request.shouldFollowRedirects() ? 1L : 0L);
+        const bool allowRedirects = request.shouldFollowRedirects() &&
+            !containsSensitiveHeader(request.getHeaders());
+        setOption(handle, CURLOPT_FOLLOWLOCATION, allowRedirects ? 1L : 0L);
         setOption(handle, CURLOPT_MAXREDIRS, 5L);
 #if LIBCURL_VERSION_NUM >= 0x075500
         setOption(handle, CURLOPT_PROTOCOLS_STR, "http,https");

@@ -177,6 +177,7 @@ namespace crossa::network {
             "cookie",
             "set-cookie",
             "x-api-key",
+            "api-key",
             "x-auth-token",
             "x-access-token",
             "x-refresh-token"

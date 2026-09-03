@@ -37,7 +37,8 @@ vector<filesystem::path> ProjectSourceDiscovery::find(
             if (sourcePaths.size() >=
                 compiler::CompilerResourceLimits::MaximumProjectSourceFiles) {
                 throw runtime_error(
-                    "Crossa project contains more source files than the configured limit."
+                        "CRA1001 project source file count exceeded; limit=" +
+                        to_string(compiler::CompilerResourceLimits::MaximumProjectSourceFiles) + "."
                 );
             }
             error_code sizeError;
@@ -47,7 +48,8 @@ vector<filesystem::path> ProjectSourceDiscovery::find(
                 totalBytes > compiler::CompilerResourceLimits::MaximumProjectSourceBytes -
                     static_cast<size_t>(fileBytes)) {
                 throw runtime_error(
-                    "Crossa project source files exceed the configured byte limit."
+                    "CRA1001 project source byte limit exceeded; limit=" +
+                    to_string(compiler::CompilerResourceLimits::MaximumProjectSourceBytes) + "."
                 );
             }
             totalBytes += static_cast<size_t>(fileBytes);

@@ -25,18 +25,11 @@ scheduling, and completion state.
 - The generated output is a self-contained Android library Gradle project. Its
   AAR contains generated Kotlin APIs, a concentrated JNI bridge, generated
   native metadata, and native runtime libraries for the selected ABIs.
-- `config.cra` provides immutable default configuration. Android product
-  flavors and build types supply an override document that is merged after the
-  defaults and before native runtime creation. Every override is type-checked
-  against the compiled config key and is rejected when unknown or invalid.
-- Flavor override documents may override every supported `config.cra` key.
-  They are build inputs, not `.cra` source mutations. The precedence is
-  `config.cra` followed by the selected Android flavor/build-type document.
-- Kotlin exposes a generated `configure(overrides)` function whose parameter is
-  a typed `CrossaConfigurationOverrides` data class with nested generated data
-  classes for structured config values. Null properties preserve `config.cra`
-  defaults. JNI receives one typed override object and Kotlin does not parse or
-  execute `.cra`.
+- `config.cra` provides default configuration. Kotlin exposes a generated
+  `configure(overrides)` function whose typed `CrossaConfigurationOverrides`
+  object is serialized once and validated in C++ before native runtime creation.
+  Overrides are initialization-only and are never applied after the runtime has
+  been created.
 - The public native ABI uses opaque runtime, invocation, result, and
   native-object handles. It uses versioned C structures and error values; no
   C++ exception or STL type crosses JNI.
@@ -99,6 +92,5 @@ scheduling, and completion state.
 ## Compatibility and Migration
 
 Existing `crossa generate kotlin` remains a pure Kotlin source generator.
-Existing CLI execution reads only `config.cra` defaults. Android AAR builds add
-their selected flavor overrides at native runtime initialization and do not
-change `.cra` language syntax.
+Existing CLI execution reads only `config.cra` defaults. Android AAR builds can
+add typed initialization overrides without changing `.cra` language syntax.
