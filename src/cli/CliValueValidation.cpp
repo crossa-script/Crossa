@@ -41,4 +41,33 @@ bool CliValueValidation::isToolVersion(std::string_view version) noexcept {
     return true;
 }
 
+// Returns true for a three-part numeric semantic version.
+bool CliValueValidation::isSemanticVersion(std::string_view version) noexcept {
+    if (!isNdkVersion(version)) {
+        return false;
+    }
+    size_t separators = 0;
+    for (const char character : version) {
+        if (character == '.') {
+            separators += 1;
+        }
+    }
+    return separators == 2;
+}
+
+// Returns true for an HTTPS package base URL without a trailing slash.
+bool CliValueValidation::isPackageBaseUrl(std::string_view url) noexcept {
+    constexpr std::string_view Prefix = "https://";
+    if (url.size() <= Prefix.size() || url.back() == '/' ||
+        url.substr(0, Prefix.size()) != Prefix) {
+        return false;
+    }
+    for (const char character : url) {
+        if (character <= 32 || character == ' ') {
+            return false;
+        }
+    }
+    return true;
+}
+
 }

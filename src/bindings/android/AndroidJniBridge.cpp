@@ -43,6 +43,7 @@ namespace crossa::bindings::android {
         static jfieldID doubleValue_;
         static jfieldID stringValue_;
         static jfieldID boolValue_;
+        static jclass illegalStateExceptionClass_;
         static string packagePrefix_;
         static mutex mutex_;
     };
@@ -62,6 +63,7 @@ namespace crossa::bindings::android {
     jfieldID AndroidJniMetadata::doubleValue_ = nullptr;
     jfieldID AndroidJniMetadata::stringValue_ = nullptr;
     jfieldID AndroidJniMetadata::boolValue_ = nullptr;
+    jclass AndroidJniMetadata::illegalStateExceptionClass_ = nullptr;
     string AndroidJniMetadata::packagePrefix_;
     mutex AndroidJniMetadata::mutex_;
 
@@ -316,6 +318,69 @@ namespace crossa::bindings::android {
         }
     }
 
+    // Raises a deterministic Kotlin exception for one failed ABI status.
+    static void throwStatus(JNIEnv* environment, CrossaStatus status) {
+        const char* message = "Crossa native value access failed.";
+        switch (status) {
+            case CrossaStatusOk:
+                return;
+            case CrossaStatusInvalidHandle:
+                message = "Crossa native result is closed or invalid.";
+                break;
+            case CrossaStatusInvalidArgument:
+                message = "Crossa native value path is invalid.";
+                break;
+            case CrossaStatusTypeMismatch:
+                message = "Crossa native value type is invalid.";
+                break;
+            case CrossaStatusOutOfBounds:
+                message = "Crossa native value path is out of bounds.";
+                break;
+            case CrossaStatusInternalError:
+                message = "Crossa native value access failed internally.";
+                break;
+        }
+        if (AndroidJniMetadata::illegalStateExceptionClass_ != nullptr) {
+            environment->ThrowNew(AndroidJniMetadata::illegalStateExceptionClass_, message);
+        }
+    }
+
+    // Converts a packed Kotlin path array into ABI path segments.
+    static bool readPath(
+        JNIEnv* environment,
+        jintArray packed,
+        vector<CrossaAbiPathSegment>* path
+    ) {
+        if (path == nullptr) return false;
+        path->clear();
+        if (packed == nullptr) return true;
+        const jsize length = environment->GetArrayLength(packed);
+        if (environment->ExceptionCheck() || length < 0 || (length % 2) != 0) {
+            return false;
+        }
+        const size_t count = static_cast<size_t>(length) / 2U;
+        if (count > 256U) return false;
+        if (count == 0) return true;
+        jint* elements = environment->GetIntArrayElements(packed, nullptr);
+        if (elements == nullptr) return false;
+        path->reserve(count);
+        for (size_t index = 0; index < count; ++index) {
+            const jint kind = elements[index * 2U];
+            const jint value = elements[index * 2U + 1U];
+            if ((kind != CrossaAbiPathField && kind != CrossaAbiPathListElement) ||
+                value < 0) {
+                environment->ReleaseIntArrayElements(packed, elements, JNI_ABORT);
+                return false;
+            }
+            path->push_back(CrossaAbiPathSegment{
+                static_cast<CrossaAbiPathSegmentKind>(kind),
+                static_cast<uint32_t>(value)
+            });
+        }
+        environment->ReleaseIntArrayElements(packed, elements, JNI_ABORT);
+        return !environment->ExceptionCheck();
+    }
+
     // Reads a scalar string root result through the ABI.
     static jstring nativeResultString(JNIEnv* environment, jobject, jlong runtime, jlong result) {
         CrossaStringView value{};
@@ -365,6 +430,305 @@ namespace crossa::bindings::android {
         return newString(environment, value, status);
     }
 
+    // Reads the ABI value category reached through one packed Kotlin path.
+    static jint nativeValueKind(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return 0;
+        }
+        CrossaValueKind kind = CrossaValueUnit;
+        const CrossaStatus status = crossaGetPathKind(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &kind
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return 0;
+        }
+        return static_cast<jint>(kind);
+    }
+
+    // Reads one Int value reached through a packed Kotlin path.
+    static jint nativeValueInt(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return 0;
+        }
+        int32_t value = 0;
+        const CrossaStatus status = crossaGetPathInt(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &value
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return 0;
+        }
+        return value;
+    }
+
+    // Reads one Long value reached through a packed Kotlin path.
+    static jlong nativeValueLong(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return 0;
+        }
+        int64_t value = 0;
+        const CrossaStatus status = crossaGetPathLong(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &value
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return 0;
+        }
+        return value;
+    }
+
+    // Reads one Double value reached through a packed Kotlin path.
+    static jdouble nativeValueDouble(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return 0.0;
+        }
+        double value = 0.0;
+        const CrossaStatus status = crossaGetPathDouble(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &value
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return 0.0;
+        }
+        return value;
+    }
+
+    // Reads one Bool value reached through a packed Kotlin path.
+    static jboolean nativeValueBool(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return JNI_FALSE;
+        }
+        uint8_t value = 0;
+        const CrossaStatus status = crossaGetPathBool(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &value
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return JNI_FALSE;
+        }
+        return value ? JNI_TRUE : JNI_FALSE;
+    }
+
+    // Copies one String value reached through a packed Kotlin path.
+    static jstring nativeValueString(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return nullptr;
+        }
+        CrossaStringView value{};
+        const CrossaStatus status = crossaGetPathString(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &value
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return nullptr;
+        }
+        return newString(environment, value, status);
+    }
+
+    // Reads native list size reached through a packed Kotlin path.
+    static jint nativeValueListSize(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return 0;
+        }
+        size_t size = 0;
+        const CrossaStatus status = crossaGetPathListSize(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &size
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return 0;
+        }
+        if (size > static_cast<size_t>(numeric_limits<jint>::max())) {
+            throwStatus(environment, CrossaStatusOutOfBounds);
+            return 0;
+        }
+        return static_cast<jint>(size);
+    }
+
+    // Reads the Json category reached through a packed Kotlin path.
+    static jint nativeValueJsonKind(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return 0;
+        }
+        CrossaJsonKind kind = CrossaJsonNull;
+        const CrossaStatus status = crossaGetPathJsonKind(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &kind
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return 0;
+        }
+        return static_cast<jint>(kind);
+    }
+
+    // Reads a Json boolean reached through a packed Kotlin path.
+    static jboolean nativeValueJsonBool(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return JNI_FALSE;
+        }
+        uint8_t value = 0;
+        const CrossaStatus status = crossaGetPathJsonBool(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &value
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return JNI_FALSE;
+        }
+        return value ? JNI_TRUE : JNI_FALSE;
+    }
+
+    // Copies exact Json number text reached through a packed Kotlin path.
+    static jstring nativeValueJsonNumber(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return nullptr;
+        }
+        CrossaStringView value{};
+        const CrossaStatus status = crossaGetPathJsonNumber(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &value
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return nullptr;
+        }
+        return newString(environment, value, status);
+    }
+
+    // Copies a Json string reached through a packed Kotlin path.
+    static jstring nativeValueJsonString(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return nullptr;
+        }
+        CrossaStringView value{};
+        const CrossaStatus status = crossaGetPathJsonString(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &value
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return nullptr;
+        }
+        return newString(environment, value, status);
+    }
+
+    // Reads Json array length or object field count through a packed Kotlin path.
+    static jint nativeValueJsonSize(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed) {
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return 0;
+        }
+        size_t size = 0;
+        const CrossaStatus status = crossaGetPathJsonSize(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            &size
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return 0;
+        }
+        if (size > static_cast<size_t>(numeric_limits<jint>::max())) {
+            throwStatus(environment, CrossaStatusOutOfBounds);
+            return 0;
+        }
+        return static_cast<jint>(size);
+    }
+
+    // Copies one Json object key in source order through a packed Kotlin path.
+    static jstring nativeValueJsonKey(JNIEnv* environment, jobject, jlong runtime, jlong result, jintArray packed, jint field) {
+        if (field < 0) {
+            throwStatus(environment, CrossaStatusOutOfBounds);
+            return nullptr;
+        }
+        vector<CrossaAbiPathSegment> path;
+        if (!readPath(environment, packed, &path)) {
+            throwStatus(environment, CrossaStatusInvalidArgument);
+            return nullptr;
+        }
+        CrossaStringView value{};
+        const CrossaStatus status = crossaGetPathJsonKey(
+            static_cast<CrossaRuntimeHandle>(runtime),
+            static_cast<CrossaResultHandle>(result),
+            path.data(),
+            path.size(),
+            static_cast<uint32_t>(field),
+            &value
+        );
+        if (status != CrossaStatusOk) {
+            throwStatus(environment, status);
+            return nullptr;
+        }
+        return newString(environment, value, status);
+    }
+
     bool AndroidJniMetadata::initialize(JavaVM* javaVm, JNIEnv* environment, const char* bridgeClassName, AndroidJniBridge::RuntimeCreator runtimeCreator) noexcept {
         try {
             lock_guard lock(mutex_);
@@ -388,7 +752,8 @@ namespace crossa::bindings::android {
             stringValue_ = environment->GetFieldID(stringArgumentClass_, "value", "Ljava/lang/String;");
             boolValue_ = environment->GetFieldID(boolArgumentClass_, "value", "Z");
             callbackComplete_ = environment->GetMethodID(callbackClass_, "onComplete", "(IJJ)V");
-            if (intValue_ == nullptr || longValue_ == nullptr || doubleValue_ == nullptr || stringValue_ == nullptr || boolValue_ == nullptr || callbackComplete_ == nullptr) return false;
+            illegalStateExceptionClass_ = findGlobalClass(environment, "java/lang/IllegalStateException");
+            if (intValue_ == nullptr || longValue_ == nullptr || doubleValue_ == nullptr || stringValue_ == nullptr || boolValue_ == nullptr || callbackComplete_ == nullptr || illegalStateExceptionClass_ == nullptr) return false;
             const string argumentDescriptor = "[L" + packagePrefix_ + "CrossaArgument;";
             const string callbackDescriptor = "L" + packagePrefix_ + "CrossaNativeCallback;";
             const string invokeDescriptor = "(JJ" + argumentDescriptor + ")J";
@@ -417,7 +782,20 @@ namespace crossa::bindings::android {
             {const_cast<char*>("nativeModelLong"), const_cast<char*>("(JJJI)J"), reinterpret_cast<void*>(nativeModelLong)},
             {const_cast<char*>("nativeModelDouble"), const_cast<char*>("(JJJI)D"), reinterpret_cast<void*>(nativeModelDouble)},
             {const_cast<char*>("nativeModelString"), const_cast<char*>("(JJJI)Ljava/lang/String;"), reinterpret_cast<void*>(nativeModelString)},
-            {const_cast<char*>("nativeModelBoolean"), const_cast<char*>("(JJJI)Z"), reinterpret_cast<void*>(nativeModelBoolean)}
+            {const_cast<char*>("nativeModelBoolean"), const_cast<char*>("(JJJI)Z"), reinterpret_cast<void*>(nativeModelBoolean)},
+            {const_cast<char*>("nativeValueKind"), const_cast<char*>("(JJ[I)I"), reinterpret_cast<void*>(nativeValueKind)},
+            {const_cast<char*>("nativeValueInt"), const_cast<char*>("(JJ[I)I"), reinterpret_cast<void*>(nativeValueInt)},
+            {const_cast<char*>("nativeValueLong"), const_cast<char*>("(JJ[I)J"), reinterpret_cast<void*>(nativeValueLong)},
+            {const_cast<char*>("nativeValueDouble"), const_cast<char*>("(JJ[I)D"), reinterpret_cast<void*>(nativeValueDouble)},
+            {const_cast<char*>("nativeValueBool"), const_cast<char*>("(JJ[I)Z"), reinterpret_cast<void*>(nativeValueBool)},
+            {const_cast<char*>("nativeValueString"), const_cast<char*>("(JJ[I)Ljava/lang/String;"), reinterpret_cast<void*>(nativeValueString)},
+            {const_cast<char*>("nativeValueListSize"), const_cast<char*>("(JJ[I)I"), reinterpret_cast<void*>(nativeValueListSize)},
+            {const_cast<char*>("nativeValueJsonKind"), const_cast<char*>("(JJ[I)I"), reinterpret_cast<void*>(nativeValueJsonKind)},
+            {const_cast<char*>("nativeValueJsonBool"), const_cast<char*>("(JJ[I)Z"), reinterpret_cast<void*>(nativeValueJsonBool)},
+            {const_cast<char*>("nativeValueJsonNumber"), const_cast<char*>("(JJ[I)Ljava/lang/String;"), reinterpret_cast<void*>(nativeValueJsonNumber)},
+            {const_cast<char*>("nativeValueJsonString"), const_cast<char*>("(JJ[I)Ljava/lang/String;"), reinterpret_cast<void*>(nativeValueJsonString)},
+            {const_cast<char*>("nativeValueJsonSize"), const_cast<char*>("(JJ[I)I"), reinterpret_cast<void*>(nativeValueJsonSize)},
+            {const_cast<char*>("nativeValueJsonKey"), const_cast<char*>("(JJ[II)Ljava/lang/String;"), reinterpret_cast<void*>(nativeValueJsonKey)}
             };
             if (environment->RegisterNatives(bridgeClass, methods, sizeof(methods) / sizeof(methods[0])) != JNI_OK) return false;
             environment->DeleteGlobalRef(bridgeClass);

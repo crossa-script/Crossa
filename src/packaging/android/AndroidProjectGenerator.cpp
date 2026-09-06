@@ -35,6 +35,9 @@ namespace crossa::packaging::android {
             "runtime/CrossaState.kt",
             "runtime/CrossaError.kt",
             "runtime/CrossaNativeResult.kt",
+            "runtime/CrossaNativeValue.kt",
+            "runtime/CrossaNativeList.kt",
+            "runtime/CrossaJson.kt",
             "runtime/CrossaConfigurationOverrides.kt",
             "runtime/CrossaOperation.kt",
             "runtime/CrossaRuntime.kt",
@@ -486,11 +489,17 @@ namespace crossa::packaging::android {
             "-keep,allowoptimization public class " + packageName +
                 ".api.** { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
+                ".model.** { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaRuntime { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaState { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaOperation { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaNativeList { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaJson { public *; }\n"
             "-keep class " + packageName +
                 ".internal.CrossaNativeBridge { <methods>; }\n"
             "-keep class " + packageName +
@@ -507,19 +516,27 @@ namespace crossa::packaging::android {
                 ".internal.CrossaArgument$StringValue { *; }\n"
             "-keep class " + packageName +
                 ".internal.CrossaArgument$BooleanValue { *; }\n"
+            "-dontwarn java.lang.invoke.StringConcatFactory\n"
         );
         writeFile(
             outputDirectory / "library" / "proguard-rules.pro",
             "-keep,allowoptimization public class " + packageName +
                 ".api.** { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
+                ".model.** { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaRuntime { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaState { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaOperation { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaNativeList { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaJson { public *; }\n"
             "-keep class " + packageName +
                 ".internal.CrossaNativeBridge { <methods>; }\n"
+            "-dontwarn java.lang.invoke.StringConcatFactory\n"
         );
     }
 
@@ -556,22 +573,108 @@ namespace crossa::packaging::android {
             "    private var handle: Long\n"
             ") : AutoCloseable {\n"
             "    @Synchronized internal fun requireHandle(): Long = check(handle != 0L) { \"Crossa native result is closed.\" }.let { handle }\n"
-            "    internal fun rootModelHandle(): Long = CrossaNativeBridge.rootModelHandle(this)\n"
-            "    internal fun intValue(): Int = CrossaNativeBridge.resultInt(this)\n"
-            "    internal fun longValue(): Long = CrossaNativeBridge.resultLong(this)\n"
-            "    internal fun doubleValue(): Double = CrossaNativeBridge.resultDouble(this)\n"
-            "    internal fun stringValue(): String = CrossaNativeBridge.resultString(this)\n"
-            "    internal fun booleanValue(): Boolean = CrossaNativeBridge.resultBoolean(this)\n"
             "    internal fun runtimeHandle(): Long = runtime\n"
+            "    internal fun rootValue(): CrossaNativeValue = CrossaNativeValue(this, CrossaNativePath.root())\n"
+            "    internal fun intValue(): Int = rootValue().intValue().also { close() }\n"
+            "    internal fun longValue(): Long = rootValue().longValue().also { close() }\n"
+            "    internal fun doubleValue(): Double = rootValue().doubleValue().also { close() }\n"
+            "    internal fun stringValue(): String = rootValue().stringValue().also { close() }\n"
+            "    internal fun booleanValue(): Boolean = rootValue().booleanValue().also { close() }\n"
             "    @Synchronized override fun close() { if (handle != 0L) { CrossaNativeBridge.releaseResult(runtime, handle); handle = 0L } }\n"
+            "}\n"
+        );
+        writeFile(
+            sourceDirectory / "runtime" / "CrossaNativeValue.kt",
+            "package " + packageName + ".runtime\n\n"
+            "import " + packageName + ".internal.CrossaNativeBridge\n\n"
+            "internal class CrossaNativePath private constructor(\n"
+            "    private val packed: IntArray\n"
+            ") {\n"
+            "    fun appendField(index: Int): CrossaNativePath {\n"
+            "        require(index >= 0) { \"Crossa field index must be non-negative.\" }\n"
+            "        return CrossaNativePath(packed + intArrayOf(FIELD, index))\n"
+            "    }\n"
+            "    fun appendElement(index: Int): CrossaNativePath {\n"
+            "        require(index >= 0) { \"Crossa list index must be non-negative.\" }\n"
+            "        return CrossaNativePath(packed + intArrayOf(ELEMENT, index))\n"
+            "    }\n"
+            "    fun toPackedArray(): IntArray = packed\n"
+            "    companion object {\n"
+            "        const val FIELD = 0\n"
+            "        const val ELEMENT = 1\n"
+            "        fun root(): CrossaNativePath = CrossaNativePath(IntArray(0))\n"
+            "    }\n"
             "}\n\n"
-            "public class CrossaNativeList<T> internal constructor(\n"
+            "public class CrossaNativeValue internal constructor(\n"
             "    private val owner: CrossaNativeResult,\n"
-            "    private val factory: (Long) -> T\n"
+            "    private val path: CrossaNativePath\n"
+            ") {\n"
+            "    public fun child(fieldIndex: Int): CrossaNativeValue =\n"
+            "        CrossaNativeValue(owner, path.appendField(fieldIndex))\n"
+            "    public fun element(index: Int): CrossaNativeValue =\n"
+            "        CrossaNativeValue(owner, path.appendElement(index))\n"
+            "    public fun intValue(): Int = CrossaNativeBridge.valueInt(owner, path)\n"
+            "    public fun longValue(): Long = CrossaNativeBridge.valueLong(owner, path)\n"
+            "    public fun doubleValue(): Double = CrossaNativeBridge.valueDouble(owner, path)\n"
+            "    public fun stringValue(): String = CrossaNativeBridge.valueString(owner, path)\n"
+            "    public fun booleanValue(): Boolean = CrossaNativeBridge.valueBoolean(owner, path)\n"
+            "    public fun listSize(): Int = CrossaNativeBridge.valueListSize(owner, path)\n"
+            "    internal fun jsonKind(): Int = CrossaNativeBridge.valueJsonKind(owner, path)\n"
+            "    internal fun jsonBoolean(): Boolean = CrossaNativeBridge.valueJsonBoolean(owner, path)\n"
+            "    internal fun jsonNumberText(): String = CrossaNativeBridge.valueJsonNumber(owner, path)\n"
+            "    internal fun jsonString(): String = CrossaNativeBridge.valueJsonString(owner, path)\n"
+            "    internal fun jsonSize(): Int = CrossaNativeBridge.valueJsonSize(owner, path)\n"
+            "    internal fun jsonKey(index: Int): String = CrossaNativeBridge.valueJsonKey(owner, path, index)\n"
+            "    internal fun closeOwner() { owner.close() }\n"
+            "}\n"
+        );
+        writeFile(
+            sourceDirectory / "runtime" / "CrossaNativeList.kt",
+            "package " + packageName + ".runtime\n\n"
+            "public class CrossaNativeList<T> internal constructor(\n"
+            "    private val nativeValue: CrossaNativeValue,\n"
+            "    private val mapper: (CrossaNativeValue) -> T\n"
             ") : AbstractList<T>(), AutoCloseable {\n"
-            "    override val size: Int get() = CrossaNativeBridge.listSize(owner)\n"
-            "    override fun get(index: Int): T = factory(CrossaNativeBridge.listModelHandle(owner, index))\n"
-            "    override fun close() { owner.close() }\n"
+            "    override val size: Int get() = nativeValue.listSize()\n"
+            "    override fun get(index: Int): T {\n"
+            "        if (index < 0 || index >= size) throw IndexOutOfBoundsException(\"index \" + index.toString())\n"
+            "        return mapper(nativeValue.element(index))\n"
+            "    }\n"
+            "    override fun close() { nativeValue.closeOwner() }\n"
+            "}\n"
+        );
+        writeFile(
+            sourceDirectory / "runtime" / "CrossaJson.kt",
+            "package " + packageName + ".runtime\n\n"
+            "public enum class CrossaJsonKind {\n"
+            "    Null, Boolean, Number, String, Array, Object\n"
+            "}\n\n"
+            "public class CrossaJson internal constructor(\n"
+            "    private val nativeValue: CrossaNativeValue\n"
+            ") : AutoCloseable {\n"
+            "    public val kind: CrossaJsonKind\n"
+            "        get() = when (nativeValue.jsonKind()) {\n"
+            "            1 -> CrossaJsonKind.Boolean\n"
+            "            2 -> CrossaJsonKind.Number\n"
+            "            3 -> CrossaJsonKind.String\n"
+            "            4 -> CrossaJsonKind.Array\n"
+            "            5 -> CrossaJsonKind.Object\n"
+            "            else -> CrossaJsonKind.Null\n"
+            "        }\n"
+            "    public val size: Int get() = nativeValue.jsonSize()\n"
+            "    public fun booleanValue(): Boolean = nativeValue.jsonBoolean()\n"
+            "    public fun numberText(): String = nativeValue.jsonNumberText()\n"
+            "    public fun stringValue(): String = nativeValue.jsonString()\n"
+            "    public fun key(index: Int): String = nativeValue.jsonKey(index)\n"
+            "    public fun field(index: Int): CrossaJson = CrossaJson(nativeValue.child(index))\n"
+            "    public fun field(name: String): CrossaJson {\n"
+            "        for (index in 0 until size) {\n"
+            "            if (key(index) == name) return field(index)\n"
+            "        }\n"
+            "        throw NoSuchElementException(name)\n"
+            "    }\n"
+            "    public fun element(index: Int): CrossaJson = CrossaJson(nativeValue.element(index))\n"
+            "    override fun close() { nativeValue.closeOwner() }\n"
             "}\n"
         );
         writeFile(
@@ -608,6 +711,7 @@ namespace crossa::packaging::android {
             sourceDirectory / "internal" / "CrossaNativeBridge.kt",
             "package " + packageName + ".internal\n\n"
             "import " + packageName + ".runtime.CrossaError\n"
+            "import " + packageName + ".runtime.CrossaNativePath\n"
             "import " + packageName + ".runtime.CrossaNativeResult\n"
             "import " + packageName + ".runtime.CrossaState\n\n"
             "import " + packageName + ".runtime.CrossaConfigurationOverrides\n"
@@ -694,6 +798,19 @@ namespace crossa::packaging::android {
             "    internal fun modelDouble(result: CrossaNativeResult, model: Long, field: Int): Double = nativeModelDouble(result.runtimeHandle(), result.requireHandle(), model, field)\n"
             "    internal fun modelString(result: CrossaNativeResult, model: Long, field: Int): String = nativeModelString(result.runtimeHandle(), result.requireHandle(), model, field)\n"
             "    internal fun modelBoolean(result: CrossaNativeResult, model: Long, field: Int): Boolean = nativeModelBoolean(result.runtimeHandle(), result.requireHandle(), model, field)\n"
+            "    internal fun valueKind(result: CrossaNativeResult, path: CrossaNativePath): Int = nativeValueKind(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueInt(result: CrossaNativeResult, path: CrossaNativePath): Int = nativeValueInt(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueLong(result: CrossaNativeResult, path: CrossaNativePath): Long = nativeValueLong(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueDouble(result: CrossaNativeResult, path: CrossaNativePath): Double = nativeValueDouble(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueBoolean(result: CrossaNativeResult, path: CrossaNativePath): Boolean = nativeValueBool(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueString(result: CrossaNativeResult, path: CrossaNativePath): String = nativeValueString(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueListSize(result: CrossaNativeResult, path: CrossaNativePath): Int = nativeValueListSize(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueJsonKind(result: CrossaNativeResult, path: CrossaNativePath): Int = nativeValueJsonKind(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueJsonBoolean(result: CrossaNativeResult, path: CrossaNativePath): Boolean = nativeValueJsonBool(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueJsonNumber(result: CrossaNativeResult, path: CrossaNativePath): String = nativeValueJsonNumber(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueJsonString(result: CrossaNativeResult, path: CrossaNativePath): String = nativeValueJsonString(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueJsonSize(result: CrossaNativeResult, path: CrossaNativePath): Int = nativeValueJsonSize(result.runtimeHandle(), result.requireHandle(), path.toPackedArray())\n"
+            "    internal fun valueJsonKey(result: CrossaNativeResult, path: CrossaNativePath, field: Int): String = nativeValueJsonKey(result.runtimeHandle(), result.requireHandle(), path.toPackedArray(), field)\n"
             "    internal fun cancel(runtime: Long, operation: Long): Boolean = nativeCancel(runtime, operation)\n"
             "    internal fun releaseOperation(runtime: Long, operation: Long) { nativeReleaseOperation(runtime, operation) }\n"
             "    internal fun shutdown(runtime: Long) { nativeShutdown(runtime) }\n"
@@ -722,6 +839,19 @@ namespace crossa::packaging::android {
             "    private external fun nativeModelDouble(runtime: Long, result: Long, model: Long, field: Int): Double\n"
             "    private external fun nativeModelString(runtime: Long, result: Long, model: Long, field: Int): String\n"
             "    private external fun nativeModelBoolean(runtime: Long, result: Long, model: Long, field: Int): Boolean\n"
+            "    private external fun nativeValueKind(runtime: Long, result: Long, path: IntArray): Int\n"
+            "    private external fun nativeValueInt(runtime: Long, result: Long, path: IntArray): Int\n"
+            "    private external fun nativeValueLong(runtime: Long, result: Long, path: IntArray): Long\n"
+            "    private external fun nativeValueDouble(runtime: Long, result: Long, path: IntArray): Double\n"
+            "    private external fun nativeValueBool(runtime: Long, result: Long, path: IntArray): Boolean\n"
+            "    private external fun nativeValueString(runtime: Long, result: Long, path: IntArray): String\n"
+            "    private external fun nativeValueListSize(runtime: Long, result: Long, path: IntArray): Int\n"
+            "    private external fun nativeValueJsonKind(runtime: Long, result: Long, path: IntArray): Int\n"
+            "    private external fun nativeValueJsonBool(runtime: Long, result: Long, path: IntArray): Boolean\n"
+            "    private external fun nativeValueJsonNumber(runtime: Long, result: Long, path: IntArray): String\n"
+            "    private external fun nativeValueJsonString(runtime: Long, result: Long, path: IntArray): String\n"
+            "    private external fun nativeValueJsonSize(runtime: Long, result: Long, path: IntArray): Int\n"
+            "    private external fun nativeValueJsonKey(runtime: Long, result: Long, path: IntArray, field: Int): String\n"
             "}\n"
         );
         writeFile(

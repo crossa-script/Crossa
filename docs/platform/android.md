@@ -47,7 +47,7 @@ internal/CrossaNativeBridge.kt
 Imports are planned and sorted before writing a file. The generated manifest
 tracks only Crossa-owned Kotlin outputs, allowing obsolete generated files to
 be removed without deleting unrelated project files. Kotlin remains a thin JNI
-view over native result and list handles.
+view over native result paths. Nested model and list fields stay native-backed.
 
 ## Debug and Release AARs
 
@@ -154,12 +154,15 @@ operation identifiers do not retain completed execution state.
 
 ## Result Views
 
-The shared ABI now defines runtime-owned result handles, list access, root and
-list-element model views, and typed scalar field access. A generated model uses
-declaration-order field indexes; it does not perform reflection or string field
-lookup. `CrossaNativeResult` is the root owner for native-backed Kotlin views
-and supports deterministic `close()`. A closed result rejects list and model
-access before JNI can reach released native storage.
+The shared ABI defines runtime-owned result handles and index-based value paths.
+Android JNI forwards those path accessors rather than generating a method per
+nested type combination. Generated models, `CrossaNativeList`, and `CrossaJson`
+are borrowed views over one `CrossaNativeResult`. Nested `Model` and `List`
+fields are supported. Scalar results copy then close the native handle. A closed
+result rejects later field, list, and Json access at the Kotlin boundary.
+
+`Json` results are native-backed (`CrossaJson`) through additive ABI v1 path
+accessors. Kotlin does not parse JSON with `org.json` or another platform parser.
 
 ## 16 KB Page-Size Support
 

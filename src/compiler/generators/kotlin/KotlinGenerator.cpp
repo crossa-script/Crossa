@@ -190,7 +190,7 @@ namespace crossa::compiler::generators::kotlin {
         }
         if (function.getExecutionPolicy() == ir::IrExecutionPolicy::AsyncAfter) {
             if (!parameters.empty()) signature += ", ";
-            signature += "onState: (CrossaState<" + typeMapper_.mapValueType(function.getReturnType()) + ">) -> Unit";
+            signature += "onState: (CrossaState<" + typeMapper_.mapNativeApiType(function.getReturnType()) + ">) -> Unit";
         }
         writer.beginBlock(
             signature + ")" +
@@ -211,43 +211,7 @@ namespace crossa::compiler::generators::kotlin {
             writer.writeLine("return CrossaOperation(runtime, CrossaNativeBridge.invokeAsync(runtime, " + identifier + ", " + arguments + "))");
         } else {
             const types::SemanticType& resultType = function.getReturnType();
-            if (resultType.getKind() == types::SemanticTypeKind::List &&
-                resultType.getElementType() != nullptr &&
-                resultType.getElementType()->getKind() ==
-                    types::SemanticTypeKind::Model) {
-                const string model = identifierEscaper_.escape(
-                    resultType.getElementType()->getModelName()
-                );
-                mapper = "{ result -> CrossaNativeList(result) { handle -> " +
-                    model + "(result, handle) } }";
-            } else if (resultType.getKind() == types::SemanticTypeKind::Model) {
-                mapper = "{ result -> " + identifierEscaper_.escape(
-                    resultType.getModelName()
-                ) + "(result, result.rootModelHandle()) }";
-            } else {
-                switch (resultType.getKind()) {
-                    case types::SemanticTypeKind::Int:
-                        mapper = "{ result -> result.intValue().also { result.close() } }";
-                        break;
-                    case types::SemanticTypeKind::Long:
-                        mapper = "{ result -> result.longValue().also { result.close() } }";
-                        break;
-                    case types::SemanticTypeKind::Double:
-                        mapper = "{ result -> result.doubleValue().also { result.close() } }";
-                        break;
-                    case types::SemanticTypeKind::String:
-                        mapper = "{ result -> result.stringValue().also { result.close() } }";
-                        break;
-                    case types::SemanticTypeKind::Bool:
-                        mapper = "{ result -> result.booleanValue().also { result.close() } }";
-                        break;
-                    case types::SemanticTypeKind::Unit:
-                    case types::SemanticTypeKind::Json:
-                    case types::SemanticTypeKind::Model:
-                    case types::SemanticTypeKind::List:
-                        failUnsupported("native-backed Android result type");
-                }
-            }
+            mapper = typeMapper_.nativeResultMapper(resultType);
             writer.writeLine("return CrossaOperation(runtime, CrossaNativeBridge.invokeAsyncAfter(runtime, " + identifier + ", " + arguments + ", " + mapper + ", onState))");
         }
         writer.endBlock();
@@ -260,7 +224,7 @@ namespace crossa::compiler::generators::kotlin {
                     ": " + typeMapper_.mapValueType(parameters[index].getType());
             }
             writer.beginBlock(
-                awaitSignature + "): " + typeMapper_.mapValueType(
+                awaitSignature + "): " + typeMapper_.mapNativeApiType(
                     function.getReturnType()
                 )
             );
@@ -275,27 +239,40 @@ namespace crossa::compiler::generators::kotlin {
 
     // Emits a lazy native-backed Android model view using declaration-order fields.
     void KotlinGenerator::emitNativeModel(const ir::IrModelDeclaration& model, KotlinSourceWriter& writer) const {
-        writer.beginBlock("public class " + identifierEscaper_.escape(model.getName()) + " internal constructor(private val owner: CrossaNativeResult, private val handle: Long)");
+        const string modelName = identifierEscaper_.escape(model.getName());
+        writer.beginBlock(
+            "public class " + modelName +
+            " internal constructor(private val nativeValue: CrossaNativeValue)"
+        );
         const vector<ir::IrModelField>& fields = model.getFields();
+        const string fieldsType = modelName + "Fields";
         for (size_t index = 0; index < fields.size(); ++index) {
             const ir::IrModelField& field = fields[index];
             writer.writeLine();
-            writer.writeLine("public val " + identifierEscaper_.escape(field.getName()) + ": " + typeMapper_.mapValueType(field.getType()));
+            writer.writeLine(
+                "public val " + identifierEscaper_.escape(field.getName()) +
+                ": " + typeMapper_.mapNativeApiType(field.getType())
+            );
             writer.indent();
-            const string fieldId = to_string(index);
-            switch (field.getType().getKind()) {
-                case types::SemanticTypeKind::Int: writer.writeLine("get() = CrossaNativeBridge.modelInt(owner, handle, " + fieldId + ")"); break;
-                case types::SemanticTypeKind::Long: writer.writeLine("get() = CrossaNativeBridge.modelLong(owner, handle, " + fieldId + ")"); break;
-                case types::SemanticTypeKind::Double: writer.writeLine("get() = CrossaNativeBridge.modelDouble(owner, handle, " + fieldId + ")"); break;
-                case types::SemanticTypeKind::String: writer.writeLine("get() = CrossaNativeBridge.modelString(owner, handle, " + fieldId + ")"); break;
-                case types::SemanticTypeKind::Bool: writer.writeLine("get() = CrossaNativeBridge.modelBoolean(owner, handle, " + fieldId + ")"); break;
-                case types::SemanticTypeKind::Unit:
-                case types::SemanticTypeKind::Json:
-                case types::SemanticTypeKind::Model:
-                case types::SemanticTypeKind::List:
-                    failUnsupported("native-backed Android model field type");
-            }
+            writer.writeLine(
+                "get() = " + typeMapper_.nativeValueExpression(
+                    field.getType(),
+                    "nativeValue.child(" + fieldsType + "." +
+                        identifierEscaper_.escape(field.getName()) + ")"
+                )
+            );
             writer.dedent();
+        }
+        if (!fields.empty()) {
+            writer.writeLine();
+            writer.beginBlock("private object " + fieldsType);
+            for (size_t index = 0; index < fields.size(); ++index) {
+                writer.writeLine(
+                    "const val " + identifierEscaper_.escape(fields[index].getName()) +
+                    " = " + to_string(index)
+                );
+            }
+            writer.endBlock();
         }
         writer.endBlock();
     }
@@ -322,16 +299,35 @@ namespace crossa::compiler::generators::kotlin {
 
         set<string> imports;
         if (plan.getModel() != nullptr) {
-            imports.insert(basePackageName + ".runtime.CrossaNativeResult");
-            imports.insert(basePackageName + ".internal.CrossaNativeBridge");
+            imports.insert(basePackageName + ".runtime.CrossaNativeValue");
+            bool needsList = false;
+            bool needsJson = false;
+            for (const ir::IrModelField& field : plan.getModel()->getFields()) {
+                collectNativeTypeDependencies(field.getType(), needsList, needsJson);
+            }
+            if (needsList) {
+                imports.insert(basePackageName + ".runtime.CrossaNativeList");
+            }
+            if (needsJson) {
+                imports.insert(basePackageName + ".runtime.CrossaJson");
+            }
         } else {
             imports.insert(basePackageName + ".runtime.CrossaNativeList");
             imports.insert(basePackageName + ".runtime.CrossaNativeResult");
+            imports.insert(basePackageName + ".runtime.CrossaNativeValue");
             imports.insert(basePackageName + ".runtime.CrossaOperation");
             imports.insert(basePackageName + ".runtime.CrossaRuntime");
             imports.insert(basePackageName + ".runtime.CrossaState");
             imports.insert(basePackageName + ".internal.CrossaArgument");
             imports.insert(basePackageName + ".internal.CrossaNativeBridge");
+            bool needsJson = false;
+            bool needsList = false;
+            for (const ir::IrFunctionDeclaration* function : plan.getFunctions()) {
+                collectNativeTypeDependencies(function->getReturnType(), needsList, needsJson);
+            }
+            if (needsJson) {
+                imports.insert(basePackageName + ".runtime.CrossaJson");
+            }
         }
         for (const string& modelName : modelNames) {
             if (context.getModels().find(modelName) == context.getModels().end()) {
@@ -383,6 +379,24 @@ namespace crossa::compiler::generators::kotlin {
         if (type.getKind() == types::SemanticTypeKind::List &&
             type.getElementType() != nullptr) {
             collectModelDependencies(*type.getElementType(), modelNames);
+        }
+    }
+
+    // Records whether a native-backed type needs list or Json runtime imports.
+    void KotlinGenerator::collectNativeTypeDependencies(
+        const types::SemanticType& type,
+        bool& needsList,
+        bool& needsJson
+    ) {
+        if (type.getKind() == types::SemanticTypeKind::List) {
+            needsList = true;
+            if (type.getElementType() != nullptr) {
+                collectNativeTypeDependencies(*type.getElementType(), needsList, needsJson);
+            }
+            return;
+        }
+        if (type.getKind() == types::SemanticTypeKind::Json) {
+            needsJson = true;
         }
     }
 

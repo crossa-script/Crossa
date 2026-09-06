@@ -1420,3 +1420,17 @@ Adapters, WebSocket/database, new `.cra` syntax, curl-multi cutover, simdjson, g
 ---
 
 *End of audit. This file is the durable source of the 2026-09-06 Crossa ecosystem status.*
+
+---
+
+## Follow-up (2026-09-06 implementation)
+
+This section records work after the audit snapshot. Historical audit conclusions above are unchanged.
+
+| Audit gap | Follow-up |
+|---|---|
+| Android nested Model/List fields | Native value-path JNI + generated `CrossaNativeValue` views |
+| Android `List<scalar>` / `Json` results | Mapped through `KotlinTypeMapper` native API types; `CrossaJson` is native-backed |
+| Example Debug artifacts | Examples default to Release AAR / Release XCFramework |
+| SwiftPM remote binary package | Generated ZIP, `swift package compute-checksum`, `Package.swift`; publication remains external |
+| Benchmark fairness | Example harnesses reuse clients, separate cold/warm, exclude warmups, interleave rounds, report p50/p95 |

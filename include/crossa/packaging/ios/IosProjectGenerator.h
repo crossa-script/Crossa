@@ -1,6 +1,8 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "crossa/compiler/generators/swift/SwiftGeneratedSource.h"
@@ -19,6 +21,13 @@ public:
         const std::vector<const compiler::ir::Program*>& programs,
         const std::filesystem::path& outputDirectory
     ) const;
+
+    // Writes SwiftPM binary-package files for one archived XCFramework artifact.
+    static void writeBinaryPackage(
+        const std::filesystem::path& artifactRoot,
+        const std::string& packageVersion,
+        const std::optional<std::string>& packageBaseUrl
+    );
 };
 
 }

@@ -87,6 +87,13 @@ private:
         std::vector<std::string>& modelNames
     );
 
+    // Records whether a native-backed type needs list or Json runtime imports.
+    static void collectNativeTypeDependencies(
+        const types::SemanticType& type,
+        bool& needsList,
+        bool& needsJson
+    );
+
     // Returns the stable compile-time operation identifier for one function.
     [[nodiscard]] static std::uint64_t operationId(
         const std::string& sourceIdentity,

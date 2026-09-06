@@ -161,7 +161,8 @@ namespace crossa::cli {
             "[--ndk-version <version>] [--gradle-version <version>] "
             "[--kotlin-version <version>]\n"
             "       crossa generate-build ios [--debug] "
-            "<project-directory> --output <directory> [--entry <file.cra>]\n"
+            "<project-directory> --output <directory> [--entry <file.cra>] "
+            "[--package-version <version>] [--package-base-url <url>]\n"
             "       crossa run [--project-root <directory>] <file.cra>\n"
             "       crossa --no-input <explicit command>\n"
             "       crossa --version\n"
@@ -188,6 +189,8 @@ namespace crossa::cli {
         optional<string> ndkVersion;
         optional<string> gradleVersion;
         optional<string> kotlinVersion;
+        optional<string> packageVersion;
+        optional<string> packageBaseUrl;
 
         for (int index = 1; index < argc; ++index) {
             const string_view argument(argv[index]);
@@ -271,6 +274,30 @@ namespace crossa::cli {
                 continue;
             }
 
+            if (argument == "--package-version") {
+                if (packageVersion.has_value() || index + 1 >= argc) {
+                    return nullopt;
+                }
+                const string_view version(argv[++index]);
+                if (!CliValueValidation::isSemanticVersion(version)) {
+                    return nullopt;
+                }
+                packageVersion = string(version);
+                continue;
+            }
+
+            if (argument == "--package-base-url") {
+                if (packageBaseUrl.has_value() || index + 1 >= argc) {
+                    return nullopt;
+                }
+                const string_view url(argv[++index]);
+                if (!CliValueValidation::isPackageBaseUrl(url)) {
+                    return nullopt;
+                }
+                packageBaseUrl = string(url);
+                continue;
+            }
+
             if (argument == "generate") {
                 if (commandProvided || sourcePath.has_value() ||
                     index + 1 >= argc ||
@@ -329,6 +356,10 @@ namespace crossa::cli {
              kotlinVersion.has_value())) {
             return nullopt;
         }
+        if (command != Command::GenerateIosFramework &&
+            (packageVersion.has_value() || packageBaseUrl.has_value())) {
+            return nullopt;
+        }
         if ((command == Command::GenerateAndroidLibrary ||
              command == Command::GenerateIosFramework) &&
             projectRoot.has_value()) {
@@ -351,7 +382,9 @@ namespace crossa::cli {
             std::move(outputDirectory),
             std::move(ndkVersion),
             std::move(gradleVersion),
-            std::move(kotlinVersion)
+            std::move(kotlinVersion),
+            std::move(packageVersion),
+            std::move(packageBaseUrl)
         };
     }
 
@@ -375,7 +408,9 @@ namespace crossa::cli {
             command.outputDirectory,
             command.ndkVersion,
             command.gradleVersion,
-            command.kotlinVersion
+            command.kotlinVersion,
+            nullopt,
+            nullopt
         };
     }
 
@@ -760,6 +795,11 @@ namespace crossa::cli {
                 throw runtime_error("Unable to write iOS artifact metadata: " +
                     manifestOutput.string());
             }
+            packaging::ios::IosProjectGenerator::writeBinaryPackage(
+                configuration.second,
+                arguments.packageVersion.value_or(CrossaVersion::current()),
+                arguments.packageBaseUrl
+            );
         }
         logStepCompleted(7, "iOS XCFramework packaging", log);
     }

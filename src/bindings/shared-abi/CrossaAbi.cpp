@@ -15,6 +15,7 @@
 
 #include "crossa/bindings/shared-abi/CrossaRuntimeContext.h"
 #include "crossa/bindings/shared-abi/CrossaAbiRuntimeFactory.h"
+#include "crossa/network/json/JsonValue.h"
 #include "crossa/runtime/NativeRuntime.h"
 #include "crossa/runtime/objects/NativeList.h"
 #include "crossa/runtime/objects/NativeModel.h"
@@ -273,15 +274,40 @@ namespace crossa::bindings::sharedabi {
             const CrossaAbiPathSegment* path,
             size_t pathCount
         ) {
+            const ResolvedPath resolved = resolvePath(result, path, pathCount);
+            return resolved.runtimeValue;
+        }
+
+        // Resolves model/list paths and continues into native Json storage.
+        struct ResolvedPath final {
+            const runtime::RuntimeValue* runtimeValue = nullptr;
+            const network::json::JsonValue* jsonValue = nullptr;
+            CrossaStatus status = CrossaStatusOutOfBounds;
+        };
+
+        // Walks one result path across native models, lists, and Json values.
+        static ResolvedPath resolvePath(
+            const runtime::RuntimeValue& result,
+            const CrossaAbiPathSegment* path,
+            size_t pathCount
+        ) {
+            ResolvedPath resolved;
             if (pathCount > CrossaAbiResourceLimits::MaximumPathCount ||
-                (path == nullptr && pathCount != 0)) return nullptr;
+                (path == nullptr && pathCount != 0)) {
+                resolved.status = CrossaStatusInvalidArgument;
+                return resolved;
+            }
             const runtime::RuntimeValue* value = &result;
-            for (size_t index = 0; index < pathCount; ++index) {
+            size_t index = 0;
+            for (; index < pathCount; ++index) {
+                if (value->getKind() == runtime::RuntimeValueKind::Json) {
+                    break;
+                }
                 const CrossaAbiPathSegment& segment = path[index];
                 if (segment.kind == CrossaAbiPathField) {
                     if (value->getKind() != runtime::RuntimeValueKind::Model ||
                         segment.index >= value->getModel().getFields().size()) {
-                        return nullptr;
+                        return resolved;
                     }
                     value = &value->getModel().getFields()[segment.index].second;
                     continue;
@@ -289,14 +315,47 @@ namespace crossa::bindings::sharedabi {
                 if (segment.kind == CrossaAbiPathListElement) {
                     if (value->getKind() != runtime::RuntimeValueKind::List ||
                         segment.index >= value->getList().getSize()) {
-                        return nullptr;
+                        return resolved;
                     }
                     value = &value->getList().get(segment.index);
                     continue;
                 }
-                return nullptr;
+                resolved.status = CrossaStatusInvalidArgument;
+                return resolved;
             }
-            return value;
+            if (value->getKind() != runtime::RuntimeValueKind::Json) {
+                if (index != pathCount) {
+                    return resolved;
+                }
+                resolved.runtimeValue = value;
+                resolved.status = CrossaStatusOk;
+                return resolved;
+            }
+            const network::json::JsonValue* json = &value->getJson();
+            for (; index < pathCount; ++index) {
+                const CrossaAbiPathSegment& segment = path[index];
+                if (segment.kind == CrossaAbiPathField) {
+                    if (json->getKind() != network::json::JsonValueKind::Object ||
+                        segment.index >= json->getObject().size()) {
+                        return resolved;
+                    }
+                    json = &json->getObject()[segment.index].second;
+                    continue;
+                }
+                if (segment.kind == CrossaAbiPathListElement) {
+                    if (json->getKind() != network::json::JsonValueKind::Array ||
+                        segment.index >= json->getArray().size()) {
+                        return resolved;
+                    }
+                    json = &json->getArray()[segment.index];
+                    continue;
+                }
+                resolved.status = CrossaStatusInvalidArgument;
+                return resolved;
+            }
+            resolved.jsonValue = json;
+            resolved.status = CrossaStatusOk;
+            return resolved;
         }
 
         // Maps one native runtime value type to its stable ABI category.
@@ -310,9 +369,22 @@ namespace crossa::bindings::sharedabi {
                 case runtime::RuntimeValueKind::Bool: return CrossaValueBool;
                 case runtime::RuntimeValueKind::Model: return CrossaValueModel;
                 case runtime::RuntimeValueKind::List: return CrossaValueList;
-                case runtime::RuntimeValueKind::Json: return CrossaValueString;
+                case runtime::RuntimeValueKind::Json: return CrossaValueJson;
             }
             return CrossaValueUnit;
+        }
+
+        // Maps one native Json DOM category onto the stable ABI Json kind.
+        static CrossaJsonKind mapJsonKind(network::json::JsonValueKind kind) {
+            switch (kind) {
+                case network::json::JsonValueKind::Null: return CrossaJsonNull;
+                case network::json::JsonValueKind::Boolean: return CrossaJsonBoolean;
+                case network::json::JsonValueKind::Number: return CrossaJsonNumber;
+                case network::json::JsonValueKind::String: return CrossaJsonString;
+                case network::json::JsonValueKind::Array: return CrossaJsonArray;
+                case network::json::JsonValueKind::Object: return CrossaJsonObject;
+            }
+            return CrossaJsonNull;
         }
     };
 
@@ -746,12 +818,17 @@ extern "C" {
             runtime, result
         );
         if (root == nullptr) return CrossaStatusInvalidHandle;
-        const auto* value = crossa::bindings::sharedabi::CrossaAbiValueAccess::findPath(
+        const auto resolved = crossa::bindings::sharedabi::CrossaAbiValueAccess::resolvePath(
             *root, path, pathCount
         );
-        if (value == nullptr) return CrossaStatusOutOfBounds;
+        if (resolved.status != CrossaStatusOk) return resolved.status;
+        if (resolved.jsonValue != nullptr) {
+            *kind = CrossaValueJson;
+            return CrossaStatusOk;
+        }
+        if (resolved.runtimeValue == nullptr) return CrossaStatusOutOfBounds;
         *kind = crossa::bindings::sharedabi::CrossaAbiValueAccess::mapKind(
-            value->getKind()
+            resolved.runtimeValue->getKind()
         );
         return CrossaStatusOk;
     }
@@ -902,6 +979,151 @@ extern "C" {
             return CrossaStatusTypeMismatch;
         }
         *value = member->getBool() ? 1 : 0;
+        return CrossaStatusOk;
+    }
+
+    // Resolves one native Json value reached through a generated path.
+    static CrossaStatus requireJson(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        const crossa::network::json::JsonValue** json
+    ) {
+        if (json == nullptr) return CrossaStatusInvalidArgument;
+        const auto root = crossa::bindings::sharedabi::CrossaAbiValueAccess::findResult(
+            runtime, result
+        );
+        if (root == nullptr) return CrossaStatusInvalidHandle;
+        const auto resolved = crossa::bindings::sharedabi::CrossaAbiValueAccess::resolvePath(
+            *root, path, pathCount
+        );
+        if (resolved.status != CrossaStatusOk) return resolved.status;
+        if (resolved.jsonValue == nullptr) return CrossaStatusTypeMismatch;
+        *json = resolved.jsonValue;
+        return CrossaStatusOk;
+    }
+
+    // Returns the Json category reached through a generated result path.
+    CrossaStatus crossaGetPathJsonKind(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        CrossaJsonKind* kind
+    ) {
+        if (kind == nullptr) return CrossaStatusInvalidArgument;
+        const crossa::network::json::JsonValue* json = nullptr;
+        const CrossaStatus status = requireJson(runtime, result, path, pathCount, &json);
+        if (status != CrossaStatusOk) return status;
+        *kind = crossa::bindings::sharedabi::CrossaAbiValueAccess::mapJsonKind(
+            json->getKind()
+        );
+        return CrossaStatusOk;
+    }
+
+    // Reads one Json boolean through a generated result path.
+    CrossaStatus crossaGetPathJsonBool(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        uint8_t* value
+    ) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const crossa::network::json::JsonValue* json = nullptr;
+        const CrossaStatus status = requireJson(runtime, result, path, pathCount, &json);
+        if (status != CrossaStatusOk) return status;
+        if (json->getKind() != crossa::network::json::JsonValueKind::Boolean) {
+            return CrossaStatusTypeMismatch;
+        }
+        *value = json->getBoolean() ? 1 : 0;
+        return CrossaStatusOk;
+    }
+
+    // Reads exact Json number text through a generated result path.
+    CrossaStatus crossaGetPathJsonNumber(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        CrossaStringView* value
+    ) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const crossa::network::json::JsonValue* json = nullptr;
+        const CrossaStatus status = requireJson(runtime, result, path, pathCount, &json);
+        if (status != CrossaStatusOk) return status;
+        if (json->getKind() != crossa::network::json::JsonValueKind::Number) {
+            return CrossaStatusTypeMismatch;
+        }
+        value->data = json->getNumber().data();
+        value->size = json->getNumber().size();
+        return CrossaStatusOk;
+    }
+
+    // Reads one Json string through a generated result path.
+    CrossaStatus crossaGetPathJsonString(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        CrossaStringView* value
+    ) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const crossa::network::json::JsonValue* json = nullptr;
+        const CrossaStatus status = requireJson(runtime, result, path, pathCount, &json);
+        if (status != CrossaStatusOk) return status;
+        if (json->getKind() != crossa::network::json::JsonValueKind::String) {
+            return CrossaStatusTypeMismatch;
+        }
+        value->data = json->getString().data();
+        value->size = json->getString().size();
+        return CrossaStatusOk;
+    }
+
+    // Returns Json array length or object field count through a generated path.
+    CrossaStatus crossaGetPathJsonSize(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        size_t* size
+    ) {
+        if (size == nullptr) return CrossaStatusInvalidArgument;
+        const crossa::network::json::JsonValue* json = nullptr;
+        const CrossaStatus status = requireJson(runtime, result, path, pathCount, &json);
+        if (status != CrossaStatusOk) return status;
+        if (json->getKind() == crossa::network::json::JsonValueKind::Array) {
+            *size = json->getArray().size();
+            return CrossaStatusOk;
+        }
+        if (json->getKind() == crossa::network::json::JsonValueKind::Object) {
+            *size = json->getObject().size();
+            return CrossaStatusOk;
+        }
+        return CrossaStatusTypeMismatch;
+    }
+
+    // Reads one Json object key in source order through a generated path.
+    CrossaStatus crossaGetPathJsonKey(
+        CrossaRuntimeHandle runtime,
+        CrossaResultHandle result,
+        const CrossaAbiPathSegment* path,
+        size_t pathCount,
+        uint32_t field,
+        CrossaStringView* value
+    ) {
+        if (value == nullptr) return CrossaStatusInvalidArgument;
+        const crossa::network::json::JsonValue* json = nullptr;
+        const CrossaStatus status = requireJson(runtime, result, path, pathCount, &json);
+        if (status != CrossaStatusOk) return status;
+        if (json->getKind() != crossa::network::json::JsonValueKind::Object) {
+            return CrossaStatusTypeMismatch;
+        }
+        if (field >= json->getObject().size()) return CrossaStatusOutOfBounds;
+        const string& key = json->getObject()[field].first;
+        value->data = key.data();
+        value->size = key.size();
         return CrossaStatusOk;
     }
 

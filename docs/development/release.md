@@ -60,9 +60,15 @@ checksum manifest and archive member layout before extraction, then install
 through a temporary file. Release jobs use least-privilege permissions and pin
 third-party actions to immutable commits.
 
-The iOS packaging flow emits an XCFramework ZIP and the checksum required by
-Swift Package Manager. The release publication must publish that ZIP, its
-checksum, the artifact manifest, and the substituted `Package.swift.release.template`.
+The iOS packaging flow emits a project-specific XCFramework ZIP, a SwiftPM
+checksum, `Package.swift`, and artifact metadata. That ZIP is not a universal
+Crossa runtime and is not part of the CLI GitHub Release asset list. Publish it
+from the repository that owns the generated SDK, using `--package-version` and
+`--package-base-url` so the manifest URL is:
+
+```text
+<package-base-url>/v<version>/Crossa.xcframework.zip
+```
 
 Windows x86_64 uses the standalone PowerShell installer:
 

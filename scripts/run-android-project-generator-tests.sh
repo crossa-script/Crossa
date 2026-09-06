@@ -54,6 +54,11 @@ requireFile "$generatedProject/library/src/main/cpp/crossa_runtime.cpp"
 requireFile "$generatedSources/api/Math.kt"
 requireFile "$generatedSources/runtime/CrossaRuntime.kt"
 requireFile "$generatedSources/runtime/CrossaError.kt"
+requireFile "$generatedSources/runtime/CrossaNativeValue.kt"
+requireFile "$generatedSources/runtime/CrossaNativeList.kt"
+requireFile "$generatedSources/runtime/CrossaJson.kt"
+requireText "$generatedSources/runtime/CrossaNativeValue.kt" 'fun child(fieldIndex: Int)'
+requireText "$generatedSources/internal/CrossaNativeBridge.kt" 'nativeValueInt'
 requireText "$generatedSources/runtime/CrossaError.kt" 'override val message: String'
 requireText "$generatedSources/runtime/CrossaConfigurationOverrides.kt" '\u000C'
 

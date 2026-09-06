@@ -51,6 +51,8 @@ private:
         std::optional<std::string> ndkVersion;
         std::optional<std::string> gradleVersion;
         std::optional<std::string> kotlinVersion;
+        std::optional<std::string> packageVersion;
+        std::optional<std::string> packageBaseUrl;
     };
 
     // Parses one optional CLI command name.

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <system_error>
@@ -39,6 +40,92 @@ namespace crossa::packaging::ios {
             writeBuildScripts(outputDirectory);
             writePackageWrapper(outputDirectory);
             writeManifestTemplate(outputDirectory, programs);
+        }
+
+        // Writes SwiftPM binary-package files for one archived XCFramework artifact.
+        static void writeBinaryPackage(
+            const filesystem::path& artifactRoot,
+            const string& packageVersion,
+            const optional<string>& packageBaseUrl
+        ) {
+            const filesystem::path checksumPath = artifactRoot / "checksum.txt";
+            ifstream checksumInput(checksumPath);
+            string checksum;
+            checksumInput >> checksum;
+            if (!checksumInput || checksum.empty()) {
+                throw runtime_error(
+                    "Unable to read SwiftPM checksum: " + checksumPath.string()
+                );
+            }
+
+            const filesystem::path zipPath = artifactRoot / "Crossa.xcframework.zip";
+            if (!filesystem::is_regular_file(zipPath)) {
+                throw runtime_error("Missing XCFramework ZIP: " + zipPath.string());
+            }
+
+            string target;
+            if (packageBaseUrl.has_value()) {
+                target =
+                    "            url: \"" + *packageBaseUrl + "/v" + packageVersion +
+                    "/Crossa.xcframework.zip\",\n"
+                    "            checksum: \"" + checksum + "\"\n";
+            } else {
+                target = "            path: \"Crossa.xcframework\"\n";
+            }
+
+            const string manifest =
+                "// swift-tools-version: 6.0\n"
+                "import PackageDescription\n\n"
+                "// This binary package is generated from a project-specific Crossa SDK.\n"
+                "let package = Package(\n"
+                "    name: \"Crossa\",\n"
+                "    platforms: [\n"
+                "        .iOS(\"" + IosBuildRequirements::minimumDeploymentTarget() + "\")\n"
+                "    ],\n"
+                "    products: [\n"
+                "        .library(name: \"Crossa\", targets: [\"Crossa\"])\n"
+                "    ],\n"
+                "    targets: [\n"
+                "        .binaryTarget(\n"
+                "            name: \"Crossa\",\n" +
+                target +
+                "        )\n"
+                "    ]\n"
+                ")\n";
+
+            writeFile(artifactRoot / "Package.swift", manifest);
+            writeFile(
+                artifactRoot / "Package.swift.release.template",
+                "// swift-tools-version: 6.0\n"
+                "import PackageDescription\n\n"
+                "let package = Package(\n"
+                "    name: \"Crossa\",\n"
+                "    platforms: [\n"
+                "        .iOS(\"" + IosBuildRequirements::minimumDeploymentTarget() + "\")\n"
+                "    ],\n"
+                "    products: [\n"
+                "        .library(name: \"Crossa\", targets: [\"Crossa\"])\n"
+                "    ],\n"
+                "    targets: [\n"
+                "        .binaryTarget(\n"
+                "            name: \"Crossa\",\n"
+                "            url: \"<CROSSA_PACKAGE_BASE_URL>/v" + packageVersion +
+                "/Crossa.xcframework.zip\",\n"
+                "            checksum: \"" + checksum + "\"\n"
+                "        )\n"
+                "    ]\n"
+                ")\n"
+            );
+            writeFile(
+                artifactRoot / "artifact-manifest.package.json",
+                "{\n"
+                "  \"module\": \"Crossa\",\n"
+                "  \"packageVersion\": \"" + packageVersion + "\",\n"
+                "  \"checksum\": \"" + checksum + "\",\n"
+                "  \"zip\": \"Crossa.xcframework.zip\",\n"
+                "  \"ownership\": \"project-specific-generated-sdk\"\n"
+                "}\n"
+            );
         }
 
     private:
@@ -723,8 +810,10 @@ public final class CrossaRuntime: @unchecked Sendable {
                 "mkdir -p \"${artifact_root}/symbols\" \"${artifact_root}/metadata\"\n"
                 "find \"${device_archive}\" \"${simulator_archive}\" -name '*.dSYM' -type d -exec cp -R {} \"${artifact_root}/symbols/\" \\;\n"
                 "mkdir -p \"${artifact_root}/package\"\n"
-                "(cd \"${artifact_root}\" && zip -qry \"package/Crossa.xcframework.zip\" Crossa.xcframework)\n"
-                "swift package compute-checksum \"${artifact_root}/package/Crossa.xcframework.zip\" > \"${artifact_root}/package/Crossa.xcframework.checksum\"\n";
+                "(cd \"${artifact_root}\" && zip -qryX \"package/Crossa.xcframework.zip\" Crossa.xcframework)\n"
+                "cp \"${artifact_root}/package/Crossa.xcframework.zip\" \"${artifact_root}/Crossa.xcframework.zip\"\n"
+                "swift package compute-checksum \"${artifact_root}/package/Crossa.xcframework.zip\" > \"${artifact_root}/package/Crossa.xcframework.checksum\"\n"
+                "cp \"${artifact_root}/package/Crossa.xcframework.checksum\" \"${artifact_root}/checksum.txt\"\n";
         }
 
         // Returns isolated CMake dependency provisioning for the iOS C++ runtime.
@@ -762,7 +851,24 @@ public final class CrossaRuntime: @unchecked Sendable {
             writeFile(directory / "Package.swift.release.template",
                 "// swift-tools-version: 6.0\n"
                 "import PackageDescription\n\n"
-                "let package = Package(name: \"Crossa\", products: [.library(name: \"Crossa\", targets: [\"Crossa\"])], targets: [.binaryTarget(name: \"Crossa\", url: \"https://github.com/crossa-script/Crossa/releases/download/v<CROSSA_VERSION>/Crossa.xcframework.zip\", checksum: \"<CROSSA_XCFRAMEWORK_CHECKSUM>\")])\n");
+                "// Generated Crossa mobile SDKs are project-specific. Publish this ZIP from the\n"
+                "// repository that owns the generated API, not as a universal Crossa runtime.\n"
+                "let package = Package(\n"
+                "    name: \"Crossa\",\n"
+                "    platforms: [\n"
+                "        .iOS(\"" + IosBuildRequirements::minimumDeploymentTarget() + "\")\n"
+                "    ],\n"
+                "    products: [\n"
+                "        .library(name: \"Crossa\", targets: [\"Crossa\"])\n"
+                "    ],\n"
+                "    targets: [\n"
+                "        .binaryTarget(\n"
+                "            name: \"Crossa\",\n"
+                "            url: \"<CROSSA_PACKAGE_BASE_URL>/v<CROSSA_VERSION>/Crossa.xcframework.zip\",\n"
+                "            checksum: \"<CROSSA_XCFRAMEWORK_CHECKSUM>\"\n"
+                "        )\n"
+                "    ]\n"
+                ")\n");
         }
 
         // Writes stable artifact metadata input without volatile build-machine values.
@@ -798,6 +904,19 @@ public final class CrossaRuntime: @unchecked Sendable {
         const filesystem::path& outputDirectory
     ) const {
         IosProjectWriter::generate(swiftSources, programs, outputDirectory);
+    }
+
+    // Writes SwiftPM binary-package files for one archived XCFramework artifact.
+    void IosProjectGenerator::writeBinaryPackage(
+        const filesystem::path& artifactRoot,
+        const string& packageVersion,
+        const optional<string>& packageBaseUrl
+    ) {
+        IosProjectWriter::writeBinaryPackage(
+            artifactRoot,
+            packageVersion,
+            packageBaseUrl
+        );
     }
 
 }

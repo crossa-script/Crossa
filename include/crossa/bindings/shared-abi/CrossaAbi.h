@@ -47,8 +47,19 @@ typedef enum CrossaValueKind {
     CrossaValueString = 4,
     CrossaValueBool = 5,
     CrossaValueModel = 6,
-    CrossaValueList = 7
+    CrossaValueList = 7,
+    CrossaValueJson = 8
 } CrossaValueKind;
+
+// Distinguishes one explicit native Json value without exposing the DOM layout.
+typedef enum CrossaJsonKind {
+    CrossaJsonNull = 0,
+    CrossaJsonBoolean = 1,
+    CrossaJsonNumber = 2,
+    CrossaJsonString = 3,
+    CrossaJsonArray = 4,
+    CrossaJsonObject = 5
+} CrossaJsonKind;
 
 // Views UTF-8 result text until the associated result is released.
 typedef struct CrossaStringView {
@@ -339,6 +350,61 @@ CrossaStatus crossaGetPathBool(
     const CrossaAbiPathSegment* path,
     size_t pathCount,
     uint8_t* value
+);
+
+// Returns the Json category reached through a generated result path.
+CrossaStatus crossaGetPathJsonKind(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    CrossaJsonKind* kind
+);
+
+// Reads a Json boolean reached through a generated result path.
+CrossaStatus crossaGetPathJsonBool(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    uint8_t* value
+);
+
+// Reads exact Json number text reached through a generated result path.
+CrossaStatus crossaGetPathJsonNumber(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    CrossaStringView* value
+);
+
+// Reads a Json string reached through a generated result path.
+CrossaStatus crossaGetPathJsonString(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    CrossaStringView* value
+);
+
+// Returns Json array length or object field count through a generated path.
+CrossaStatus crossaGetPathJsonSize(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    size_t* size
+);
+
+// Reads one Json object key in source order through a generated path.
+CrossaStatus crossaGetPathJsonKey(
+    CrossaRuntimeHandle runtime,
+    CrossaResultHandle result,
+    const CrossaAbiPathSegment* path,
+    size_t pathCount,
+    uint32_t field,
+    CrossaStringView* value
 );
 
 #ifdef __cplusplus
