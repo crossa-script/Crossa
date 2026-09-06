@@ -1,27 +1,27 @@
 # Crossa
 
-Crossa turns backend contracts and `.cra` source files into native behavior and generated APIs for Android and iOS.
+Crossa is a compiler and native runtime that turns `.cra` sources into Android and iOS APIs.
 
-The idea is simple: describe the behavior once, let C++ own compilation and runtime work, and expose a small platform-friendly API to the application.
+Describe models, functions, and HTTP requests once. A single C++ frontend compiles them to typed IR. The same native runtime executes the work — networking, scheduling, decoding, and memory — and generated Kotlin and Swift APIs expose it as an AAR or XCFramework.
 
-> **Current status:** Crossa is in the foundation phase. The C++ frontend, typed IR, native runtime, HTTP/JSON networking, Android AAR generation, iOS XCFramework generation, and CLI are available. Some platform bridges and advanced optimizations are still evolving.
+> **Foundation phase.** The C++ frontend, typed IR, native HTTP/JSON runtime, Android AAR generation, iOS XCFramework generation, and CLI are available. Streaming delivery to platform APIs and generated direct decoders are still in progress.
 
 ## Crossa in one minute
 
 ```mermaid
 flowchart LR
-    A[".cra + backend contracts"] --> B["C++ compiler frontend"]
+    A[".cra sources"] --> B["C++ compiler frontend"]
     B --> C["Typed Crossa IR"]
     C --> D["Native C++ runtime"]
     D --> E["Android AAR"]
     D --> F["iOS XCFramework"]
 ```
 
-- `.cra` is a small typed language for models, functions, and requests.
-- C++ is the single compiler frontend and owns runtime execution, networking, scheduling, and memory.
-- Kotlin and Swift are thin integration surfaces; Crossa does not create a separate Retrofit, Ktor, or URLSession implementation for each request.
+- `.cra` is a small typed language for models, functions, and requests — not a general-purpose language.
+- C++ is the only compiler frontend. It owns execution, networking, scheduling, and memory.
+- Kotlin and Swift are thin integration surfaces. Crossa does not emit Retrofit, Ktor, Alamofire, or URLSession clients.
 
-## Start quickly
+## Get started
 
 1. Install Crossa using the [installation instructions](#installation).
 2. Create a file named `hello.cra`:
@@ -46,11 +46,13 @@ Output:
 3
 ```
 
-To validate the source without executing functions or requests:
+Validate source without executing functions or requests:
 
 ```sh
 crossa check hello.cra
 ```
+
+In a terminal, `crossa` with no arguments opens the interactive wizard.
 
 ## A networking example
 
@@ -69,7 +71,7 @@ fun getUser(id: Int): User {
 }
 ```
 
-`User` is the logical success type. With `@AsyncAfter`, the terminal result is conceptually one of:
+`User` is the logical success type. With `@AsyncAfter`, the terminal result is one of:
 
 ```text
 Success(User)
@@ -77,7 +79,9 @@ Failed(CrossaError)
 Cancelled
 ```
 
-The native runtime plans and executes the request, decodes the JSON response, and exposes the result through the generated platform API.
+The native runtime plans the request, executes it over HTTP, decodes JSON into `User`, and delivers that terminal state through the generated platform API.
+
+A complete imported example lives at `examples/imports/runPosts.cra`.
 
 ## How a request moves through Crossa
 
@@ -93,17 +97,17 @@ flowchart TD
     H --> I["Success / Failed / Cancelled"]
 ```
 
-The same path is shared by the CLI, Android, and iOS. Kotlin and Swift do not parse `.cra` or implement a second HTTP runtime.
+The CLI, Android, and iOS share this path. Kotlin and Swift do not parse `.cra` and do not implement a second HTTP runtime.
 
 ## Why Crossa?
 
-| Common problem | Crossa approach |
+| Instead of | Crossa |
 |---|---|
-| Repeating request models and parsing on every platform | Define typed behavior once in `.cra` |
-| Different networking behavior between Android and iOS | Use one shared native runtime |
-| Large copies across native and managed runtimes | Keep results native-backed where practical |
-| Unpredictable runtime work per request | Compile through one frontend and one IR |
-| Manual SDK setup for every project | Generate Android and iOS artifacts |
+| Repeating models and parsers on every platform | One typed `.cra` definition |
+| Divergent Android and iOS networking stacks | One shared native runtime |
+| Extra copies across native and managed heaps | Native-backed results where practical |
+| A different client implementation per request | One frontend, one IR, one execution path |
+| Manual SDK scaffolding for each app | Generated AAR and XCFramework artifacts |
 
 ## What is available today?
 
@@ -111,10 +115,10 @@ The same path is shared by the CLI, Android, and iOS. Kotlin and Swift do not pa
 |---|---|
 | `.cra` loading, imports, lexer, parser, semantic analysis, and IR | Available |
 | Variables, functions, models, `List<T>`, interpolation, `print`, and `assert` | Available |
-| `CrossaRequest` with URL/path/query/header/body and HTTP methods | Available |
+| `CrossaRequest` with URL, path, query, headers, body, and HTTP methods | Available |
 | JSON decoding for scalars, models, and lists | Available |
-| Native scheduler, structured errors, and cancellation | Available in the runtime |
-| Pure Kotlin generation | Available for pure translated IR |
+| Native scheduler, structured errors, and cancellation | Available |
+| Kotlin generation | Available for pure translated IR |
 | Android Gradle project and AAR generation | Available for `arm64-v8a` |
 | iOS Debug/Release XCFramework generation | Available with Xcode and CMake |
 | Streaming delivery to platform APIs and generated direct decoders | In progress |
@@ -179,7 +183,7 @@ crossa --version
 crossa doctor
 ```
 
-`crossa doctor` checks the Crossa installation and the Android/iOS toolchains available on the machine. It does not install dependencies or modify environment variables.
+`crossa doctor` inspects the Crossa installation and any Android or iOS toolchains on the machine. It does not install dependencies or modify environment variables.
 
 ## Platform outputs
 
@@ -199,17 +203,27 @@ flowchart LR
 
 ## Project documentation
 
+**Language and architecture**
+
 - [Technical Architecture](ARCHITECTURE.md) — system boundaries, ownership, and engineering rules.
 - [Language Foundation](docs/language/language-foundation.md) — current `.cra` syntax and semantics.
 - [Language Roadmap](docs/language/language-roadmap.md) — implementation order and future milestones.
 - [Native Networking](docs/features/networking.md) — request fields, response decoding, and limits.
-- [Crossa CLI](docs/development/cli.md) — commands, `doctor`, and interactive mode.
+
+**Platforms**
+
 - [Android AAR Generation](docs/platform/android.md) — generated Android projects and build requirements.
 - [iOS XCFramework](docs/platform/ios.md) — XCFramework generation and Xcode integration.
+
+**Development**
+
+- [Crossa CLI](docs/development/cli.md) — commands, `doctor`, and interactive mode.
 - [Testing](docs/development/testing.md) — test layers and fixtures.
 
 <details>
 <summary>Expand the full CLI reference</summary>
+
+With stdin attached to a terminal, `crossa` with no arguments opens an interactive wizard. It collects a project root, source, and Android or iOS generation settings, prints the equivalent explicit command, then runs it. Enter accepts the displayed default; `0` goes back; `0` at the root exits. Non-TTY invocations never wait for input. `--no-input` makes that policy explicit.
 
 | Command | Purpose |
 |---|---|
