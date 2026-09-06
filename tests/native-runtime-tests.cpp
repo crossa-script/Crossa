@@ -383,7 +383,7 @@ private:
             "Request body log did not include the serialized body."
         );
         require(
-            output.find("Network request curl: curl -X 'POST' -H 'X-Crossa-Request: value' -H 'X-Crossa-Common: enabled' -H 'Content-Type: application/json' -H 'Accept: application/json' --data-raw '{\"title\":\"hello\"}' 'https://example.test/posts'") !=
+            output.find("Network request curl: curl -X 'POST' -H 'X-Crossa-Request: value' -H 'X-Crossa-Common: enabled' -H 'Content-Type: application/json' -H 'Accept: application/json' --data-raw '{\"title\":\"hello\"}' 'https://example.test/posts?page=1'") !=
                 string::npos,
             "Request curl log did not include the copyable prepared request."
         );

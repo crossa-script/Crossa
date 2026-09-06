@@ -18,10 +18,11 @@ control request and response values and default to `false`. When header logging
 is enabled, `excludedHeaders` removes matching names case-insensitively from
 both request and response logs. When request logging is enabled, Crossa also
 emits one copyable `curl` command built from the final prepared request so the
-same request can be replayed outside Crossa. The emitted `curl` command omits
-excluded headers and only includes headers or body content when `logHeaders`
-or `logBody` allow them. Header and body values are never logged unless their
-corresponding options are enabled.
+same request can be replayed outside Crossa. Lifecycle logs strip query strings
+for privacy. The copyable `curl` command keeps the final URL, including query
+parameters. The emitted `curl` command omits excluded headers and only includes
+headers or body content when `logHeaders` or `logBody` allow them. Header and
+body values are never logged unless their corresponding options are enabled.
 
 ```cra
 interceptor: {

@@ -161,9 +161,8 @@ namespace crossa::network {
             command += " --data-raw " +
                 escapeShellArgument(*request.getBody());
         }
-        command += " " + escapeShellArgument(
-            utils::UrlUtils::stripQuery(request.getUrl())
-        );
+        // Keep the final prepared URL, including query, so the command can replay the request.
+        command += " " + escapeShellArgument(request.getUrl());
         return command;
     }
 
