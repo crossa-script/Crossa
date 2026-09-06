@@ -165,7 +165,7 @@ namespace crossa::packaging::ios {
         static void writeSwiftRuntime(const filesystem::path& directory) {
             writeFile(directory / "CrossaState.swift",
                 "import Foundation\n\n"
-                "public enum CrossaState<Value> {\n"
+                "public enum CrossaState<Value>: @unchecked Sendable {\n"
                 "    case success(Value)\n"
                 "    case failed(CrossaError)\n"
                 "    case cancelled\n"
@@ -206,7 +206,7 @@ internal enum CrossaArgument {
     internal init(_ value: String) { self = .string(value) }
 }
 
-internal final class CrossaNativeResult {
+internal final class CrossaNativeResult: @unchecked Sendable {
     private let runtime: UInt64
     private let result: UInt64
     private let lock = NSLock()
@@ -285,7 +285,7 @@ internal final class CrossaNativeResult {
     }
 }
 
-internal struct CrossaNativeValue {
+internal struct CrossaNativeValue: @unchecked Sendable {
     fileprivate let owner: CrossaNativeResult
     fileprivate let path: [CrossaAbiPathSegment]
 
@@ -305,7 +305,7 @@ internal struct CrossaNativeValue {
     internal func listSize() -> Int { owner.listSize(at: path) }
 }
 
-public struct CrossaList<Element>: RandomAccessCollection {
+public struct CrossaList<Element>: RandomAccessCollection, @unchecked Sendable {
     public typealias Index = Int
 
     private let nativeValue: CrossaNativeValue
@@ -334,7 +334,7 @@ public struct CrossaList<Element>: RandomAccessCollection {
         [[nodiscard]] static string runtimeSource() {
             return R"SWIFT(import Foundation
 
-public final class CrossaOperation {
+public final class CrossaOperation: @unchecked Sendable {
     private let runtime: UInt64
     private let handle: UInt64
     private let lock = NSLock()
@@ -466,7 +466,7 @@ private func crossaCompletion(_ userData: UnsafeMutableRawPointer?, _ kind: Cros
     Unmanaged<CrossaCompletionOwner>.fromOpaque(userData).takeRetainedValue().complete(kind: kind, result: result, error: error)
 }
 
-public final class CrossaRuntime {
+public final class CrossaRuntime: @unchecked Sendable {
     private let lock = NSLock()
     private var runtime: UInt64
 
@@ -682,8 +682,21 @@ public final class CrossaRuntime {
                 "if [ -z \"${arch}\" ] || [ \"${arch}\" = undefined_arch ]; then\n"
                 "    echo 'Crossa requires a concrete Xcode architecture.' >&2\n    exit 1\nfi\n"
                 "build=\"${PROJECT_DIR}/.crossa/dependencies/${PLATFORM_NAME}/${arch}\"\n"
-                "cmake -S \"${PROJECT_DIR}/Dependencies\" -B \"${build}/build\" -G Xcode -DCROSSA_PLATFORM=\"${platform}\" -DCROSSA_ARCH=\"${arch}\" -DCROSSA_SDKROOT=\"${SDKROOT}\" -DCROSSA_DEPLOYMENT_TARGET=\"${IPHONEOS_DEPLOYMENT_TARGET}\" -DCROSSA_INSTALL_ROOT=\"${build}\"\n"
-                "cmake --build \"${build}/build\" --config Release\n";
+                "if [ -f \"${build}/curl/lib/libcurl.a\" ]; then exit 0; fi\n"
+                "cmake_bin=$(command -v cmake)\n"
+                "ninja_bin=$(dirname \"${cmake_bin}\")/ninja\n"
+                "if [ ! -x \"${ninja_bin}\" ]; then ninja_bin=$(command -v ninja); fi\n"
+                "if [ -z \"${ninja_bin}\" ] || [ ! -x \"${ninja_bin}\" ]; then\n"
+                "    echo 'Crossa iOS build requires Ninja to provision libcurl.' >&2\n    exit 1\nfi\n"
+                "clang=$(xcrun --sdk \"${PLATFORM_NAME}\" --find clang)\n"
+                "clangxx=$(xcrun --sdk \"${PLATFORM_NAME}\" --find clang++)\n"
+                "cmake -S \"${PROJECT_DIR}/Dependencies\" -B \"${build}/build\" -G Ninja "
+                "-DCMAKE_MAKE_PROGRAM=\"${ninja_bin}\" "
+                "-DCMAKE_C_COMPILER=\"${clang}\" -DCMAKE_CXX_COMPILER=\"${clangxx}\" "
+                "-DCROSSA_PLATFORM=\"${platform}\" -DCROSSA_ARCH=\"${arch}\" "
+                "-DCROSSA_SDKROOT=\"${SDKROOT}\" -DCROSSA_DEPLOYMENT_TARGET=\"${IPHONEOS_DEPLOYMENT_TARGET}\" "
+                "-DCROSSA_INSTALL_ROOT=\"${build}\"\n"
+                "cmake --build \"${build}/build\"\n";
         }
 
         // Returns the normal archive and XCFramework flow used by the CLI packaging command.
@@ -724,13 +737,17 @@ public final class CrossaRuntime {
                 "set(CMAKE_OSX_SYSROOT \"${CROSSA_SDKROOT}\")\n"
                 "set(CMAKE_OSX_ARCHITECTURES \"${CROSSA_ARCH}\")\n"
                 "set(CMAKE_OSX_DEPLOYMENT_TARGET \"${CROSSA_DEPLOYMENT_TARGET}\")\n"
+                "set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)\n"
+                "set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)\n"
+                "set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED NO)\n"
+                "set(CMAKE_XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE YES)\n"
                 "project(CrossaIosDependencies LANGUAGES C CXX)\n\n"
                 "include(ExternalProject)\n"
                 "set(CROSSA_CURL_INSTALL \"${CROSSA_INSTALL_ROOT}/curl\")\n"
                 "ExternalProject_Add(crossa_ios_curl\n"
                 "    URL \"" + IosBuildRequirements::curlArchiveUrl() + "\"\n"
                 "    URL_HASH \"SHA256=" + IosBuildRequirements::curlArchiveSha256() + "\"\n"
-                "    CMAKE_ARGS -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=${CROSSA_SDKROOT} -DCMAKE_OSX_ARCHITECTURES=${CROSSA_ARCH} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CROSSA_DEPLOYMENT_TARGET} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${CROSSA_CURL_INSTALL} -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DBUILD_TESTING=OFF -DCURL_USE_SECTRANSP=ON -DCURL_USE_OPENSSL=OFF -DCURL_ZLIB=ON -DCURL_USE_LIBPSL=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DUSE_NGHTTP2=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_DISABLE_LDAP=ON -DCURL_DISABLE_LDAPS=ON -DCURL_DISABLE_RTSP=ON -DCURL_DISABLE_DICT=ON -DCURL_DISABLE_TELNET=ON -DCURL_DISABLE_TFTP=ON -DCURL_DISABLE_POP3=ON -DCURL_DISABLE_IMAP=ON -DCURL_DISABLE_SMTP=ON -DCURL_DISABLE_GOPHER=ON -DCURL_DISABLE_MQTT=ON -DCURL_CA_BUNDLE=none -DCURL_CA_PATH=none\n"
+                "    CMAKE_ARGS -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=${CROSSA_SDKROOT} -DCMAKE_OSX_ARCHITECTURES=${CROSSA_ARCH} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CROSSA_DEPLOYMENT_TARGET} -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO -DCMAKE_XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE=YES -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${CROSSA_CURL_INSTALL} -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DBUILD_TESTING=OFF -DCURL_USE_SECTRANSP=ON -DCURL_USE_OPENSSL=OFF -DCURL_ZLIB=ON -DCURL_USE_LIBPSL=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DUSE_NGHTTP2=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_DISABLE_LDAP=ON -DCURL_DISABLE_LDAPS=ON -DCURL_DISABLE_RTSP=ON -DCURL_DISABLE_DICT=ON -DCURL_DISABLE_TELNET=ON -DCURL_DISABLE_TFTP=ON -DCURL_DISABLE_POP3=ON -DCURL_DISABLE_IMAP=ON -DCURL_DISABLE_SMTP=ON -DCURL_DISABLE_GOPHER=ON -DCURL_DISABLE_MQTT=ON -DCURL_CA_BUNDLE=none -DCURL_CA_PATH=none\n"
                 "    BUILD_BYPRODUCTS \"${CROSSA_CURL_INSTALL}/lib/libcurl.a\"\n"
                 ")\n\n"
                 "add_custom_target(crossa_ios_dependencies ALL DEPENDS crossa_ios_curl)\n";

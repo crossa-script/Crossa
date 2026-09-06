@@ -428,7 +428,13 @@ private:
         setOption(handle, CURLOPT_SSL_VERIFYHOST, 2L);
         setOption(handle, CURLOPT_TCP_KEEPALIVE, 1L);
         setOption(handle, CURLOPT_ACCEPT_ENCODING, "");
-        setOption(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
+        const curl_version_info_data* curlVersion = curl_version_info(CURLVERSION_NOW);
+        if (curlVersion != nullptr &&
+            (curlVersion->features & CURL_VERSION_HTTP2) != 0) {
+            setOption(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
+        } else {
+            setOption(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+        }
         const NetworkPolicy::Proxy proxy = NetworkPolicy::parseProxy(
             request.getProxy()
         );
@@ -502,7 +508,8 @@ private:
         if (result != CURLE_OK) {
             throw runtime::CrossaException(
                 runtime::CrossaError::runtime(
-                    "Unable to configure native HTTP transport option."
+                    string("Unable to configure native HTTP transport option: ") +
+                    curl_easy_strerror(result)
                 )
             );
         }

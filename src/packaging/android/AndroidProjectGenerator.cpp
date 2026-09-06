@@ -543,7 +543,7 @@ namespace crossa::packaging::android {
             "public data class CrossaError(\n"
             "    public val domain: Int,\n"
             "    public val code: Int,\n"
-            "    public val message: String,\n"
+            "    override val message: String,\n"
             "    public val retryable: Boolean\n"
             ") : Exception(message)\n"
         );
@@ -785,7 +785,7 @@ namespace crossa::packaging::android {
             "        requestCoalescing?.let { field(\"requestCoalescing\", it.toString()) }\n"
             "        append('}')\n"
             "    }\n\n"
-            "    private fun quote(value: String): String = buildString { append('\\\"'); value.forEach { character -> when (character) { '\\\\' -> append(\"\\\\\\\\\"); '\\\"' -> append(\"\\\\\\\"\"); '\\b' -> append(\"\\\\b\"); '\\f' -> append(\"\\\\f\"); '\\n' -> append(\"\\\\n\"); '\\r' -> append(\"\\\\r\"); '\\t' -> append(\"\\\\t\"); else -> if (character.code < 0x20) append(\"\\\\u%04x\".format(character.code)) else append(character) } }; append('\\\"') }\n"
+            "    private fun quote(value: String): String = buildString { append('\"'); value.forEach { character -> when (character) { '\\\\' -> append(\"\\\\\\\\\"); '\"' -> append(\"\\\\\\\"\"); '\\b' -> append(\"\\\\b\"); '\\u000C' -> append(\"\\\\f\"); '\\n' -> append(\"\\\\n\"); '\\r' -> append(\"\\\\r\"); '\\t' -> append(\"\\\\t\"); else -> if (character.code < 0x20) append(\"\\\\u%04x\".format(character.code)) else append(character) } }; append('\"') }\n"
             "}\n"
         );
     }

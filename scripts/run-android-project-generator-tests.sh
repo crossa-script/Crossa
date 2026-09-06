@@ -53,6 +53,9 @@ requireFile "$generatedProject/library/src/main/cpp/CrossaOpenSslInstall.cmake"
 requireFile "$generatedProject/library/src/main/cpp/crossa_runtime.cpp"
 requireFile "$generatedSources/api/Math.kt"
 requireFile "$generatedSources/runtime/CrossaRuntime.kt"
+requireFile "$generatedSources/runtime/CrossaError.kt"
+requireText "$generatedSources/runtime/CrossaError.kt" 'override val message: String'
+requireText "$generatedSources/runtime/CrossaConfigurationOverrides.kt" '\u000C'
 
 requireText "$generatedProject/library/build.gradle.kts" 'namespace = "com.example.crossa"'
 requireText "$generatedSources/api/Math.kt" 'package com.example.crossa.api'

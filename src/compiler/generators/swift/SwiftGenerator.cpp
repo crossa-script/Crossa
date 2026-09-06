@@ -183,7 +183,8 @@ namespace crossa::compiler::generators::swift {
         [[nodiscard]] static string emitModel(const ir::IrModelDeclaration& model) {
             ostringstream output;
             output << generatedHeader() << "import Foundation\n\n";
-            output << "public struct " << identifier(model.getName()) << " {\n";
+            output << "public struct " << identifier(model.getName())
+                   << ": @unchecked Sendable {\n";
             output << "    internal let nativeValue: CrossaNativeValue\n\n";
             const vector<ir::IrModelField>& fields = model.getFields();
             for (size_t index = 0; index < fields.size(); ++index) {
