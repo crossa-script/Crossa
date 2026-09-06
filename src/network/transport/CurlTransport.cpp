@@ -426,13 +426,14 @@ private:
 #endif
         setOption(handle, CURLOPT_SSL_VERIFYPEER, 1L);
         setOption(handle, CURLOPT_SSL_VERIFYHOST, 2L);
-        setOption(handle, CURLOPT_TCP_KEEPALIVE, 1L);
-        setOption(handle, CURLOPT_ACCEPT_ENCODING, "");
-        const curl_version_info_data* curlVersion = curl_version_info(CURLVERSION_NOW);
-        if (curlVersion != nullptr &&
-            (curlVersion->features & CURL_VERSION_HTTP2) != 0) {
-            setOption(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
-        } else {
+        trySetOption(handle, CURLOPT_TCP_KEEPALIVE, 1L);
+        if (!trySetOption(handle, CURLOPT_ACCEPT_ENCODING, "")) {
+            trySetOption(handle, CURLOPT_ACCEPT_ENCODING, "identity");
+        }
+        // Android libcurl is built without nghttp2. HTTP/2 options can fail even
+        // when curl_version_info reports the feature, so fall back to HTTP/1.1.
+        if (!trySetOption(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS) &&
+            !trySetOption(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0)) {
             setOption(handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
         }
         const NetworkPolicy::Proxy proxy = NetworkPolicy::parseProxy(
@@ -447,9 +448,9 @@ private:
                 setOption(handle, CURLOPT_PROXYPASSWORD, proxy.password.c_str());
             }
         } else {
-            setOption(handle, CURLOPT_PROXY, nullptr);
-            setOption(handle, CURLOPT_PROXYUSERNAME, nullptr);
-            setOption(handle, CURLOPT_PROXYPASSWORD, nullptr);
+            trySetOption(handle, CURLOPT_PROXY, nullptr);
+            trySetOption(handle, CURLOPT_PROXYUSERNAME, nullptr);
+            trySetOption(handle, CURLOPT_PROXYPASSWORD, nullptr);
         }
         const NetworkPolicy::Certificate certificate =
             NetworkPolicy::parseCertificate(request.getCertificatePolicy());
@@ -485,7 +486,7 @@ private:
         if (!certificate.pinnedPublicKey.empty()) {
             setOption(handle, CURLOPT_PINNEDPUBLICKEY, certificate.pinnedPublicKey.c_str());
         } else {
-            setOption(handle, CURLOPT_PINNEDPUBLICKEY, nullptr);
+            trySetOption(handle, CURLOPT_PINNEDPUBLICKEY, nullptr);
         }
 #endif
         setOption(handle, CURLOPT_WRITEFUNCTION, writeBody);
@@ -503,12 +504,18 @@ private:
     }
 
     template<typename Value>
+    static bool trySetOption(CURL* handle, CURLoption option, Value value) {
+        return curl_easy_setopt(handle, option, value) == CURLE_OK;
+    }
+
+    template<typename Value>
     static void setOption(CURL* handle, CURLoption option, Value value) {
         const CURLcode result = curl_easy_setopt(handle, option, value);
         if (result != CURLE_OK) {
             throw runtime::CrossaException(
                 runtime::CrossaError::runtime(
-                    string("Unable to configure native HTTP transport option: ") +
+                    string("Unable to configure native HTTP transport option (") +
+                    to_string(static_cast<long>(option)) + "): " +
                     curl_easy_strerror(result)
                 )
             );
