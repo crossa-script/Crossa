@@ -119,6 +119,7 @@ The CLI, Android, and iOS share this path. Kotlin and Swift do not parse `.cra` 
 | JSON decoding for scalars, models, and lists | Available |
 | Native scheduler, structured errors, and cancellation | Available |
 | Kotlin generation | Available for pure translated IR |
+| Generated `@AsyncAfter` Android and iOS APIs | Available |
 | Android Gradle project and AAR generation | Available for `arm64-v8a` |
 | iOS Debug/Release XCFramework generation | Available with Xcode and CMake |
 | Streaming delivery to platform APIs and generated direct decoders | In progress |

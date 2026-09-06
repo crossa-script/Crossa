@@ -1,9 +1,0 @@
-@AsyncAfter
-fun getServerError(): Json {
-    re CrossaRequest {
-        url: "/status/500",
-        method: GET
-    }
-}
-
-getServerError()

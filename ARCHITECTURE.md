@@ -473,7 +473,7 @@ The AAR contains the Kotlin API, concentrated JNI bridge, native libraries, and 
 
 ### iOS
 
-The XCFramework exposes a safe Swift-facing API over the controlled native boundary. Do not expose the entire internal C++ model or blindly convert large STL collections. Prefer native-backed access and explicit materialization. Direct Swift/C++ interoperability is acceptable only with stable ownership and a measured benefit; the exact C ABI versus direct interop split remains open.
+The XCFramework exposes a safe Swift-facing API over the controlled native boundary. Do not expose the entire internal C++ model or blindly convert large STL collections. Prefer native-backed access and explicit materialization. iOS Swift consumes the versioned C ABI (`docs/decisions/0009-ios-xcframework-stable-abi.md`); direct Swift/C++ interoperability is not the current binding.
 
 Both platforms must respect lifecycle transitions, background constraints, and main-thread safety without taking ownership of native execution or redefining `.cra` semantics. Pure translated code is allowed only when the selected compiler backend explicitly chooses it; runtime-backed operations remain thin native bindings.
 

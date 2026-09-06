@@ -3065,10 +3065,6 @@ Do not invent these during unrelated tasks:
 - exact native `Int` storage width,
 - exact native string representation,
 - exact native `List<T>` binary layout,
-- exact Kotlin package naming,
-- exact Swift module naming,
-- exact public name of the generated state wrapper if `CrossaState` changes,
-- exact `CrossaError` public target representation,
 - whether pure functions default to translation or native wrapping in production,
 - source-level cancellation syntax,
 - nullable syntax,
@@ -3077,11 +3073,7 @@ Do not invent these during unrelated tasks:
 - packages and visibility syntax beyond filename imports,
 - visibility,
 - model mutability,
-- request headers/query/body syntax,
-- additional HTTP methods,
-- interceptor API,
-- source-level error handling,
-- future CLI commands beyond `check`, `run`, and `test`.
+- source-level error handling.
 
 Those decisions require focused design.
 

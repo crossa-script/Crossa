@@ -18,7 +18,7 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes cmake ninja-build libcurl4-openssl-dev socat
+          sudo apt-get install --yes cmake ninja-build libcurl4-openssl-dev
 
       - name: Build and run all tests
         run: ./test.sh

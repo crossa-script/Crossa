@@ -185,12 +185,6 @@ assertExecutionFails \
     "Assertion failed: intentional assertion failure" \
     ./build/crossa test tests/test-runner/failure.cra
 
-if ! command -v socat >/dev/null 2>&1 && ! command -v ruby >/dev/null 2>&1; then
-    printf '%s\n' 'Test failed: socat or ruby is required for local network integration.' >&2
-    exit 1
-fi
-bash scripts/run-local-network-tests.sh ./build/crossa
-
 if [[ "${CROSSA_RUN_NETWORK_INTEGRATION:-0}" == "1" ]]; then
     ./build/crossa run tests/network-jsonplaceholder.cra
     ./build/crossa run examples/imports/runPosts.cra

@@ -11,7 +11,7 @@ Crossa uses two test layers:
   `CrossaRequest`, `@Async`, `@AsyncAfter`, models, and `List<T>`.
 - CTest runs the real `crossa` executable against `test.cra`, imported scripts,
   nested project fixtures, explicit `check`, `run`, and `test` commands, and
-  expected CLI failures, plus the local HTTP integration harness.
+  expected CLI failures.
 
 Use `check` for a side-effect-free validation pass. It loads the complete import
 graph and stops after typed IR lowering, so it does not load `config.cra` and
@@ -26,7 +26,7 @@ Run the complete local suite from the repository root:
 ./test.sh
 ```
 
-When CMake is installed, `test.sh` configures `build/`, builds all targets, and runs CTest. When CMake is unavailable, it uses the native C++ compiler and still runs both unit-test executables plus the CLI integration fixtures. Shell scripts under `scripts/` run the Kotlin generator and local networking integration suites; the local server requires `socat`. Android project generation is not part of the default test suite.
+When CMake is installed, `test.sh` configures `build/`, builds all targets, and runs CTest. When CMake is unavailable, it uses the native C++ compiler and still runs both unit-test executables plus the CLI integration fixtures. `scripts/run-kotlin-generator-tests.sh` covers Kotlin golden-file generation. Android project generation is not part of the default test suite.
 
 Host sanitizer builds are opt-in CMake configurations:
 
@@ -46,11 +46,9 @@ GitHub Actions runs this complete suite, including
 .github/workflows/ci.yml
 ```
 
-The default test fixtures do not depend on a live network service. The local
-integration harness starts a loopback mock server and verifies the full
-CrossaRequest path without external dependencies. The runnable JSONPlaceholder
-example remains available at `examples/imports/runPosts.cra`, but it is
-intentionally not part of the deterministic CI suite.
+The default test fixtures do not depend on a live network service. The runnable
+JSONPlaceholder example remains available at `examples/imports/runPosts.cra`,
+but it is intentionally not part of the deterministic CI suite.
 
 CrossaRequest integration tests use JSONPlaceholder and are opt-in because they
 depend on external network availability. Enable them with:

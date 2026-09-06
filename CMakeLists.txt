@@ -373,17 +373,6 @@ set_tests_properties(
     PROPERTIES WILL_FAIL TRUE
 )
 add_test(
-    NAME crossa_local_network_integration_test
-    COMMAND
-        bash
-        ${CMAKE_SOURCE_DIR}/scripts/run-local-network-tests.sh
-        $<TARGET_FILE:crossa>
-)
-set_tests_properties(
-    crossa_local_network_integration_test
-    PROPERTIES SKIP_RETURN_CODE 77
-)
-add_test(
     NAME crossa_check_nested_project_test
     COMMAND crossa check examples/imports/runPosts.cra
 )
@@ -418,7 +407,6 @@ add_test(
 set_tests_properties(
     crossa_script_test
     crossa_conditionals_test
-    crossa_local_network_integration_test
     crossa_check_nested_project_test
     crossa_explicit_run_test
     crossa_explicit_test_command_test

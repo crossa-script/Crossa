@@ -142,6 +142,8 @@ fun getUser(id: Int): User {
 
 # Phase 0 — Language Contract
 
+> **Implementation status:** Implemented. `docs/language/language-foundation.md` is the language source of truth.
+
 ## Goal
 
 Freeze the first intentional language surface before implementation expands.
@@ -175,6 +177,8 @@ Freeze the first intentional language surface before implementation expands.
 
 # Phase 1 — Source and Diagnostic Foundation
 
+> **Implementation status:** Implemented.
+
 ## Goal
 
 Create the lowest-level source infrastructure used by every compiler stage.
@@ -204,6 +208,8 @@ Crossa can load a `.cra` file and report deterministic source-aware diagnostics.
 ---
 
 # Phase 2 — Lexer / Tokenizer
+
+> **Implementation status:** Implemented.
 
 ## Goal
 
@@ -273,6 +279,8 @@ All Phase-0 syntax can be tokenized deterministically.
 
 # Phase 3 — Parser and AST
 
+> **Implementation status:** Implemented.
+
 ## Goal
 
 Parse the initial language into a syntax-only AST.
@@ -322,6 +330,8 @@ The syntax examples in this roadmap parse into stable AST structures.
 ---
 
 # Phase 4 — Initial Type System
+
+> **Implementation status:** Implemented for `Int`, `Long`, `Double`, `String`, `Bool`, `Json`, models, and `List<T>`.
 
 ## Goal
 
@@ -488,7 +498,7 @@ The IR must not depend on Kotlin or Swift.
 
 # Phase 7 — Native Expression Execution
 
-> **Implementation status:** The first scalar IR interpreter is implemented for `Int`, `String`, `Bool`, `Unit`, arithmetic, locals, function calls, `print`, and top-level call execution. Model/List runtime values and async scheduling remain future work.
+> **Implementation status:** Implemented. The native IR interpreter executes `Int`, `Long`, `Double`, `String`, `Bool`, `Unit`, `Json`, arithmetic, locals, function calls, `print`, `assert` under `crossa test`, conditionals, native model/list values, `CrossaRequest`, and scheduler-backed `@Async` / `@AsyncAfter` work.
 
 ## Goal
 
@@ -540,6 +550,8 @@ Simple Crossa scripts can execute without Kotlin or Swift.
 ---
 
 # Phase 8 — String Interpolation
+
+> **Implementation status:** Implemented. `#identifier` interpolation is resolved at semantic analysis and lowered to an IR string-build plan; the runtime does not rescan `.cra` source.
 
 ## Goal
 
@@ -608,6 +620,8 @@ Native execution and target generators preserve identical interpolation semantic
 
 # Phase 9 — Models
 
+> **Implementation status:** Implemented. Models are first-class typed declarations in the semantic model and IR, with native `NativeModel` storage and generated Android/iOS representations. Nested Android model and list fields remain a platform-view gap; nested iOS views are generated.
+
 ## Goal
 
 Make models first-class typed declarations.
@@ -641,15 +655,17 @@ model User(
 
 # Phase 10 — Kotlin and Swift Pure-Code Generators
 
-> **Implementation status:** The Kotlin pure-code backend emits deterministic
-> source-unit classes for synchronous pure IR functions using scalar `Int`,
-> `Long`, `Double`, `String`, and `Bool` values. It supports locals, returns,
-> arithmetic, pure calls, conditionals, comparisons, boolean operators, and
-> Kotlin keyword escaping. A literal `config.cra` `packageName` is emitted as
-> the package directive for Kotlin source. Runtime-backed IR, including
-> `CrossaRequest`, and non-pure execution policies are explicitly rejected
-> pending native binding generation. Swift generation remains unimplemented.
-> Generated Kotlin source-unit file and class names use deterministic PascalCase.
+> **Implementation status:** Implemented for Kotlin pure-code CLI generation
+> (`crossa generate kotlin`) of synchronous scalar IR: `Int`, `Long`,
+> `Double`, `String`, and `Bool`, plus locals, returns, arithmetic, pure
+> calls, conditionals, comparisons, boolean operators, keyword escaping, and
+> `config.cra` `packageName`. That CLI backend still rejects runtime-backed
+> IR (`CrossaRequest`, models, `List<T>`, `@Async`, `@AsyncAfter`). Native
+> Android and iOS bindings for those runtime-backed operations are generated
+> by `crossa generate-build android` and `crossa generate-build ios`. There
+> is no separate `crossa generate swift` pure-code command; Swift is emitted
+> as part of XCFramework generation. Generated Kotlin source-unit file and
+> class names use deterministic PascalCase.
 
 ## Goal
 
@@ -688,6 +704,8 @@ A pure Crossa function can execute natively and generate equivalent Kotlin and S
 ---
 
 # Phase 11 — Shared Scheduler and Execution Policies
+
+> **Implementation status:** Implemented. `@Sync`, `@Async`, and `@AsyncAfter` are native scheduler policies over the bounded `TaskScheduler`. They do not create one OS thread per call.
 
 ## Goal
 
@@ -737,9 +755,10 @@ Execution policies are native scheduler semantics, not platform-specific reimple
 
 # Phase 12 — Async Completion State
 
-> **Implementation status:** Native `CrossaState<T>`, structured
+> **Implementation status:** Implemented. Native `CrossaState<T>`, structured
 > `CrossaError`, and cancellable scheduler tasks are implemented. Generated
-> Android and iOS state/cancellation bridges remain planned.
+> Android and iOS APIs expose `Success(data)`, `Failed(error)`, and
+> `Cancelled`, with cancellation mapped to the native operation handle.
 
 ## Goal
 
@@ -848,7 +867,7 @@ Cancelled
 
 # Phase 13 — Networking Configuration
 
-> **Implementation status:** Implemented for base URL, timeout, common headers, interceptor controls, scheduler bounds, response/JSON limits, and redirect policy.
+> **Implementation status:** Implemented for `packageName`, `baseUrl`, `timeoutRequest`, `commonHeaders`, interceptor controls, scheduler bounds, response/JSON limits, redirect policy, `retryPolicy`, `authProviders`, `uploadProgress`, `downloadStreaming`, `requestCoalescing`, `proxy`, `certificatePolicy`, and `telemetry`.
 
 ## Goal
 
@@ -867,6 +886,7 @@ config {
 ## Implemented Keys
 
 ```text
+packageName: String
 baseUrl: String
 timeoutRequest: Int
 commonHeaders: Json
@@ -878,6 +898,15 @@ maxJsonDepth: Int
 maxResponseHeaderBytes: Int
 maxResponseHeaderCount: Int
 followRedirects: Bool
+retryPolicy: Json
+authProviders: Json
+defaultAuthProvider: String
+uploadProgress: Bool
+downloadStreaming: Bool
+requestCoalescing: Bool
+proxy: Json
+certificatePolicy: Json
+telemetry: Json
 ```
 
 `timeoutRequest` is measured in milliseconds.
@@ -1078,6 +1107,8 @@ The first Crossa request returns a typed native model/list through `@AsyncAfter`
 
 # Phase 17 — Generated Networking APIs
 
+> **Implementation status:** Implemented. `generate-build android` and `generate-build ios` emit thin Kotlin and Swift wrappers over native `CrossaRequest` operations, including `@AsyncAfter` `Success` / `Failed` / `Cancelled` completion. Generated code does not implement a second HTTP stack.
+
 ## Goal
 
 Generate ergonomic Android and iOS functions from native request declarations.
@@ -1126,29 +1157,26 @@ The application calls generated Kotlin/Swift code while transport, parsing, stat
 
 # Phase 18 — Additional Request Capabilities
 
-> **Implementation status:** `url`, `path`, `headers`, `customHeaders`, `queryParams`, `pathVariables`, JSON `body`, and `timeout` are implemented. GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, TRACE, and CONNECT are recognized and lowered.
+> **Implementation status:** Implemented for `url`, `path`, `headers`, `customHeaders`, `queryParams`, `pathVariables`, JSON `body`, `timeout`, `retryPolicy`, `auth`, `multipart`, `uploadProgress`, `downloadStreaming`, `coalesce`, `proxy`, `certificatePolicy`, and `telemetry`. GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, TRACE, and CONNECT are recognized and lowered. Incremental streaming delivery to generated Android/iOS APIs remains a later stream ABI; `downloadStreaming` currently records native transfer metrics while decoding stays buffered.
 
 ## Goal
 
 Expand `CrossaRequest` only as the native network module becomes ready.
 
-Still-planned request properties:
+Implemented request properties:
 
 ```text
 auth
 multipart
-download
+downloadStreaming
 retry
 ```
-
-Streaming, platform cancellation bridging, retry policy, authentication providers,
-multipart bodies, and downloads remain planned and are not implicit syntax.
 
 ---
 
 # Phase 19 — Project Compilation and CLI Integration
 
-> **Implementation status:** Recursive exact-filename imports, deterministic project linking, transitive declaration resolution, duplicate-module elimination, source-aware diagnostics, ambiguity failures, and cycle detection are implemented. Android generation consumes the linked project through a project-aware Kotlin source plan with canonical shared models, source-unit API ownership, shared runtime/JNI outputs, and Debug/Release Gradle variants.
+> **Implementation status:** Implemented. Recursive exact-filename imports, deterministic project linking, transitive declaration resolution, duplicate-module elimination, source-aware diagnostics, ambiguity failures, and cycle detection are implemented. Android generation consumes the linked project through a project-aware Kotlin source plan with canonical shared models, source-unit API ownership, shared runtime/JNI outputs, and Debug/Release Gradle variants. iOS generation consumes the same linked IR and emits Swift APIs plus Debug/Release XCFrameworks.
 
 ## Goal
 
@@ -1247,6 +1275,8 @@ without a clear architectural requirement.
 
 ## Milestone A — Pure Function
 
+> **Implementation status:** Implemented. Native execution and Kotlin CLI generation are available. Swift is generated through `crossa generate-build ios`, not a separate `generate swift` command.
+
 ```cra
 fun add(a: Int, b: Int): Int {
     re a + b
@@ -1266,6 +1296,8 @@ Must:
 
 ## Milestone B — Interpolated String
 
+> **Implementation status:** Implemented.
+
 ```cra
 var name: String = "ahmad"
 print("Name is : #name")
@@ -1283,6 +1315,8 @@ without rescanning source syntax during normal runtime execution.
 
 ## Milestone C — Model and List
 
+> **Implementation status:** Implemented. `List<T>` resolves as a typed collection. Android nested model/list *fields* are still a platform-view gap.
+
 ```cra
 model User(
     id: Int
@@ -1298,6 +1332,8 @@ Must resolve `List<User>` as a valid typed collection.
 ---
 
 ## Milestone D — Async Native Request
+
+> **Implementation status:** Implemented. Native `@AsyncAfter` delivers `Success` / `Failed` / `Cancelled`. Generated Android and iOS APIs expose that contract.
 
 ```cra
 model User(
@@ -1328,6 +1364,8 @@ through generated Android/iOS completion APIs.
 ---
 
 ## Milestone E — Parameterized Native Request
+
+> **Implementation status:** Implemented. Path `#identifier` interpolation is compiled into the request plan.
 
 ```cra
 @AsyncAfter

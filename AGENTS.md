@@ -42,7 +42,9 @@ There is exactly one canonical frontend:
 C++ Source Loader
     -> C++ Lexer
     -> C++ Parser
-    -> AST
+    -> Per-File AST
+    -> C++ Import Graph Resolver and Project Linker
+    -> Linked Project AST
     -> Semantic Analysis
     -> Typed Crossa Representation
     -> Crossa IR
@@ -57,7 +59,7 @@ Preserve these current invariants:
 - `CrossaRequest` is a compiler/runtime builtin that lowers to native IR; it must not generate separate Kotlin or Swift networking implementations.
 - For `@AsyncAfter`, the declared return type is the logical success type and generated APIs preserve `Success(data)` or `Failed(error)` semantics.
 
-Do not invent syntax or semantics while implementing unrelated work. Anything absent from the language foundation is unsupported. This includes nullable syntax, enums, maps, control flow (`if`, `else`, or loops), imports, packages, visibility modifiers, exceptions, extra annotations, user-defined generics, additional HTTP methods or `CrossaRequest` properties, and arbitrary interpolation expressions unless the task intentionally updates the specification.
+Do not invent syntax or semantics while implementing unrelated work. Anything absent from the language foundation is unsupported. This includes nullable syntax, enums, maps, loops, `switch`/`when`, packages, visibility modifiers, exceptions as `.cra` syntax, extra annotations beyond `@Sync`/`@Async`/`@AsyncAfter`, user-defined generics, and interpolation forms other than `#identifier` unless the task intentionally updates the specification. Current V0 syntax such as `if`/`else`, `import #filename.cra#`, and the documented HTTP methods and `CrossaRequest` fields is supported.
 
 When a task intentionally changes `.cra` syntax or semantics, update the existing documents under `docs/language/` in the same change. Do not create duplicate language documentation or place it beside compiler source.
 
@@ -123,7 +125,7 @@ Do not implement unrelated cleanup or future features. Implement only `.cra` beh
 5. Update architecture or ADR documentation when the implementation changes a documented decision.
 6. Report changed files, validation performed, and any checks that could not be run.
 
-Never claim a command or test succeeded unless it was executed. The repository currently has no committed executable build configuration; do not invent build or test commands until those targets exist.
+Never claim a command or test succeeded unless it was executed. Host builds use `CMakeLists.txt` and `./test.sh` as documented in `README.md` and `docs/development/testing.md`.
 
 ## Architecture Changes
 

@@ -16,8 +16,8 @@ crossa generate-build android <project-directory> --output <directory> [--ndk-ve
 The command discovers the project `.cra` files, compiles them through the
 canonical C++ frontend, and writes the Android Gradle library project.
 `config.cra` is compiled as configuration and never becomes a Kotlin API class.
-The generated project is the input to its Gradle AAR assembly step while the
-native runtime embedding work is completed. It contains the repository-trusted
+The generated project is the input to its Gradle AAR assembly step. Native
+runtime embedding is included. It contains the repository-trusted
 Gradle Wrapper, including `gradlew`, `gradlew.bat`, and the wrapper JAR and
 properties, so a global `gradle` executable is not required.
 

@@ -48,7 +48,7 @@ incompatible JSON produce structured native errors.
 `@AsyncAfter` queues work and preserves one terminal `Success`, `Failed`, or
 `Cancelled` result. Every async operation has an idempotent `RequestHandle` that
 propagates through libcurl and response decoding. Direct CLI calls wait for
-`@AsyncAfter`; generated platform completion bridges remain planned.
+`@AsyncAfter`. Generated Android and iOS APIs expose that terminal state through thin completion and structured-concurrency bridges; they do not re-execute the `.cra` function.
 
 The stable error categories distinguish HTTP status, timeout, connection, TLS,
 invalid JSON, response type mismatch, cancellation, and internal runtime errors.
@@ -79,8 +79,10 @@ generated Android/iOS APIs remains a future stream ABI decision.
 ## Limits
 
 The transport uses pooled reusable libcurl easy handles on the shared bounded
-scheduler. It does not create a thread per request. Platform cancellation
-bridging and generated direct schema decoders remain planned work.
+scheduler. It does not create a thread per request. Generated Android and iOS
+APIs cancel through the native operation handle. Generated direct schema
+decoders remain a production optimization; the current decoder is schema-aware
+over a temporary JSON DOM.
 
 ## Integration Verification
 
