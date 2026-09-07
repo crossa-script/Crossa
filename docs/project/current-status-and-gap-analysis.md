@@ -1,308 +1,332 @@
-# Crossa Current Status and Gap Analysis
+# Crossa V0 Final Audit
 
-## 1. Executive Summary
+تاريخ التدقيق: 2026-09-07، المنطقة الزمنية Asia/Amman. هذا تدقيق إغلاق مستقل مبني على حالة المستودعات والـ HEAD الحاليين، وليس إعادة اعتماد لتقرير سابق.
 
-**Audit date:** 2026-09-07 (Asia/Amman)
-**Verdict:** **Crossa V0 is NOT READY.**
+## 1. Executive Verdict
 
-The latest implementation round is committed and materially improves Android source support: ABI v1 value paths, generic JNI forwarding, Kotlin native-backed nested Model/List/Json views, and focused benchmark runners. The iOS example consumes a local Release XCFramework and compiled for an arm64 simulator target.
+**V0 NOT CLOSED**.
 
-Closure evidence is insufficient. A fresh Android Release AAR from current `HEAD` fails during curl cross-compilation; its checked-in AAR predates the latest Crossa commit. Fresh iOS framework generation is blocked here because CMake is unavailable. Neither mobile benchmark ran; `adb` is unavailable and CoreSimulator service is unusable. No remote SwiftPM binary package or public release was verified.
+النواة والـ frontend والـ linker والـ runtime والشبكة واختبارات CLI الحالية تعمل، كما أن Android AAR وiOS XCFramework أمكن بناؤهما من المصدر الحالي. لكن سلسلة الإغلاق الكاملة لا تكتمل: artifacts الموجودة في consumer examples ليست provenance متطابقة مع الـ HEAD الحالي، iOS consumer لم يُبنَ ويُشغّل بشكل مستقل في هذه الجولة، لا يوجد iOS benchmark حالي، لا يوجد physical-device evidence، وSwiftPM/release distribution غير مثبتين كمسار قابل لإعادة الإنتاج.
 
-## 2. Previous Audit Baseline
+## 2. Benchmark Executive Summary
 
-The 2026-09-06 baseline reported Core 86%, Android 80%, iOS 82%, Distribution 32%, Overall 81%. It is historical only; these scores were recalculated from current evidence.
+تم تنفيذ Android benchmark حالي فعلياً على محاكي ARM64 فقط، باستخدام consumer مؤقت مبني من AAR الحالي. كل تنفيذ حصل على 8/8 عينات ناجحة و100 عنصر من JSONPlaceholder.
 
-## 3. Current Audit Scope
+| الوضع | Crossa | Retrofit | Ktor | النتيجة |
+|---|---:|---:|---:|---|
+| Warm p50 | 15.371 ms | 16.618 ms | 19.893 ms | Crossa أفضل من Retrofit بـ 7.50% |
+| Warm p95 | 15.690 ms | 17.374 ms | 21.371 ms | Crossa أفضل من Retrofit بـ 9.69% |
+| Cold p50 | 1017.378 ms | 554.310 ms | 1038.273 ms | Retrofit أفضل من Crossa |
+| Cold p95 | 1038.188 ms | 1053.934 ms | 1042.410 ms | Crossa أفضل هامشياً من Retrofit |
 
-Read-only audit of source, current `HEAD`, generated sources, artifacts, build/run evidence, examples, CI, and available tools. This document is the only tracked modification.
+هذه أرقام محاكي development مع endpoint remote، وليست claim إنتاجية. Android benchmark صالح كإشارة تطويرية للحزمة الحالية فقط؛ لا يوجد iOS benchmark صالح في هذه الجولة، ولا physical-device benchmark.
 
-## 4. Repository Inventory
+## 3. Repository / HEAD State
 
-| Repository | Branch / HEAD | Latest commit |
-|---|---|---|
-| `Crossa` | `main` / `3e37fbbc774edf1bd69f457f489ceb2f72d7cfe7` | `Fix: Project Generator` |
-| `android-example` | `main` / `5095cd247cce417c6164800bbe6ed0f9234852d8` | `Run the Build` |
-| `ios-example` | `main` / `cf72cedda9633bc392243daa797a0dda07341c19` | `Fix Swift code with the Latest changes` |
+- Crossa: `282c3345ed94ecef5e503357186ac6e92eb3718a`، `Fix: Last Round for the CLI Implementation and Android Build and Generator`، 2026-09-07 21:58:36 +03:00.
+- Android Example: `5095cd247cce417c6164800bbe6ed0f9234852d8`، `Run the Build`.
+- iOS Example: `cf72cedda9633bc392243daa797a0dda07341c19`، `Fix Swift code with the Latest changes`.
+- لا يوجد distribution repository إضافي ذي صلة في workspace.
+- Crossa يحتوي تغييرات محلية سابقة من المستخدم في `AGENTS.md` و`.github/workflows/release.yml`؛ لم أعدّلها. Android وiOS examples أيضاً يحتويان تغييرات محلية وartifact metadata غير committed.
+- `build/crossa` بُني بعد HEAD الحالي، أما `build-host/crossa` أقدم وغير موثّق بالنسبة لهذا التدقيق. سكربت Android الافتراضي يشير إلى `build-host/crossa` ما لم يُمرّر `CROSSA_CLI` صراحة.
 
-All remotes point to the corresponding `github.com/crossa-script` repository. No other relevant repository was found.
+## 4. Previous Audit Delta
 
-## 5. Working Tree / Uncommitted State
+- `test.sh` الحالي يشغّل network integration opt-in بالمسارات الصحيحة، واختبارات Kotlin generator وAndroid project generator موجودة وتنجح.
+- Android generator الحالي أصلح مسار build السابق الذي كان يمرر `-arch arm64` بشكل غير مناسب؛ fresh Release AAR بُني بنجاح.
+- CI الحالي يحتوي generator checks وASAN configure/build، خلافاً لبعض ملاحظات التقرير السابق.
+- تم التحقق من AAR وXCFramework من جديد. artifacts القديمة في examples لا تطابق الـ HEAD الحالي.
+- تقرير `docs/development/v0-closure-report.md` يحتوي أرقاماً سابقة، لكن لم توجد raw benchmark files قابلة لإعادة التدقيق منها، لذلك لم تُعتمد أرقامه.
 
-All three repositories are clean: no staged, unstaged, or working-tree-only product change. Recent Android/iOS work is **Committed**. Temporary audit output is outside repositories.
+## 5. Architecture Integrity
 
-## 6. Architecture Summary
+PASS على مستوى المصدر والتصميم المدقق. يوجد frontend canonical واحد في C++، وC++ يملك parsing وsemantic analysis وIR وnative execution وscheduler وnetworking وresponse decoding. Kotlin وSwift bindings رقيقة ولا تحتوي parser أو transport بديل داخل Crossa.
 
-C++ remains the sole `.cra` frontend and owns IR, runtime, scheduler, networking, decoding, native data, and ABI. Kotlin/JNI and Swift/C ABI remain bindings. No Android/JNI/Kotlin/Swift/Xcode term is present in core IR sources.
+الفجوة العملية ليست في اتجاه المعمارية، بل في إثبات أن نفس source-to-artifact-to-consumer chain مغلقة على المنصتين مع provenance وruntime evidence.
 
-## 7. End-to-End Pipeline
+## 6. Language / Compiler
 
-| Stage | Status | Evidence | Gap |
-|---|---|---|---|
-| Source → parser | CLOSED | loader/lexer/parser and language tests | invalid UTF-8 is not explicitly validated |
-| Linker → semantic → IR | CLOSED | import fixtures, `ProjectLinker`, semantic/IR debug trace | optimizer is future work |
-| IR → runtime/network/decode | IMPLEMENTED / VERIFIED HOST | runtime tests and JSONPlaceholder test | DOM-first decoder performance risk |
-| ABI → mobile views | IMPLEMENTED / UNVERIFIED | ABI paths, JNI/Swift source | no mobile nested-value runtime test |
-| Release artifacts → apps | PARTIAL | existing Android/iOS consumer builds | fresh Android artifact fails |
-| Benchmarks | UNVERIFIED | runners exist | no current execution evidence |
+PASS. `./test.sh` نجح، بما يشمل lexer/parser/semantic/CLI fixtures وlanguage tests. `./build/crossa --version` يعيد `0.1.0`. الصياغة المدعومة تطابق foundation المعتمدة، بما فيها `@Sync` و`@Async` و`@AsyncAfter` و`CrossaRequest` و`List<T>`.
 
-## 8. Language / Compiler
+## 7. Linker / Multi-File
 
-**CLOSED for documented V0.** `SourceLoader`, `Lexer`, `Parser`, `ProjectLinker`, `SemanticAnalyzer`, and `IrLowerer` cover imports, functions, models, variables, conditionals, calls, arithmetic, boolean logic, Json, `List<T>`, config, request expressions, and execution annotations. `crossa-language-tests` passed. `check examples/imports/runPosts.cra --debug` traced the linked semantic/IR pipeline.
+PASS. اختبارات imports وproject linking وdiamond dependencies وduplicate/conflict diagnostics نجحت ضمن `test.sh`. لم يظهر duplication لمسار frontend في generators.
 
-## 9. Linker / Multi-File
+## 8. Semantic / Types
 
-**CLOSED.** Recursive exact filename discovery, ambiguity/missing/cycle rejection, deterministic ordering, diamond de-duplication, and entry-only top-level execution are covered by current fixtures.
+PASS مع بقاء التغطية الإنتاجية محدودة بنطاق V0. تم التحقق من type checking والـ diagnostics والـ model/request typing عبر suite الحالية وfixtures الشبكة. لا يوجد دليل على دعم syntax غير موثق، وهذا متوافق مع foundation.
 
-## 10. Semantic / Type System
+## 9. IR
 
-**CLOSED for V0.** Symbols/scopes, signatures, calls, returns, models, `List<T>`, `Json`, `Long`, `Double`, interpolation, config, request validation, and policy are resolved before generators. No secondary platform parser was found.
+PASS. الـ IR lowering والـ native request/json expressions موجودة في المسار canonical، وruntime tests وCLI execution نجحت. لم أجد مساراً يسمح للـ generated Kotlin/Swift بإعادة تفسير `.cra` مستقلاً.
 
-## 11. IR
+## 10. Native Runtime / Scheduler
 
-**CLOSED for V0.** Functions, models/fields, locals, calls, conditions, boolean logic, string plans, Json, requests, policies, and source identity remain platform-neutral. No optimizer exists; it is future scope, not a V0 defect.
+PASS وظيفياً على host، PARTIAL من ناحية sanitizer closure. `./test.sh` نجح واختبار network execution نجح، وlogcat Android أظهر scheduler queue/start/complete/stop بلا crash. بناء ASAN من المصدر الحالي نجح، لكن تشغيل executables تحت ASAN لم يكتمل خلال أكثر من دقيقة ولم ينتج pass؛ لذلك لا أعتبر ASAN runtime gate مغلقاً.
 
-## 12. Native Runtime / Scheduler
+## 11. Networking
 
-**IMPLEMENTED / VERIFIED HOST.** `TaskScheduler` uses bounded workers/queue, queued/executing cancellation, terminal guards, and worker joining. `NativeRuntime` owns operation lifecycle and shutdown. `crossa-runtime-tests` passed. libcurl initialization remains process-global; current sanitizer evidence is absent.
+PASS على host وAndroid virtual signal. `./build/crossa test tests/network-jsonplaceholder.cra` نجح، و`./build/crossa run examples/imports/runPosts.cra` أعاد 100 منشوراً. Android logcat أكد GET وheaders وHTTP 200 و27520 response bytes. لا توجد Retrofit/OkHttp/URLSession implementations داخل core Crossa؛ تلك تخص consumers/baselines.
 
-## 13. Networking
+## 12. Response Decoding
 
-**IMPLEMENTED / VERIFIED HOST.** `NetworkEngine`, `CurlTransport`, request planning, bounded buffers, retry/auth/multipart/proxy/certificate/telemetry configuration, and native decoding are present. `./build/crossa test tests/network-jsonplaceholder.cra` and `./build/crossa run examples/imports/runPosts.cra` succeeded against JSONPlaceholder.
+PASS للسيناريو المدقق. native decoder فك `List<Post>`، والـ CLI وAndroid consumer أعادا `itemCount=100` وحقول النماذج صحيحة. ما زالت اختبارات malformed/large payload وallocation-pressure على mobile أقل من مستوى release gate الكامل.
 
-The opt-in path in `test.sh` is broken: it runs an assertion fixture with `crossa run` rather than `crossa test`, producing “assert is available only with 'crossa test'.” The old local-network harness was deleted, so its prior failure is **ABSENT**, not proven fixed.
+## 13. Stable ABI
 
-## 14. Response Decoder
+PARTIAL. ABI headers وruntime exports وgenerated bridge موجودة، وfresh artifacts تحتوي interfaces المطلوبة. لم تُثبت compatibility matrix أو ABI break check بين إصدارات منشورة، ولم يُنفّذ iOS consumer runtime للتحقق من كل حدود ABI.
 
-**IMPLEMENTED / VERIFIED HOST.** Bytes are bounded and parsed natively; scalar, Json, model, list, nested model, and nested list values are created as `RuntimeValue`/`NativeModel`/`NativeList`. The generic JSON DOM is released after typed construction. It is a performance risk, not a measured regression.
+## 14. Android Generator
 
-## 15. Stable ABI
+PASS. `bash scripts/run-android-project-generator-tests.sh ./build/crossa` نجح. fresh generation من current CLI ثم `:library:assembleRelease` نجح. الناتج يتضمن arm64-v8a native library وgenerated Kotlin APIs وGradle project.
 
-**IMPLEMENTED / UNVERIFIED ON MOBILE.** ABI v1 has opaque runtime/result/model/error/operation handles, lifecycle, invoke/cancel/release, scalar/model/list access, generic value paths, Json paths, and structured errors. Additive path accessors do not expose STL/classes or cross exceptions.
+## 15. Android JNI
 
-## 16. Android Nested Native Values
+PARTIAL. generated `CrossaNativeBridge` وC++ JNI registration متوافقان في المصدر، وclasses.jar الناتج يحتوي APIs المطلوبة. تم تشغيل consumer الحالي دون `UnsatisfiedLinkError` أو fatal crash. لم تُغلق بعد اختبارات systematic للـ exception translation، cancellation أثناء callback، thread attach/detach، وrepeated runtime shutdown.
 
-**PARTIALLY IMPLEMENTED.** `KotlinGenerator::emitNativeModel` emits `CrossaNativeValue.child(fieldIndex)`. `KotlinTypeMapper::nativeValueExpression` recursively maps Model/List/Json. JNI converts packed segments and calls generic ABI paths. One root `CrossaNativeResult` owns data; child views do not create a second result or eagerly materialize a graph.
+## 16. Android Native Values
 
-Source generation and the Android generator script pass, but no nested Android runtime fixture, fresh AAR, or device run exists. It cannot be CLOSED.
+PARTIAL. `NativeList` و`NativeModel` وgenerated typed accessors موجودة، والنتيجة العملية تعيد 100 item. لا يوجد benchmark أو stress proof كافٍ يثبت zero-copy/native-backed behavior لكل nested/list/string lifecycle تحت الضغط، لذلك لا أرفعها إلى PASS كامل.
 
-## 17. Android Result Mapping
+## 17. Android Release AAR
 
-**IMPLEMENTED / UNVERIFIED ON DEVICE.** `KotlinTypeMapper` centrally supports Unit; Int/Long/Double/String/Bool copies; native-backed Json; Model; `List<Model>`; and recursive `List<Int/Long/Double/String/Bool>`. Scalar results close ownership after copying; aggregate results retain the root owner. Android Json uses native paths, not stringify-and-reparse.
+PASS للـ fresh artifact، FAIL للـ checked-in provenance.
 
-## 18. Android JNI
+fresh AAR:
 
-**IMPLEMENTED / UNVERIFIED.** Generated `CrossaNativeBridge.kt` has **37** `private external` declarations and `AndroidJniBridge.cpp` has **37** `RegisterNatives` entries; matched by inspection. `JNI_OnLoad`, global callback references, and generic packed path access are used. Per-scalar path reads still allocate/pass `IntArray` and cross JNI: an architectural performance risk.
+- path: `/private/tmp/crossa-audit.EV42wN/android/library/build/outputs/aar/library-release.aar`
+- SHA-256: `874759f0a534134c8ea534e4b23c1e2b6726d683dc44c20ea87207c4fdde3b4d`
+- size: 2,287,259 bytes
+- native: ELF AArch64 `libcrossa_runtime.so`
+- LOAD alignment: `0x4000` / 16 KB
 
-## 19. Android Release AAR
+الـ checked-in `android-example/app/libs/crossa-generated-release.aar` SHA هو `2ddb0a5ee4e5366218664371e1d1e3f644426b535883d29ab73e6546b3930e08`، وnative `.so` داخله يختلف عن fresh current `.so`. metadata تشير إلى source commit قديم `3e37fbbc...`. لذلك لا يمكن اعتبار checked-in AAR release artifact للـ HEAD الحالي.
 
-**BROKEN for fresh current-source production.** The checked-in Release AAR is 2,629,932 bytes, dated 2026-09-07 20:33 +03:00, contains `classes.jar`, consumer rules, and `jni/arm64-v8a/libcrossa_runtime.so`. ELF is AArch64 DYN with all LOAD segments `0x4000` aligned; it is a Release artifact.
+## 18. Android Example
 
-Fresh generation from current `HEAD` fails at `:library:buildCMakeRelWithDebInfo[arm64-v8a]`: curl CMake sends Android clang `--target=aarch64-none-linux-android23` and `-arch arm64`, which clang rejects. The prebuilt AAR predates Crossa `HEAD` at 20:45. It cannot establish current closure. Its native binary has 8,990 dynamic global symbols (P2 visibility/size issue).
+PARTIAL. `android-example` بُني Release بنجاح (`:app:assembleRelease`) وAPK نتج، لكن البناء استخدم checked-in AAR القديم. consumer المؤقت الذي استبدل AAR الحالي وبُني Debug نجح، لكنه ليس تغييراً committed في example. ظهر تحذير NDK `26.1.10909125` بلا `source.properties`، ما عطّل stripping لبعض native libraries.
 
-## 20. Android Example
+## 19. Android Runtime Execution
 
-**PARTIAL.** `app/build.gradle.kts` consumes `files("libs/crossa-generated-release.aar")`; `./gradlew :app:assembleRelease --no-daemon` succeeded. This proves consumption of the checked-in Release AAR, not a fresh current one. README names deleted `generate-crossa-aar.sh`; committed script is `generate-build.sh`.
+PASS كـ virtual-device signal. consumer المؤقت المبني مع fresh AAR الحالي شُغّل على `Google sdk_gphone16k_arm64`، Android 17، ABI `arm64-v8a`. warm وcold أكملَا benchmark، 8/8 لكل implementation، 100 item، بلا crash أو native load failure. هذا لا يساوي physical-device أو production certification.
 
-## 21. Android Benchmark
+## 20. Android Benchmark Methodology
 
-**IMPLEMENTED / UNVERIFIED.** Configuration, runner, samples, summaries, and statistics are outside Compose. Warm clients are reused; warmups excluded; order rotates; monotonic timing, failures, p50/p90/p95/stddev, and Crossa materialization split exist. `adb` is unavailable and no benchmark completion output exists.
+PARTIAL. المنهجية الحالية جيدة مبدئياً: 2 warmup و8 measured iterations، ترتيب rotated، monotonic nanoseconds، failures منفصلة، warm يعيد استخدام clients وcold يعيد إنشاء client لكل sample، وCrossa materialization منفصلة. المقارنة تستخدم Retrofit+OkHttp وKtor كـ baselines.
+
+الحدود: endpoint remote وغير مضبوط، المحاكي يستخدم software GL وتحت memory pressure، ولا يوجد network-local/control endpoint أو repeated independent runs أو physical ARM64 gate. benchmark raw JSON أُخذ من التطبيق الحالي المؤقت ويمكن إعادة قراءته من `benchmark-result.json` أثناء التشغيل.
+
+## 21. Android Benchmark Results
+
+**Current AAR, valid development signal only** — 2026-09-07، `sdk_gphone16k_arm64`، Android 17، 2 warmup، 8 measured، endpoint `https://jsonplaceholder.typicode.com/posts`، 100 items، جميع العينات ناجحة.
+
+| Mode | Implementation | p50 | p95 | Mean | Success |
+|---|---|---:|---:|---:|---:|
+| Warm | Crossa | 15.371 ms | 15.690 ms | 15.456 ms | 8/8 |
+| Warm | Retrofit | 16.618 ms | 17.374 ms | 17.479 ms | 8/8 |
+| Warm | Ktor | 19.893 ms | 21.371 ms | 29.713 ms | 8/8 |
+| Cold | Crossa | 1017.378 ms | 1038.188 ms | 862.090 ms | 8/8 |
+| Cold | Retrofit | 554.310 ms | 1053.934 ms | 865.271 ms | 8/8 |
+| Cold | Ktor | 1038.273 ms | 1042.410 ms | 916.921 ms | 8/8 |
+
+Warm Crossa مقابل Retrofit: p50 أقل 1.247 ms / 7.50%، وp95 أقل 1.684 ms / 9.69%. Cold p50 Retrofit أفضل بـ463.068 ms؛ cold p95 Crossa أقل بـ15.745 ms، لكن outliers تجعل الاستنتاج غير مستقر. أرقام التقرير السابق التي استخدمت checked-in artifact القديم لم تُعتمد.
 
 ## 22. Swift Generator
 
-**IMPLEMENTED / UNVERIFIED AT RUNTIME.** Swift is generated through `generate-build ios`, uses shared IR, and exposes async/state/error/native views. No Swift golden generator suite exists.
+PASS جزئياً. fresh current CLI ولّد وبنى Debug وRelease device/simulator XCFramework، وmetadata سجلت compiler/runtime `0.1.0` وABI `1`. package generation يعمل local-path mode. لم تُثبت remote binary package path أو consumer compile/runtime.
 
 ## 23. iOS Native Bridge
 
-**IMPLEMENTED / UNVERIFIED AT RUNTIME.** It uses C ABI opaque ownership and paths for nested values; no separate Swift transport/parser/scheduler path was found. No simulator/device callback or cancellation execution was possible.
+PARTIAL. Swift bridge وgenerated declarations موجودة، وfresh framework يحتوي modulemap وSwift interfaces وdSYMs. لم يُنفذ iOS application runtime، لذا لا يوجد إثبات مستقل للـ callbacks/cancellation/error mapping على process حقيقي.
 
-## 24. Release XCFramework
+## 24. iOS Native Values
 
-**IMPLEMENTED / PARTIALLY VERIFIED.** Existing Release artifact (2026-09-07 19:47 +03:00) has arm64 device and arm64-simulator slices, modulemaps, interfaces, and dSYMs. The simulator interface has `-O`, not `-Onone`. Fresh current generation fails here because CMake is unavailable for curl provisioning, so current-source artifact validation is blocked.
+PARTIAL. generated model/list/value paths موجودة في artifact، لكن لا يوجد iOS consumer output يثبت materialization وnested values وlifetime. لا يجوز اعتماد وجود generated Swift كدليل runtime.
 
-## 25. SwiftPM Binary Distribution
+## 25. XCFramework
 
-**PARTIAL.** Existing ZIP has `Crossa.xcframework` at archive root; computed checksum is `cf0659240c1ec6a6e84e4171263ddd243110c1f3ddb145eabaac26e8fd344d1d`. Source can emit local or URL/checksum manifests.
+PASS للـ fresh build مع شرط بيئي واضح.
 
-The inspected artifact lacks current Release `Package.swift` and `checksum.txt`; the example uses `.binaryTarget(path:)`. No published ZIP, remote URL, checksum-bound manifest, or GitHub release asset exists.
+fresh Release package:
 
-## 26. iOS Example
+- device slice: `ios-arm64`
+- simulator slice: `ios-arm64-simulator`
+- deployment target: iOS 13.0
+- ZIP SHA-256/checksum: `dc439b267f81bdde8bcda541b04cadfc552cd7ecec059d7063ab67f13a4e4ebb`
+- dSYMs موجودة لكل slice
+- Release configuration تستخدم `-O` وdead-code stripping
 
-**PARTIAL / BUILD VERIFIED.** The example consumes local `CrossaBinary/Crossa.xcframework`. Release `xcodebuild` with `ARCHS=arm64` succeeded. The default simulator build fails because it also targets x86_64 while Crossa provides arm64 simulator only. CoreSimulator is unavailable, so it was not launched.
+normal CLI environment فشل أولاً لأن CMake موجود في Android SDK لكنه غير موجود في `PATH`. إعادة البناء نجحت فقط بعد حقن CMake/Ninja في PATH. هذا يجعل generator قابل البناء على host الحالي، لكن doctor وbuild script لا يقدمان نفس environment contract بشكل موحد.
 
-## 27. iOS Benchmark
+## 26. SwiftPM Distribution
 
-**IMPLEMENTED / UNVERIFIED.** It reuses Crossa runtime/Alamofire Session for warm runs, excludes warmups, alternates order, uses monotonic `DispatchTime`, and reports percentile/stddev/materialization data. Its cold branch reuses `clients`, so it is not a true cold-client benchmark. No complete run exists.
+PARTIAL. generated `Package.swift` الحالي بدون package flags هو local binary target path، وليس remote URL+checksum package. generator يكتب `Crossa.xcframework.checksum` بينما README/docs تشير إلى `checksum.txt`. محاولة `swift package dump-package` تعثرت بسبب cache permissions، ولم يتم إثبات remote package consumer أو checksum verification end-to-end.
 
-## 28. Android/iOS Parity Matrix
+## 27. iOS Example
 
-| Capability | Android | iOS | Gap |
-|---|---|---|---|
-| Nested native Model/List | partial, unverified | implemented, unverified | Android no runtime fixture |
-| Scalar lists / Json | implemented, unverified | native views | Android no runtime validation |
-| Async/state/cancel | implemented | implemented | no mobile execution |
-| Release artifact | fresh build broken | structural Release evidence | Android P0; iOS fresh build blocked |
-| Local example | Release AAR build passes | arm64 Release build passes | iOS default x86_64 failure |
-| Remote distribution | absent | absent | incomplete |
-| Benchmark | source runner only | source runner only | no execution |
+FAIL لهذه الجولة. `ios-example` يحتوي XCFramework device/simulator قديم وmetadata تشير إلى checksum/source commit قديمين. محاولة clean `xcodebuild` توقفت عند جلب Alamofire من GitHub بسبب network/DNS في بيئة التنفيذ، ولم أصل إلى consumer compile/runtime proof باستخدام fresh XCFramework.
 
-## 29. Benchmark Methodology Review
+## 28. iOS Runtime Execution
 
-Both warm paths are **PARTIALLY VALID by source**: reused clients, same endpoint/headers/shape, warmup exclusion, interleaving, monotonic timing, and UI-outside-timer. iOS cold mode is flawed. Both use remote JSONPlaceholder; neither has controlled-endpoint evidence.
+FAIL / NOT EXECUTED. CoreSimulatorService رفض الاتصال، و`simctl list devices` لم يعرض جهازاً صالحاً. لا يوجد physical iOS device متاح. لذلك لا يوجد دليل على launch أو native result أو cancellation على iOS.
 
-## 30. Benchmark Results and Validity
+## 29. iOS Benchmark Methodology
 
-No current completion marker, sample export, device metadata, or result report exists. Android and iOS validity: **UNVERIFIED**. Physical evidence: **none**. Product performance claims: **NO**.
+PARTIAL على مستوى المصدر فقط. `BenchmarkRunner.swift` يعرّف warm/cold و2 warmup و8 measured ويدور ترتيب التنفيذ، ويقارن Crossa مع Alamofire 5.12.0. لكن التطبيق لم يُبنَ ويُشغّل في هذه الجولة، وendpoint remote نفسه غير مضبوط، كما أن cold resource lifetime يحتاج إثبات runtime لا code inspection فقط.
 
-## 31. CLI / Doctor
+## 30. iOS Benchmark Results
 
-CLI commands are implemented and host-verified. `crossa doctor` reports Xcode correctly but does not discover vendored Android SDK/NDK/CMake/Ninja, sees invalid `ANDROID_HOME`, lacks CMake, and reports cache unwritable. It is not actionable enough for the installed workspace toolchain.
+None. لا توجد raw iOS samples حالية. الأرقام الموجودة في closure report السابق غير قابلة لإعادة التحقق، والـ checked-in artifact لا يطابق current HEAD.
 
-## 32. CI
+## 31. Benchmark Cross-Platform Analysis
 
-`ci.yml` runs only `./test.sh`; Kotlin and Android generator scripts are not included despite `testing.md`. No Android/iOS artifact, benchmark, sanitizer, JNI/ABI, Swift generator, or formatting job exists. Actions are SHA-pinned and release permissions are limited appropriately. `release.yml` packages CLI only.
+لا توجد مقارنة cross-platform صالحة لأن iOS لم يُنفذ. Android الحالي يعطي إشارة warm جيدة وcold غير حاسمة على emulator فقط. لا يجوز تحويل هذه النتائج إلى claim أن Crossa أسرع إنتاجياً من Retrofit/Ktor أو Alamofire؛ network RTT وremote server وemulator scheduling تدخل مباشرة في total duration.
 
-## 33. Release / Distribution
+## 32. Physical Device Evidence
 
-| Path | State |
+None. Android evidence المتاح `sdk_gphone16k_arm64` محاكي، وiOS physical/simulator runtime غير متاح. physical ARM64 gate المطلوب لإثبات performance production لم يُنفذ.
+
+## 33. Native Safety
+
+PARTIAL. source review وnormal tests وAndroid runtime signal لا تظهر crash أو obvious load failure. ASAN configure/build نجح، لكن ASAN test executables لم تكتمل ولم تُنتج pass. لم أعتبر غياب crash في benchmark القصير بديلاً عن ASAN/TSAN وlifecycle stress وrepeat shutdown/cancellation.
+
+## 34. Performance Architecture
+
+PARTIAL. architecture تفصل native network/decode/scheduler عن platform wrappers، وbenchmark يفصل Crossa materialization. لكن direct decoders وphase-20 performance hardening ما زالت خارج V0 foundation، ولا توجد physical baseline أو repeated-run confidence intervals أو memory/allocation evidence. لذلك الأداء architecture-ready وليس production-validated.
+
+## 35. Binary Size / Symbols
+
+PARTIAL. fresh Android AAR native binary stripped و16 KB aligned، وfresh iOS Release يحتوي dSYMs وoptimized slices. Android fresh `llvm-nm -gU` لم يعرض symbols عامة بسبب stripping، وiOS fresh public symbol count كان 164 لكل slice. لا توجد size budget أو regression baseline منشورة أو signed artifact manifest تربط كل binary بالـ source commit.
+
+## 36. CLI / Doctor
+
+PARTIAL. `--version` يعمل. `doctor` اكتشف Android SDK/NDK/CMake/Ninja/Java وXcode، لكنه خرج exit 1 بسبب `simctl not available` و`Crossa cache not writable`. كما أن doctor اكتشف CMake بينما generator العادي لم يجده دون PATH injection. هذه diagnostics مفيدة لكنها ليست environment closure.
+
+## 37. CI
+
+PARTIAL. CI الحالي يشغّل host build/test وKotlin generator tests وAndroid project generator tests، وsanitizer job يكوّن ويبني ASAN. لا توجد iOS build/runtime، Android consumer install/runtime، physical benchmark، iOS SwiftPM consumer، أو artifact provenance verification في CI. ASAN test execution لم يثبت محلياً في هذه الجولة.
+
+## 38. Release / Distribution
+
+PARTIAL إلى FAIL كإغلاق V0. يمكن توليد Android AAR وiOS XCFramework محلياً، لكن checked-in consumer artifacts قديمة، source/CLI hashes غير متطابقة، iOS remote SwiftPM package غير مثبتة، وrelease archive provenance/attestation غير مثبتة end-to-end. لا يوجد distribution repository منفصل تم التحقق منه.
+
+## 39. Documentation
+
+FAIL كـ documentation closure. architecture وlanguage/runtime docs مفيدة ومتوافقة غالباً، لكن توجد انحرافات تشغيلية مؤكدة: `checksum.txt` في docs مقابل `Crossa.xcframework.checksum` في generator، local Package.swift موصوف أحياناً كأنه remote، وdefault `build-host/crossa` لا يضمن current CLI provenance. التقرير السابق نفسه لا يحتوي raw evidence قابلاً لإعادة التدقيق.
+
+## 40. V0 Completion Matrix
+
+| Area | Status | Evidence |
+|---|---|---|
+| Frontend/compiler | PASS | `./test.sh` وlanguage fixtures |
+| Linker/imports | PASS | import/diamond/linker tests |
+| Semantic/types/IR | PASS | host suite وnative execution |
+| Runtime/scheduler | PASS | host tests وAndroid logs؛ sanitizer incomplete |
+| Networking/decoding | PASS | current CLI integration وAndroid 200/100 items |
+| Stable ABI | PARTIAL | generated ABI موجود؛ no compatibility matrix |
+| Android generator | PASS | generator tests وfresh Release build |
+| Android JNI/values | PARTIAL | current consumer run؛ no lifecycle stress |
+| Android Release AAR | PASS fresh / FAIL checked-in provenance | fresh hash/alignment مقابل stale checked-in AAR |
+| Android example/runtime | PARTIAL | app build + current temp consumer; virtual only |
+| Android benchmark | PARTIAL | current AAR, emulator, raw 8-sample warm/cold |
+| Swift generator | PASS | fresh device/simulator XCFramework |
+| iOS bridge/values | PARTIAL | artifact inspection؛ no app runtime |
+| XCFramework | PASS conditional | fresh build with CMake PATH injection |
+| SwiftPM | PARTIAL | local package only؛ remote unproven |
+| iOS example/runtime | FAIL | build blocked; CoreSimulator unavailable |
+| iOS benchmark | FAIL | no raw current samples |
+| Physical evidence | FAIL | none |
+| Native safety | PARTIAL | normal pass; ASAN execution incomplete |
+| CI/release/distribution | PARTIAL | host/generator CI only; provenance gaps |
+| Documentation | FAIL | filename/provenance drift |
+
+## 41. Completion Scores
+
+النتيجة **70%** هي evidence-weighted engineering score وليست نسبة أداء. حُسبت كمتوسط متساوٍ لـ14 محوراً: compiler 95، runtime 85، networking 90، Android artifact 90، Android consumer/runtime 70، Android benchmark 75، Swift/iOS artifact 85، iOS runtime 0، iOS benchmark 0، SwiftPM 40، CI 70، distribution 40، native safety 75، documentation 65.
+
+الـ score لا يتجاوز gate blockers: غياب iOS runtime/benchmark وphysical evidence وprovenance/SwiftPM يمنع verdict الإغلاق مهما ارتفعت core score.
+
+## 42. Remaining P0
+
+1. تنفيذ iOS current consumer build/run بنتيجة native صحيحة باستخدام fresh XCFramework، ثم إعادة تشغيله على simulator أو physical device صالح.
+2. تنفيذ raw iOS warm/cold benchmark مع Alamofire baseline وتوثيق artifact/source/checksum والبيئة.
+3. تثبيت provenance chain: current CLI checksum، source commit، Android AAR، iOS ZIP/XCFramework، وconsumer metadata في committed release path.
+4. تنفيذ physical ARM64 benchmark على Android، وphysical iOS evidence إن كان الأداء cross-platform جزءاً من claim V0.
+
+## 43. Remaining P1
+
+1. إصلاح CMake discovery بحيث يتطابق `doctor` مع generator، وإصلاح cache writability diagnostics.
+2. جعل SwiftPM remote URL/checksum generation قابلاً للتحقق end-to-end، وتوحيد اسم checksum في docs/scripts.
+3. إضافة CI gates لـ Android consumer build/runtime وiOS build وSwiftPM manifest/consumer وartifact hash checks.
+4. إكمال ASAN/TSAN execution وlifecycle/cancellation/repeated-shutdown stress tests.
+5. تحديث checked-in examples أو جعلها generated release outputs موثقة ومطابقة للـ HEAD.
+
+## 44. Remaining P2
+
+1. إضافة controlled local HTTP fixture أو recorded deterministic payload للـ benchmark، مع repeated independent runs وvariance reporting.
+2. إضافة memory/allocation/binary-size regression budgets وABI compatibility checks.
+3. توسيع malformed JSON، nested model، large payload، cancellation، وerror mapping coverage على المنصتين.
+4. تحسين benchmark export بحيث تكون raw files قابلة للحفظ في artifact دون الاعتماد على app-private storage.
+
+## 45. Future / P3
+
+1. direct decoder/zero-copy optimization بعد تثبيت correctness والقياس.
+2. remote signed binary distribution repository وrelease attestation كاملة.
+3. multi-architecture matrix أوسع من arm64، مع deployment/device support policy منشورة.
+4. performance phase-20 hardening وproduction profiling بعد physical baseline.
+
+## 46. Exact Remaining Sequence
+
+1. اختيار current CLI واحد وتسجيل SHA وsource commit.
+2. توليد Android وiOS artifacts من نفس CLI/source، وتحديث metadata/checksums في release staging فقط.
+3. بناء consumer apps من artifacts الجديدة مع clean dependency/cache policy.
+4. تشغيل Android/iOS runtime smoke tests، بما فيها success/failure/cancellation/lifetime.
+5. تشغيل warm/cold benchmarks على controlled endpoint ثم physical devices، وحفظ raw samples وenvironment manifest.
+6. إصلاح/تثبيت SwiftPM remote package وartifact provenance.
+7. إضافة CI verification لكل gates، ثم إعادة التدقيق من clean checkouts.
+8. عند نجاح كل ذلك فقط، تغيير verdict إلى `V0 CLOSED` وإصدار performance claim محدود بالبيئة المقاسة.
+
+## 47. Commands Executed
+
+- `./test.sh` — PASS.
+- `bash scripts/run-kotlin-generator-tests.sh ./build/crossa` — PASS.
+- `bash scripts/run-android-project-generator-tests.sh ./build/crossa` — PASS.
+- `./build/crossa --version` — PASS، `0.1.0`.
+- `./build/crossa doctor` — FAIL، simctl/cache diagnostics.
+- `./build/crossa test tests/network-jsonplaceholder.cra` — PASS.
+- `./build/crossa run examples/imports/runPosts.cra` — PASS، 100 posts.
+- `./build/crossa generate-build android ...` ثم `./gradlew :library:assembleRelease` — PASS، fresh AAR.
+- `./gradlew :app:assembleRelease` في Android example — PASS، checked-in AAR.
+- `./build/crossa generate-build ios ...` بدون PATH injection — FAIL بسبب CMake discovery.
+- نفس iOS generation مع CMake/Ninja في PATH — PASS، fresh Debug/Release XCFramework.
+- `xcodebuild ...` للـ iOS example — BLOCKED عند Alamofire fetch/network/cache.
+- `xcrun simctl list devices` — FAIL، CoreSimulatorService unavailable.
+- Android emulator warm/cold benchmark — PASS raw samples على current temporary consumer، virtual only.
+- ASAN CMake configure/build — PASS؛ ASAN test executables لم تكتمل خلال >60 ثانية.
+
+## 48. Evidence Appendix
+
+| Evidence | Value |
 |---|---|
-| CLI workflow | IMPLEMENTED / UNPUBLISHED |
-| GitHub tag/release | no local publication evidence |
-| Android AAR publication | ABSENT |
-| XCFramework ZIP publication | ABSENT |
-| Remote SwiftPM | ABSENT |
-| Local artifact consumption | PARTIAL |
+| Crossa HEAD | `282c3345ed94ecef5e503357186ac6e92eb3718a` |
+| Android Example HEAD | `5095cd247cce417c6164800bbe6ed0f9234852d8` |
+| iOS Example HEAD | `cf72cedda9633bc392243daa797a0dda07341c19` |
+| Current CLI SHA-256 | `57dfef0e4a6553aca80036312f597a6b4cfee829fb2f52055a03ef5fad50c593` |
+| Fresh Android AAR SHA-256 | `874759f0a534134c8ea534e4b23c1e2b6726d683dc44c20ea87207c4fdde3b4d` |
+| Checked-in Android AAR SHA-256 | `2ddb0a5ee4e5366218664371e1d1e3f644426b535883d29ab73e6546b3930e08` |
+| Fresh iOS release ZIP checksum | `dc439b267f81bdde8bcda541b04cadfc552cd7ecec059d7063ab67f13a4e4ebb` |
+| Checked-in Android source metadata | commit `3e37fbbc774edf1bd69f457f489ceb2f72d7cfe7` |
+| Checked-in iOS source metadata | commit `3e37fbbc774edf1bd69f457f489ceb2f72d7cfe7` |
+| Android benchmark device | `Google sdk_gphone16k_arm64`, Android 17, `arm64-v8a` |
+| Android benchmark payload | JSONPlaceholder `/posts`, 100 items, remote endpoint |
+| Android benchmark raw shape | metadata + summaries + 24 measured samples per run |
+| iOS benchmark raw samples | None |
+| Physical devices | None |
 
-## 34. Existing Tests
+نتائج Android القديمة التي سجلها التطبيق قبل تثبيت Debug current consumer كانت 8/8 warm وcold أيضاً، لكنها تحمل AAR SHA `2ddb0a...` وsource commit `3e37...` ولذلك صُنفت stale/invalid للـ current V0 closure.
 
-Executed: runtime/language tests, CLI fixtures, Kotlin and Android generator scripts, direct JSONPlaceholder test, Android example Release build, iOS arm64 Release example build. Missing: Android nested runtime test, JNI/iOS bridge tests, Swift generator golden test, benchmarks, physical runtime runs, and current sanitizers.
+## 49. FINAL V0 VERDICT
 
-## 35. Native Safety
+**V0 NOT CLOSED**.
 
-Ownership and ABI boundaries are broadly sound by inspection; bounded scheduler/buffers and cancellation tests passed. Current ASan/UBSan/TSan evidence and CI are absent.
-
-## 36. Performance Architecture
-
-Unmeasured risks: generic JSON DOM, JNI path allocations/scalar crossings, Android example materialization, curl-easy rather than curl-multi, and 8,990 exported dynamic symbols.
-
-## 37. Code Quality
-
-C++ follows focused ownership and keeps platforms out of IR. JNI logic is centralized but large. Kotlin hides handles behind internal native views. Current correctness/release issues are the Android fresh-build break and iOS cold benchmark behavior.
-
-## 38. Documentation Drift
-
-1. `testing.md` says CI runs Kotlin generator tests; it does not.
-2. `test.sh` documents an opt-in network suite but invokes it incorrectly.
-3. Android README names a deleted script.
-4. iOS packaging docs claim emitted checksum/package files absent from inspected Release output.
-5. Prior local-network-harness status is stale because the harness was deleted.
-
-## 39. Previous Audit Delta
-
-| Previous gap | Current state | Evidence | Closed? |
-|---|---|---|---|
-| local-network harness | deleted; replacement scripted path broken | `test.sh` | No |
-| CLI release/install | pipeline only | no publication evidence | No |
-| Android nested views | source path implemented | mapper/JNI/generator script | Partial |
-| Android scalar lists/Json | source path implemented | native mapper/Json paths | Unverified |
-| generator CI | still absent | `ci.yml` | No |
-| Release Android example | Release dependency builds | Gradle | Partial |
-| Release iOS example | arm64 Release builds | Xcode | Partial |
-| remote SwiftPM | still local/template | Package.swift | No |
-| doctor handling | still misses vendored tools | doctor | No |
-| benchmark methodology | improved source architecture | runners | Partial |
-| real benchmarks | still absent | no device/run | No |
-
-## 40. Current Completion Scores
-
-Scale: 0 absent, .25 scaffold, .50 partial, .75 implemented/unverified, 1 closed/verified.
-
-| Capability | Score | Capability | Score |
-|---|---:|---|---:|
-| Language/frontend | .90 | Compiler/semantic/IR | .90 |
-| Native runtime | .82 | Networking | .78 |
-| Android generator/JNI/mapping | .70/.70/.70 | Android packaging/example/benchmark | .35/.60/.55 |
-| Swift generator/bridge | .78/.75 | iOS packaging/SwiftPM/example/benchmark | .65/.35/.72/.52 |
-| CLI/Doctor/CI | .85/.40/.45 | Distribution/Testing/Safety | .25/.65/.70 |
-| Performance/docs consistency | .45/.35 | | |
-
-Roll-ups, weighting verified end-to-end evidence above source presence: Core compiler 85%, Runtime 82%, Networking 78%, Android functional 61%, Android distribution 25%, Android benchmark 55%, iOS functional 75%, iOS distribution 45%, iOS benchmark 52%, Cross-platform mobile 66%, Distribution 25%, Performance validation 25%. **Overall V0: 68%** (−13 points versus previous 81%).
-
-## 41. Current P0
-
-1. **Crossa / Android packaging:** eliminate the `-arch arm64` Android curl cross-compile failure; produce a fresh Release AAR and validate it in the example.
-2. **Crossa + examples / validation:** execute complete Android and iOS benchmark rounds on current artifacts and retain metadata/samples.
-3. **Crossa / reproducible iOS release:** establish a toolchain/CI path that produces fresh Release XCFramework, ZIP, checksum, and manifest.
-
-## 42. Current P1
-
-Nested Android runtime fixture; restore/correct deterministic network quality gate; add Kotlin/Android generator tests to CI plus Swift/JNI/iOS coverage; publish checksum-bound remote SwiftPM package if V0 requires it; make iOS example architecture support explicit.
-
-## 43. Current P2
-
-Current sanitizer execution/CI, symbol visibility, JNI batching measurements, direct decoder investigation, UTF-8 validation, Doctor toolchain discovery, and documentation cleanup.
-
-## 44. Current P3
-
-Optimizer, backend adapters, streaming platform delivery, curl-multi, direct generated decoders, and future language growth.
-
-## 45. Android Verdict
-
-Compiler integration: READY WITH GAPS. Runtime: UNVERIFIED. Native views: PARTIAL. Packaging: NOT READY. Example: READY WITH GAPS. Benchmark: UNVERIFIED. **Overall: NOT READY.**
-
-## 46. iOS Verdict
-
-Compiler integration: READY WITH GAPS. Bridge/native views: UNVERIFIED. XCFramework: READY WITH GAPS. SwiftPM: PARTIAL. Example: READY WITH GAPS. Benchmark: UNVERIFIED. **Overall: READY WITH GAPS.**
-
-## 47. Distribution Verdict
-
-CLI pipeline exists but is unpublished. Android artifact distribution is local/stale and fresh build is broken. iOS XCFramework is local only. Remote SwiftPM and GitHub Release publication are absent. **Distribution is not closed.**
-
-## 48. Benchmark Verdict
-
-| Platform | Implementation | Methodology | Execution | Validity |
-|---|---|---|---|---|
-| Android | implemented | partially valid | not run | UNVERIFIED |
-| iOS | implemented | partially valid; cold flaw | not run | UNVERIFIED |
-
-## 49. Crossa V0 Verdict
-
-**NOT READY.** Current Android Release generation fails, neither real benchmark executed, current mobile runtime validation is incomplete, and distribution is not usable externally.
-
-## 50. Recommended Next Phase
-
-**Mobile release reproducibility and evidence closure.** This phase must turn the already-implemented mobile source paths into fresh consumable artifacts and execution evidence before performance or distribution claims.
-
-## 51. Exact Next Implementation Sequence
-
-1. Fix/reproduce Android curl cross-compilation; generate fresh Release AAR in clean CI/local environment.
-2. Consume it in Android example; run nested-value fixture and complete benchmark.
-3. Provision iOS CMake in CI; generate fresh Release XCFramework, ZIP, checksum, and manifest.
-4. Build/run iOS example and benchmark against it.
-5. Publish/version artifacts only after both artifact/run gates pass.
-
-Out of scope: optimizer, adapters, streaming, curl-multi, and language expansion.
-
-## 52. Validation Commands Executed
-
-| Repository | Command | Exit | Result |
-|---|---|---:|---|
-| Crossa | `./build/crossa-runtime-tests` | 0 | passed |
-| Crossa | `./build/crossa-language-tests` | 0 | passed |
-| Crossa | Kotlin/Android generator scripts via `bash` | 0 | passed |
-| Crossa | JSONPlaceholder test + imported example | 0 | passed |
-| Crossa | `./build/crossa doctor` | health fail | prerequisites/discovery gaps |
-| Android | fresh `:library:assembleRelease` | 1 | curl cross-compile failure |
-| Android | `:app:assembleRelease` | 0 | checked-in Release AAR consumer passes |
-| iOS | fresh `generate-build ios` | 1 | CMake unavailable |
-| iOS | arm64 Release example build | 0 | consumer passes |
-| iOS | default Release simulator build | 1 | missing x86_64 slice |
-| Mobile | `adb` / `simctl` inspection | unavailable | no benchmark run |
-
-## 53. Evidence Appendix
-
-- Android values: `src/compiler/generators/kotlin/KotlinTypeMapper.cpp`, `KotlinGenerator.cpp`, `src/bindings/android/AndroidJniBridge.cpp`, `CrossaAbi.h`.
-- Android failure: `/private/tmp/crossa-audit-android`, task `:library:buildCMakeRelWithDebInfo[arm64-v8a]`.
-- iOS artifact/example: `build/crossa-ios/release`, `ios-example/CrossaPackage/Package.swift`, `CrossaIOSExample.xcodeproj`.
-- Benchmarks: Android/iOS `BenchmarkRunner` and statistics sources.
-- CI/distribution: `.github/workflows/ci.yml`, `release.yml`, `docs/development/release.md`.
+الـ core implementation قريب من usable V0، لكن معيار الإغلاق المطلوب هو source → current CLI → fresh artifact → real consumer → runtime → benchmark → reproducible evidence → CI/distribution. هذه السلسلة مثبتة جزئياً على Android virtual وعلى host، وغير مثبتة على iOS، ومكسورة provenance في checked-in artifacts. لا يوجد أساس صادق لإعلان الإغلاق أو performance production claim الآن.
