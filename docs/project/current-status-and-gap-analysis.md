@@ -25,10 +25,10 @@
 - CLI SHA-256: `3871b75e78f9ef5ef3854cf47e534dd252ea5357875a9c53459b8ef0710f3d60`
 - Crossa source commit: `03d421801191f67c59722e96a1cc4a962a4b54ba`
 - Runtime ABI: `1`
-- iOS ZIP/SWPM checksum: `e1d3fb6872bde28fe1a185ade80b97187366c9fbbefa4f3a3a049503a448d82c`
+- iOS ZIP/SWPM checksum: `d399ea9271e108d0f3f0319f44d49d7b12368abb1f23296e54818b762e56b976`
 - Android Release AAR SHA-256: `0de94787b51e1754b69f51325e984654249059bc59a65e48f72cd65efa3d158c`
 
-الـ manifests في `android-example/app/libs` و`ios-example/CrossaBinary` تحمل هذه القيم وتربط artifact بالـ CLI والـ source commit.
+الـ manifests في `android-example/app/libs` و`ios-example/CrossaBinary` تحمل هذه القيم وتربط artifact بالـ CLI والـ source commit؛ الـ AAR وXCFramework مبنيان من نفس source snapshot ذي الكود النهائي، مع docs-only commits لاحقة في Crossa.
 
 ## Build and native gates
 
@@ -48,8 +48,8 @@
 
 | Mode | Crossa p50 | Crossa p95 | Alamofire p50 | Alamofire p95 |
 |---|---:|---:|---:|---:|
-| Warm | 12.410 ms | 14.118 ms | 12.782 ms | 13.623 ms |
-| Cold | 32.503 ms | 34.303 ms | 43.205 ms | 123.816 ms |
+| Warm | 12.058 ms | 12.998 ms | 12.705 ms | 12.802 ms |
+| Cold | 32.794 ms | 54.021 ms | 45.727 ms | 50.792 ms |
 
 الـ raw JSON محفوظ خارج المستودع في `/private/tmp/crossa-ios-final-warm.json` و`/private/tmp/crossa-ios-final-cold.json`. هذه أرقام Simulator مع endpoint remote، وليست production claim.
 
