@@ -24,6 +24,7 @@ verifySuccessCase() {
     local name="$1"
     local sourcePath="$2"
     local expectedPath="$3"
+    local generatedFileName="${4:-$(basename "${sourcePath%.cra}").kt}"
     local outputDirectory
     outputDirectory="$(mktemp -d)"
 
@@ -32,7 +33,7 @@ verifySuccessCase() {
         fail "Kotlin $name generation failed."
     fi
 
-    local generatedPath="$outputDirectory/$(basename "${sourcePath%.cra}").kt"
+    local generatedPath="$outputDirectory/$generatedFileName"
     if [[ ! -f "$generatedPath" ]]; then
         rm -rf "$outputDirectory"
         fail "Kotlin $name generation did not create $(basename "$generatedPath")."
@@ -82,7 +83,8 @@ verifySuccessCase \
 verifySuccessCase \
     'escaping' \
     "$projectRoot/tests/kotlin-generator-escaping/when.cra" \
-    "$projectRoot/tests/kotlin-generator-escaping/when.kt"
+    "$projectRoot/tests/kotlin-generator-escaping/when.kt" \
+    'When.kt'
 verifyFailureCase \
     'an invalid package' \
     "$projectRoot/tests/kotlin-generator-invalid-package/Invalid.cra" \
