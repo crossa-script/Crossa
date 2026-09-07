@@ -1034,7 +1034,7 @@ namespace crossa::packaging::android {
             "target_include_directories(crossa_runtime PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_LIST_DIR}/crossa/include ${CROSSA_ANDROID_OPENSSL_INSTALL}/include ${CROSSA_ANDROID_CURL_INSTALL}/include)\n"
             "target_compile_definitions(crossa_runtime PRIVATE CROSSA_ANDROID_EMBEDDED_CA_BUNDLE=1)\n"
             "target_compile_options(crossa_runtime PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden -ffile-prefix-map=${CMAKE_CURRENT_LIST_DIR}=/crossa-source)\n"
-            "target_link_options(crossa_runtime PRIVATE -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384)\n"
+            "target_link_options(crossa_runtime PRIVATE -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,--exclude-libs,ALL)\n"
             "target_link_libraries(crossa_runtime PRIVATE crossa_android_curl crossa_android_ssl crossa_android_crypto android log z)\n"
             "add_dependencies(crossa_runtime crossa_android_curl_build)\n"
         );

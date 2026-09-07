@@ -1,5 +1,7 @@
 #pragma once
 
+#include <filesystem>
+#include <optional>
 #include <string>
 
 namespace crossa::packaging::android {
@@ -34,6 +36,8 @@ public:
 
     // Returns the single Android ABI currently packaged by generated AARs.
     [[nodiscard]] static std::string supportedAbi();
+
+    [[nodiscard]] static std::optional<std::filesystem::path> androidSdkDirectory();
 
     // Returns the pinned OpenSSL source version used by generated Android projects.
     [[nodiscard]] static std::string openSslVersion();

@@ -22,3 +22,27 @@ jobs:
 
       - name: Build and run all tests
         run: ./test.sh
+
+      - name: Validate Kotlin generator golden files
+        run: bash scripts/run-kotlin-generator-tests.sh ./build/crossa
+
+      - name: Validate Android project generator
+        run: bash scripts/run-android-project-generator-tests.sh ./build/crossa
+
+  sanitizer:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake ninja-build libcurl4-openssl-dev
+
+      - name: Build and test with AddressSanitizer
+        run: |
+          cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCROSSA_ENABLE_ASAN=ON
+          cmake --build build/asan --parallel
+          ctest --test-dir build/asan --output-on-failure

@@ -2,7 +2,9 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
 #include <string_view>
+#include <vector>
 
 using namespace std;
 
@@ -15,13 +17,14 @@ namespace crossa::packaging::android {
         [[nodiscard]] static string selectInstalledNdkVersion(
             const string& minimumVersion
         ) {
-            const char* androidHome = getenv("ANDROID_HOME");
-            if (androidHome == nullptr || string_view(androidHome).empty()) {
+            const optional<filesystem::path> sdkDirectory =
+                AndroidBuildRequirements::androidSdkDirectory();
+            if (!sdkDirectory.has_value()) {
                 return minimumVersion;
             }
             error_code error;
             const filesystem::path ndkDirectory =
-                filesystem::path(androidHome) / "ndk";
+                sdkDirectory.value() / "ndk";
             if (!filesystem::is_directory(ndkDirectory, error) || error) {
                 return minimumVersion;
             }
@@ -156,6 +159,43 @@ namespace crossa::packaging::android {
     // Returns the single Android ABI currently packaged by generated AARs.
     string AndroidBuildRequirements::supportedAbi() {
         return "arm64-v8a";
+    }
+
+    optional<filesystem::path> AndroidBuildRequirements::androidSdkDirectory() {
+        vector<filesystem::path> candidates;
+        const auto addEnvironmentPath = [&candidates](const char* name) {
+            const char* value = getenv(name);
+            if (value != nullptr && !string_view(value).empty()) {
+                candidates.emplace_back(value);
+            }
+        };
+        addEnvironmentPath("ANDROID_SDK_ROOT");
+        addEnvironmentPath("ANDROID_HOME");
+
+        const char* home = getenv("HOME");
+        if (home != nullptr && !string_view(home).empty()) {
+            const filesystem::path homePath(home);
+            candidates.push_back(homePath / "Library" / "Android" / "sdk");
+            candidates.push_back(homePath / "Library" / "Android");
+            candidates.push_back(homePath / "Android" / "Sdk");
+            candidates.push_back(homePath / ".android" / "sdk");
+        }
+
+        for (const filesystem::path& candidate : candidates) {
+            error_code error;
+            const bool hasSdkTools = filesystem::is_directory(
+                candidate / "platform-tools",
+                error
+            ) && !error;
+            const bool hasSdkPackages = filesystem::is_directory(
+                candidate / "platforms",
+                error
+            ) && !error;
+            if (hasSdkTools && hasSdkPackages) {
+                return filesystem::weakly_canonical(candidate, error);
+            }
+        }
+        return nullopt;
     }
 
     // Returns the pinned OpenSSL source version used by generated Android projects.

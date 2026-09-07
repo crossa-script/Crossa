@@ -147,11 +147,7 @@ namespace crossa::cli::doctor {
 
         // Returns the configured Android SDK directory from ANDROID_HOME.
         [[nodiscard]] static optional<filesystem::path> androidHome() {
-            const optional<string> value = environmentValue("ANDROID_HOME");
-            if (!value.has_value()) {
-                return nullopt;
-            }
-            return filesystem::path(value.value());
+            return packaging::android::AndroidBuildRequirements::androidSdkDirectory();
         }
 
         // Returns the best sdkmanager candidate inside one Android SDK.
@@ -722,9 +718,9 @@ namespace crossa::cli::doctor {
         results.push_back(DoctorResult{
             sdkDirectoryExists ? DoctorStatus::Passed : DoctorStatus::Failed,
             "Android",
-            "ANDROID_HOME",
+            "Android SDK root",
             sdkDirectoryExists ? sdkDirectory->string() : "not a directory",
-            "Set ANDROID_HOME to a readable Android SDK directory."
+            "Set ANDROID_SDK_ROOT or ANDROID_HOME to a readable Android SDK directory."
         });
 
         string missing;
@@ -753,6 +749,27 @@ namespace crossa::cli::doctor {
             "sdkmanager",
             sdkManager.has_value() ? "available" : "not found",
             "Install Android SDK Command-line Tools if you need SDK package management."
+        });
+        const filesystem::path adbPath = sdkDirectory.value() /
+            "platform-tools" / "adb";
+        const bool adbAvailable = DoctorCheckUtils::isExecutable(adbPath);
+        results.push_back(DoctorResult{
+            adbAvailable ? DoctorStatus::Passed : DoctorStatus::Failed,
+            "Android",
+            "ADB",
+            adbAvailable ? adbPath.string() : "not found",
+            "Install Android platform-tools in the discovered Android SDK."
+        });
+        const filesystem::path emulatorPath = sdkDirectory.value() /
+            "emulator" / "emulator";
+        const bool emulatorAvailable =
+            DoctorCheckUtils::isExecutable(emulatorPath);
+        results.push_back(DoctorResult{
+            emulatorAvailable ? DoctorStatus::Passed : DoctorStatus::Failed,
+            "Android",
+            "Android Emulator",
+            emulatorAvailable ? emulatorPath.string() : "not found",
+            "Install the Android Emulator package in the discovered Android SDK."
         });
         return results;
     }
@@ -887,7 +904,7 @@ namespace crossa::cli::doctor {
                         DoctorStatus::Passed,
                         "Android",
                         "CMake",
-                        version,
+                        version + " (" + candidate.string() + ")",
                         ""
                     }
                 };
@@ -935,7 +952,8 @@ namespace crossa::cli::doctor {
                         DoctorStatus::Passed,
                         "Android",
                         "Ninja",
-                        DoctorCheckUtils::firstTrimmedLine(process.output),
+                        DoctorCheckUtils::firstTrimmedLine(process.output) +
+                            " (" + candidate.string() + ")",
                         ""
                     }
                 };
@@ -993,7 +1011,7 @@ namespace crossa::cli::doctor {
                         DoctorStatus::Passed,
                         "Android",
                         "Java",
-                        version,
+                        version + " (" + candidate.string() + ")",
                         ""
                     }
                 };
@@ -1019,11 +1037,16 @@ namespace crossa::cli::doctor {
     // Returns Apple iOS toolchain results on macOS without requiring Android tools.
     vector<DoctorResult> AppleToolchainCheck::run() const {
 #if defined(__APPLE__)
-        return {
+        vector<DoctorResult> results{
             AppleToolchainUtils::command(
                 "Xcode",
                 {"xcodebuild", "-version"},
                 "Install Xcode and select it with xcode-select for iOS XCFramework builds."
+            ),
+            AppleToolchainUtils::command(
+                "Active developer directory",
+                {"xcode-select", "-p"},
+                "Select an installed Xcode developer directory with xcode-select."
             ),
             AppleToolchainUtils::command(
                 "iOS SDK",
@@ -1041,11 +1064,30 @@ namespace crossa::cli::doctor {
                 "Install Xcode C++ toolchain support."
             ),
             AppleToolchainUtils::command(
-                "CMake",
-                {"cmake", "--version"},
-                "Install CMake to provision the pinned iOS libcurl dependency."
+                "simctl",
+                {"xcrun", "simctl", "list", "runtimes"},
+                "Install an iOS Simulator runtime through Xcode."
             )
         };
+        optional<filesystem::path> cmakePath =
+            DoctorCheckUtils::findExecutable("cmake");
+        if (!cmakePath.has_value()) {
+            const optional<filesystem::path> sdkDirectory =
+                DoctorCheckUtils::androidHome();
+            if (sdkDirectory.has_value()) {
+                const vector<filesystem::path> candidates =
+                    DoctorCheckUtils::sdkCMakeExecutables(sdkDirectory.value());
+                if (!candidates.empty()) {
+                    cmakePath = candidates.front();
+                }
+            }
+        }
+        results.push_back(AppleToolchainUtils::command(
+            "CMake",
+            {cmakePath.has_value() ? cmakePath->string() : "cmake", "--version"},
+            "Install CMake to provision the pinned iOS libcurl dependency."
+        ));
+        return results;
 #else
         return {DoctorResult{
             DoctorStatus::Warning,

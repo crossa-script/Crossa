@@ -186,6 +186,6 @@ assertExecutionFails \
     ./build/crossa test tests/test-runner/failure.cra
 
 if [[ "${CROSSA_RUN_NETWORK_INTEGRATION:-0}" == "1" ]]; then
-    ./build/crossa run tests/network-jsonplaceholder.cra
+    ./build/crossa test tests/network-jsonplaceholder.cra
     ./build/crossa run examples/imports/runPosts.cra
 fi
