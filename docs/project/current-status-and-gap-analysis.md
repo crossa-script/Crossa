@@ -12,7 +12,7 @@
 
 | Repository | HEAD | Remote |
 |---|---|---|
-| Crossa | `e13bde22f4210f0d0d3e508c28f32464aba105bf` | `git@github.com:crossa-script/Crossa.git` |
+| Crossa | `03d421801191f67c59722e96a1cc4a962a4b54ba` | `git@github.com:crossa-script/Crossa.git` |
 | android-example | `2313681574244b9d9c123bba0eba25057f90dccd` | `git@github.com:crossa-script/android-example.git` |
 | ios-example | `ce33ede8301535dfc6df20ad37bfbb3438ad9a6d` | `git@github.com:crossa-script/ios-example.git` |
 
@@ -23,7 +23,7 @@
 - Crossa CLI: `0.1.0`
 - CLI path: `/Users/yazantarifi/Crossa/Crossa/build/crossa`
 - CLI SHA-256: `3871b75e78f9ef5ef3854cf47e534dd252ea5357875a9c53459b8ef0710f3d60`
-- Crossa source commit: `e13bde22f4210f0d0d3e508c28f32464aba105bf`
+- Crossa source commit: `03d421801191f67c59722e96a1cc4a962a4b54ba`
 - Runtime ABI: `1`
 - iOS ZIP/SWPM checksum: `e1d3fb6872bde28fe1a185ade80b97187366c9fbbefa4f3a3a049503a448d82c`
 - Android Release AAR SHA-256: `0de94787b51e1754b69f51325e984654249059bc59a65e48f72cd65efa3d158c`
