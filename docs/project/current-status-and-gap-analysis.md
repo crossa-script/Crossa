@@ -12,9 +12,9 @@
 
 | Repository | HEAD | Remote |
 |---|---|---|
-| Crossa | `03d421801191f67c59722e96a1cc4a962a4b54ba` | `git@github.com:crossa-script/Crossa.git` |
-| android-example | `2313681574244b9d9c123bba0eba25057f90dccd` | `git@github.com:crossa-script/android-example.git` |
-| ios-example | `ce33ede8301535dfc6df20ad37bfbb3438ad9a6d` | `git@github.com:crossa-script/ios-example.git` |
+| Crossa | `de193cf09490789986021278eea522a2ee94c6aa` | `git@github.com:crossa-script/Crossa.git` |
+| android-example | `e2d48a2667ca5955e93e22bd03633e7e2d8bd992` | `git@github.com:crossa-script/android-example.git` |
+| ios-example | `4303458133c746cd02a4bc80d233a938eb0af3cb` | `git@github.com:crossa-script/ios-example.git` |
 
 المستودعات الثلاثة نظيفة بعد commits الإغلاق.
 
