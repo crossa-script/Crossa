@@ -18,7 +18,7 @@ crossa [check|run|test] [--debug] <file.cra>
 crossa run [--project-root <directory>] <file.cra>
 crossa generate kotlin [--debug] <file.cra> --output <directory>
 crossa generate-build android [--debug] <project-directory> --output <directory> [--entry <file.cra>] [--ndk-version <version>] [--gradle-version <version>] [--kotlin-version <version>]
-crossa generate-build ios [--debug] <project-directory> --output <directory> [--entry <file.cra>]
+crossa generate-build ios [--debug] <project-directory> --output <directory> [--entry <file.cra>] [--package-version <version>] [--package-base-url <url>]
 crossa --no-input <explicit command>
 crossa --version
 crossa doctor
@@ -37,6 +37,11 @@ AAR assembly.
 creates `<output>/debug/Crossa.xcframework` and
 `<output>/release/Crossa.xcframework` when the Apple toolchain and CMake are
 available.
+
+Generation prints the exact CLI path, version, source commit, and CLI SHA-256.
+The same values are written to each generated artifact manifest. Passing both
+package options produces a remote SwiftPM binary target; omitting the base URL
+keeps a local path target for development.
 
 ## Android Build Tool Versions
 

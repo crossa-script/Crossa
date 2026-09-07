@@ -761,8 +761,17 @@ public final class CrossaRuntime: @unchecked Sendable {
         // Returns the source-verified native curl provisioning script used by Xcode builds.
         [[nodiscard]] static string dependencyScript() {
             return "#!/bin/sh\nset -eu\n\n"
-                "if ! command -v cmake >/dev/null 2>&1; then\n"
-                "    echo 'Crossa iOS build requires CMake to provision libcurl.' >&2\n    exit 1\nfi\n"
+                "cmake_bin=${CROSSA_CMAKE:-}\n"
+                "if [ -z \"${cmake_bin}\" ]; then\n"
+                "    for sdk in \"${ANDROID_SDK_ROOT:-}\" \"${ANDROID_HOME:-}\" \"${HOME:-}/Library/Android\" \"${HOME:-}/Android/Sdk\"; do\n"
+                "        for candidate in \"${sdk}\"/cmake/*/bin/cmake; do\n"
+                "            if [ -x \"${candidate}\" ]; then cmake_bin=\"${candidate}\"; break 2; fi\n"
+                "        done\n"
+                "    done\n"
+                "fi\n"
+                "if [ -z \"${cmake_bin}\" ]; then cmake_bin=$(command -v cmake || true); fi\n"
+                "if [ -z \"${cmake_bin}\" ]; then echo 'Crossa iOS build requires CMake to provision libcurl.' >&2; exit 1; fi\n"
+                "curl_archive=${CROSSA_CURL_ARCHIVE:-https://curl.se/download/curl-8.12.1.tar.xz}\n"
                 "if [ \"${PLATFORM_NAME:-}\" = \"iphonesimulator\" ]; then platform=simulator; else platform=device; fi\n"
                 "arch=${CURRENT_ARCH:-}\n"
                 "if [ -z \"${arch}\" ] || [ \"${arch}\" = undefined_arch ]; then arch=${ARCHS:-}; fi\n"
@@ -770,20 +779,23 @@ public final class CrossaRuntime: @unchecked Sendable {
                 "    echo 'Crossa requires a concrete Xcode architecture.' >&2\n    exit 1\nfi\n"
                 "build=\"${PROJECT_DIR}/.crossa/dependencies/${PLATFORM_NAME}/${arch}\"\n"
                 "if [ -f \"${build}/curl/lib/libcurl.a\" ]; then exit 0; fi\n"
-                "cmake_bin=$(command -v cmake)\n"
-                "ninja_bin=$(dirname \"${cmake_bin}\")/ninja\n"
-                "if [ ! -x \"${ninja_bin}\" ]; then ninja_bin=$(command -v ninja); fi\n"
+                "ninja_bin=${CROSSA_NINJA:-$(dirname \"${cmake_bin}\")/ninja}\n"
+                "if [ ! -x \"${ninja_bin}\" ]; then ninja_bin=$(command -v ninja || true); fi\n"
                 "if [ -z \"${ninja_bin}\" ] || [ ! -x \"${ninja_bin}\" ]; then\n"
                 "    echo 'Crossa iOS build requires Ninja to provision libcurl.' >&2\n    exit 1\nfi\n"
                 "clang=$(xcrun --sdk \"${PLATFORM_NAME}\" --find clang)\n"
                 "clangxx=$(xcrun --sdk \"${PLATFORM_NAME}\" --find clang++)\n"
-                "cmake -S \"${PROJECT_DIR}/Dependencies\" -B \"${build}/build\" -G Ninja "
+                "\"${cmake_bin}\" -S \"${PROJECT_DIR}/Dependencies\" -B \"${build}/build\" -G Ninja "
                 "-DCMAKE_MAKE_PROGRAM=\"${ninja_bin}\" "
                 "-DCMAKE_C_COMPILER=\"${clang}\" -DCMAKE_CXX_COMPILER=\"${clangxx}\" "
                 "-DCROSSA_PLATFORM=\"${platform}\" -DCROSSA_ARCH=\"${arch}\" "
                 "-DCROSSA_SDKROOT=\"${SDKROOT}\" -DCROSSA_DEPLOYMENT_TARGET=\"${IPHONEOS_DEPLOYMENT_TARGET}\" "
-                "-DCROSSA_INSTALL_ROOT=\"${build}\"\n"
-                "cmake --build \"${build}/build\"\n";
+                "-DCROSSA_INSTALL_ROOT=\"${build}\" "
+                "-DCROSSA_CURL_ARCHIVE=\"${curl_archive}\" "
+                "-DCROSSA_NINJA=\"${ninja_bin}\" "
+                "-DCROSSA_CLANG=\"${clang}\" "
+                "-DCROSSA_CLANGXX=\"${clangxx}\"\n"
+                "\"${cmake_bin}\" --build \"${build}/build\"\n";
         }
 
         // Returns the normal archive and XCFramework flow used by the CLI packaging command.
@@ -819,7 +831,7 @@ public final class CrossaRuntime: @unchecked Sendable {
         // Returns isolated CMake dependency provisioning for the iOS C++ runtime.
         [[nodiscard]] static string dependencyCmake() {
             return "cmake_minimum_required(VERSION 3.22)\n"
-                "foreach(required CROSSA_PLATFORM CROSSA_ARCH CROSSA_SDKROOT CROSSA_DEPLOYMENT_TARGET CROSSA_INSTALL_ROOT)\n"
+                "foreach(required CROSSA_PLATFORM CROSSA_ARCH CROSSA_SDKROOT CROSSA_DEPLOYMENT_TARGET CROSSA_INSTALL_ROOT CROSSA_CURL_ARCHIVE CROSSA_NINJA CROSSA_CLANG CROSSA_CLANGXX)\n"
                 "    if(NOT DEFINED ${required})\n        message(FATAL_ERROR \"Missing ${required} for Crossa iOS dependencies.\")\n    endif()\n"
                 "endforeach()\n\n"
                 "set(CMAKE_SYSTEM_NAME iOS)\n"
@@ -834,9 +846,9 @@ public final class CrossaRuntime: @unchecked Sendable {
                 "include(ExternalProject)\n"
                 "set(CROSSA_CURL_INSTALL \"${CROSSA_INSTALL_ROOT}/curl\")\n"
                 "ExternalProject_Add(crossa_ios_curl\n"
-                "    URL \"" + IosBuildRequirements::curlArchiveUrl() + "\"\n"
+                "    URL \"${CROSSA_CURL_ARCHIVE}\"\n"
                 "    URL_HASH \"SHA256=" + IosBuildRequirements::curlArchiveSha256() + "\"\n"
-                "    CMAKE_ARGS -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=${CROSSA_SDKROOT} -DCMAKE_OSX_ARCHITECTURES=${CROSSA_ARCH} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CROSSA_DEPLOYMENT_TARGET} -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO -DCMAKE_XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE=YES -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${CROSSA_CURL_INSTALL} -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DBUILD_TESTING=OFF -DCURL_USE_SECTRANSP=ON -DCURL_USE_OPENSSL=OFF -DCURL_ZLIB=ON -DCURL_USE_LIBPSL=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DUSE_NGHTTP2=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_DISABLE_LDAP=ON -DCURL_DISABLE_LDAPS=ON -DCURL_DISABLE_RTSP=ON -DCURL_DISABLE_DICT=ON -DCURL_DISABLE_TELNET=ON -DCURL_DISABLE_TFTP=ON -DCURL_DISABLE_POP3=ON -DCURL_DISABLE_IMAP=ON -DCURL_DISABLE_SMTP=ON -DCURL_DISABLE_GOPHER=ON -DCURL_DISABLE_MQTT=ON -DCURL_CA_BUNDLE=none -DCURL_CA_PATH=none\n"
+                "    CMAKE_ARGS -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=${CROSSA_SDKROOT} -DCMAKE_OSX_ARCHITECTURES=${CROSSA_ARCH} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CROSSA_DEPLOYMENT_TARGET} -DCMAKE_MAKE_PROGRAM=${CROSSA_NINJA} -DCMAKE_C_COMPILER=${CROSSA_CLANG} -DCMAKE_CXX_COMPILER=${CROSSA_CLANGXX} -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO -DCMAKE_XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE=YES -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${CROSSA_CURL_INSTALL} -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DBUILD_TESTING=OFF -DCURL_USE_SECTRANSP=ON -DCURL_USE_OPENSSL=OFF -DCURL_ZLIB=ON -DCURL_USE_LIBPSL=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DUSE_NGHTTP2=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_DISABLE_LDAP=ON -DCURL_DISABLE_LDAPS=ON -DCURL_DISABLE_RTSP=ON -DCURL_DISABLE_DICT=ON -DCURL_DISABLE_TELNET=ON -DCURL_DISABLE_TFTP=ON -DCURL_DISABLE_POP3=ON -DCURL_DISABLE_IMAP=ON -DCURL_DISABLE_SMTP=ON -DCURL_DISABLE_GOPHER=ON -DCURL_DISABLE_MQTT=ON -DCURL_CA_BUNDLE=none -DCURL_CA_PATH=none\n"
                 "    BUILD_BYPRODUCTS \"${CROSSA_CURL_INSTALL}/lib/libcurl.a\"\n"
                 ")\n\n"
                 "add_custom_target(crossa_ios_dependencies ALL DEPENDS crossa_ios_curl)\n";

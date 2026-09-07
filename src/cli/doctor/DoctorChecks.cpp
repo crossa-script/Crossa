@@ -1069,18 +1069,18 @@ namespace crossa::cli::doctor {
                 "Install an iOS Simulator runtime through Xcode."
             )
         };
-        optional<filesystem::path> cmakePath =
-            DoctorCheckUtils::findExecutable("cmake");
-        if (!cmakePath.has_value()) {
-            const optional<filesystem::path> sdkDirectory =
-                DoctorCheckUtils::androidHome();
-            if (sdkDirectory.has_value()) {
-                const vector<filesystem::path> candidates =
-                    DoctorCheckUtils::sdkCMakeExecutables(sdkDirectory.value());
-                if (!candidates.empty()) {
-                    cmakePath = candidates.front();
-                }
+        optional<filesystem::path> cmakePath;
+        const optional<filesystem::path> sdkDirectory =
+            DoctorCheckUtils::androidHome();
+        if (sdkDirectory.has_value()) {
+            const vector<filesystem::path> candidates =
+                DoctorCheckUtils::sdkCMakeExecutables(sdkDirectory.value());
+            if (!candidates.empty()) {
+                cmakePath = candidates.front();
             }
+        }
+        if (!cmakePath.has_value()) {
+            cmakePath = DoctorCheckUtils::findExecutable("cmake");
         }
         results.push_back(AppleToolchainUtils::command(
             "CMake",

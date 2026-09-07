@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <exception>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -42,6 +43,7 @@ namespace crossa::cli {
 
     // Runs the Crossa command-line application and returns its process status.
     int CrossaApplication::run(int argc, char* argv[]) {
+        executablePath_ = filesystem::absolute(argv[0]);
         bool noInput = false;
         bool helpRequested = false;
         bool versionRequested = false;
@@ -562,6 +564,13 @@ namespace crossa::cli {
         const Arguments& arguments,
         const utils::Log& log
     ) {
+        utils::PrintUtils::println(
+            "Crossa CLI:\n"
+            "  path: " + executablePath_.string() + "\n"
+            "  version: " + CrossaVersion::current() + "\n"
+            "  source commit: " + sourceCommit() + "\n"
+            "  sha256: " + cliSha256()
+        );
         const filesystem::path projectDirectory =
             filesystem::weakly_canonical(arguments.sourcePath);
         if (!filesystem::is_directory(projectDirectory)) {
@@ -672,6 +681,11 @@ namespace crossa::cli {
             arguments.outputDirectory.value(),
             buildVersions
         );
+        writeArtifactManifest(
+            arguments.outputDirectory.value(),
+            "android",
+            "Release"
+        );
         logStepCompleted(7, "Android Gradle library project generation", log);
     }
 
@@ -680,6 +694,13 @@ namespace crossa::cli {
         const Arguments& arguments,
         const utils::Log& log
     ) {
+        utils::PrintUtils::println(
+            "Crossa CLI:\n"
+            "  path: " + executablePath_.string() + "\n"
+            "  version: " + CrossaVersion::current() + "\n"
+            "  source commit: " + sourceCommit() + "\n"
+            "  sha256: " + cliSha256()
+        );
         const filesystem::path projectDirectory =
             filesystem::weakly_canonical(arguments.sourcePath);
         if (!filesystem::is_directory(projectDirectory)) {
@@ -761,6 +782,7 @@ namespace crossa::cli {
             nativeProgramViews,
             buildProjectDirectory
         );
+        writeArtifactManifest(buildProjectDirectory, "ios", "Release");
         const filesystem::path buildScript = buildProjectDirectory / "Scripts" /
             "build-xcframework.sh";
         const vector<pair<string, filesystem::path>> configurations = {
@@ -802,6 +824,91 @@ namespace crossa::cli {
             );
         }
         logStepCompleted(7, "iOS XCFramework packaging", log);
+    }
+
+    void CrossaApplication::writeArtifactManifest(
+        const filesystem::path& outputDirectory,
+        const string& target,
+        const string& configuration
+    ) {
+        error_code error;
+        filesystem::create_directories(outputDirectory / "Metadata", error);
+        if (error) {
+            throw runtime_error(
+                "Unable to create artifact metadata directory: " +
+                outputDirectory.string()
+            );
+        }
+        const string manifest =
+            "{\n"
+            "  \"crossaVersion\": \"" + jsonEscape(CrossaVersion::current()) +
+            "\",\n"
+            "  \"sourceCommit\": \"" + jsonEscape(sourceCommit()) +
+            "\",\n"
+            "  \"cliPath\": \"" + jsonEscape(executablePath_.string()) +
+            "\",\n"
+            "  \"cliSha256\": \"" + jsonEscape(cliSha256()) +
+            "\",\n"
+            "  \"runtimeAbi\": 1,\n"
+            "  \"target\": \"" + jsonEscape(target) +
+            "\",\n"
+            "  \"configuration\": \"" + jsonEscape(configuration) +
+            "\"\n"
+            "}\n";
+        ofstream output(
+            outputDirectory / "Metadata" / "artifact-manifest.json",
+            ios::binary | ios::trunc
+        );
+        if (!output.is_open()) {
+            throw runtime_error(
+                "Unable to write artifact metadata: " +
+                (outputDirectory / "Metadata" / "artifact-manifest.json").string()
+            );
+        }
+        output << manifest;
+        if (!output) {
+            throw runtime_error("Unable to write artifact metadata content.");
+        }
+    }
+
+    string CrossaApplication::sourceCommit() {
+#ifdef CROSSA_SOURCE_DIRECTORY
+        const doctor::ProcessResult result = doctor::ProcessRunner::run({
+            "git", "-C", CROSSA_SOURCE_DIRECTORY, "rev-parse", "HEAD"
+        });
+        if (result.started && result.exitCode == 0) {
+            const size_t end = result.output.find_first_of("\r\n");
+            return result.output.substr(0, end);
+        }
+#endif
+        return "unknown";
+    }
+
+    string CrossaApplication::cliSha256() {
+        const doctor::ProcessResult result = doctor::ProcessRunner::run({
+            "shasum", "-a", "256", executablePath_.string()
+        });
+        if (result.started && result.exitCode == 0) {
+            const size_t separator = result.output.find_first_of(" \t");
+            return result.output.substr(0, separator);
+        }
+        return "unknown";
+    }
+
+    string CrossaApplication::jsonEscape(const string& value) {
+        string escaped;
+        escaped.reserve(value.size());
+        for (const char character : value) {
+            switch (character) {
+                case '\\': escaped += "\\\\"; break;
+                case '"': escaped += "\\\""; break;
+                case '\n': escaped += "\\n"; break;
+                case '\r': escaped += "\\r"; break;
+                case '\t': escaped += "\\t"; break;
+                default: escaped += character; break;
+            }
+        }
+        return escaped;
     }
 
     // Writes one generated Kotlin source unit into the requested output directory.

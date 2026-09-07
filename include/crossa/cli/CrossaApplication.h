@@ -86,6 +86,20 @@ private:
         const utils::Log& log
     );
 
+    static void writeArtifactManifest(
+        const std::filesystem::path& outputDirectory,
+        const std::string& target,
+        const std::string& configuration
+    );
+
+    [[nodiscard]] static std::string sourceCommit();
+
+    [[nodiscard]] static std::string cliSha256();
+
+    [[nodiscard]] static std::string jsonEscape(const std::string& value);
+
+    inline static std::filesystem::path executablePath_;
+
     // Writes one generated Kotlin source unit into the requested output directory.
     static void writeGeneratedKotlinSource(
         const compiler::generators::kotlin::KotlinGeneratedSource& source,
