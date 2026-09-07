@@ -48,8 +48,8 @@
 
 | Mode | Crossa p50 | Crossa p95 | Alamofire p50 | Alamofire p95 |
 |---|---:|---:|---:|---:|
-| Warm | 11.738 ms | 13.168 ms | 13.030 ms | 13.242 ms |
-| Cold | 34.268 ms | 35.331 ms | 42.449 ms | 61.253 ms |
+| Warm | 12.410 ms | 14.118 ms | 12.782 ms | 13.623 ms |
+| Cold | 32.503 ms | 34.303 ms | 43.205 ms | 123.816 ms |
 
 الـ raw JSON محفوظ خارج المستودع في `/private/tmp/crossa-ios-final-warm.json` و`/private/tmp/crossa-ios-final-cold.json`. هذه أرقام Simulator مع endpoint remote، وليست production claim.
 
