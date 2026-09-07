@@ -495,6 +495,10 @@ namespace crossa::packaging::android {
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaState { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaState$* { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaConfigurationOverrides { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaOperation { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaNativeList { public *; }\n"
@@ -516,6 +520,8 @@ namespace crossa::packaging::android {
                 ".internal.CrossaArgument$StringValue { *; }\n"
             "-keep class " + packageName +
                 ".internal.CrossaArgument$BooleanValue { *; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaArgument$* { *; }\n"
             "-dontwarn java.lang.invoke.StringConcatFactory\n"
         );
         writeFile(
@@ -529,6 +535,10 @@ namespace crossa::packaging::android {
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaState { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaState$* { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
+                ".runtime.CrossaConfigurationOverrides { public *; }\n"
+            "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaOperation { public *; }\n"
             "-keep,allowoptimization public class " + packageName +
                 ".runtime.CrossaNativeList { public *; }\n"
@@ -536,6 +546,12 @@ namespace crossa::packaging::android {
                 ".runtime.CrossaJson { public *; }\n"
             "-keep class " + packageName +
                 ".internal.CrossaNativeBridge { <methods>; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaNativeCallback { <methods>; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaArgument { *; }\n"
+            "-keep class " + packageName +
+                ".internal.CrossaArgument$* { *; }\n"
             "-dontwarn java.lang.invoke.StringConcatFactory\n"
         );
     }

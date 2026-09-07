@@ -148,7 +148,7 @@ private:
     ) noexcept {
         auto& buffer = *static_cast<ResponseBuffer*>(context);
         if (elementCount != 0 && elementSize >
-            numeric_limits<size_t>::max() / elementCount) {
+            (numeric_limits<size_t>::max)() / elementCount) {
             buffer.overflowed = true;
             return 0;
         }
@@ -178,7 +178,7 @@ private:
     ) noexcept {
         auto& buffer = *static_cast<ResponseHeaderBuffer*>(context);
         if (elementCount != 0 && elementSize >
-            numeric_limits<size_t>::max() / elementCount) {
+            (numeric_limits<size_t>::max)() / elementCount) {
             buffer.overflowed = true;
             return 0;
         }

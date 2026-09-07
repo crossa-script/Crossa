@@ -125,10 +125,36 @@ namespace crossa::bindings::android {
     // Resolves and promotes a Kotlin class reference for persistent JNI use.
     static jclass findGlobalClass(JNIEnv* environment, const char* name) {
         jclass localClass = environment->FindClass(name);
-        if (localClass == nullptr) return nullptr;
+        if (localClass == nullptr) {
+            if (environment->ExceptionCheck()) environment->ExceptionClear();
+            return nullptr;
+        }
         jclass globalClass = static_cast<jclass>(environment->NewGlobalRef(localClass));
         environment->DeleteLocalRef(localClass);
         return globalClass;
+    }
+
+    static jclass findGlobalClass(JNIEnv* environment, jobject classLoader, const char* name) {
+        jclass localClass = findGlobalClass(environment, name);
+        if (localClass != nullptr || classLoader == nullptr) return localClass;
+        if (environment->ExceptionCheck()) environment->ExceptionClear();
+        jclass loaderClass = environment->GetObjectClass(classLoader);
+        if (loaderClass == nullptr) return nullptr;
+        jmethodID loadClass = environment->GetMethodID(loaderClass, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+        if (loadClass == nullptr) return nullptr;
+        string binaryName(name);
+        for (char& character : binaryName) {
+            if (character == '/') character = '.';
+        }
+        jstring javaName = environment->NewStringUTF(binaryName.c_str());
+        localClass = static_cast<jclass>(environment->CallObjectMethod(classLoader, loadClass, javaName));
+        environment->DeleteLocalRef(javaName);
+        environment->DeleteLocalRef(loaderClass);
+        if (environment->ExceptionCheck()) {
+            environment->ExceptionClear();
+            return nullptr;
+        }
+        return localClass == nullptr ? nullptr : static_cast<jclass>(environment->NewGlobalRef(localClass));
     }
 
     // Converts the generated Kotlin scalar argument wrappers into ABI arguments.
@@ -733,18 +759,25 @@ namespace crossa::bindings::android {
         try {
             lock_guard lock(mutex_);
             if (javaVm_ != nullptr) return javaVm_ == javaVm && runtimeCreator_ == runtimeCreator;
-            jclass bridgeClass = findGlobalClass(environment, bridgeClassName);
-            packagePrefix_ = bridgeClassName;
+        jclass bridgeClass = findGlobalClass(environment, bridgeClassName);
+        jobject classLoader = nullptr;
+        if (bridgeClass != nullptr) {
+            jclass classClass = environment->FindClass("java/lang/Class");
+            jmethodID getClassLoader = classClass == nullptr ? nullptr : environment->GetMethodID(classClass, "getClassLoader", "()Ljava/lang/ClassLoader;");
+            if (getClassLoader != nullptr) classLoader = environment->CallObjectMethod(bridgeClass, getClassLoader);
+            if (environment->ExceptionCheck()) environment->ExceptionClear();
+        }
+        packagePrefix_ = bridgeClassName;
             const size_t bridgeStart = packagePrefix_.rfind('/');
             if (bridgeStart == string::npos) return false;
             packagePrefix_.erase(bridgeStart + 1);
-            argumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument").c_str());
-            intArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$IntValue").c_str());
-            longArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$LongValue").c_str());
-            doubleArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$DoubleValue").c_str());
-            stringArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$StringValue").c_str());
-            boolArgumentClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaArgument$BooleanValue").c_str());
-            callbackClass_ = findGlobalClass(environment, (packagePrefix_ + "CrossaNativeCallback").c_str());
+        argumentClass_ = findGlobalClass(environment, classLoader, (packagePrefix_ + "CrossaArgument").c_str());
+        intArgumentClass_ = findGlobalClass(environment, classLoader, (packagePrefix_ + "CrossaArgument$IntValue").c_str());
+        longArgumentClass_ = findGlobalClass(environment, classLoader, (packagePrefix_ + "CrossaArgument$LongValue").c_str());
+        doubleArgumentClass_ = findGlobalClass(environment, classLoader, (packagePrefix_ + "CrossaArgument$DoubleValue").c_str());
+        stringArgumentClass_ = findGlobalClass(environment, classLoader, (packagePrefix_ + "CrossaArgument$StringValue").c_str());
+        boolArgumentClass_ = findGlobalClass(environment, classLoader, (packagePrefix_ + "CrossaArgument$BooleanValue").c_str());
+        callbackClass_ = findGlobalClass(environment, classLoader, (packagePrefix_ + "CrossaNativeCallback").c_str());
             if (bridgeClass == nullptr || argumentClass_ == nullptr || intArgumentClass_ == nullptr || longArgumentClass_ == nullptr || doubleArgumentClass_ == nullptr || stringArgumentClass_ == nullptr || boolArgumentClass_ == nullptr || callbackClass_ == nullptr) return false;
             intValue_ = environment->GetFieldID(intArgumentClass_, "value", "I");
             longValue_ = environment->GetFieldID(longArgumentClass_, "value", "J");
