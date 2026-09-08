@@ -39,8 +39,8 @@ cmake -S . -B build/tsan -DCROSSA_ENABLE_TSAN=ON
 
 Address/undefined behavior and thread sanitizers are mutually exclusive.
 
-GitHub Actions runs the native suite, Kotlin and Android generator validations,
-and an AddressSanitizer build on every push and pull request through:
+GitHub Actions runs the native suite, Kotlin generator validation, and an
+AddressSanitizer build on every push and pull request through:
 
 ```text
 .github/workflows/ci.yml

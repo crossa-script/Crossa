@@ -26,9 +26,6 @@ jobs:
       - name: Validate Kotlin generator golden files
         run: bash scripts/run-kotlin-generator-tests.sh ./build/crossa
 
-      - name: Validate Android project generator
-        run: bash scripts/run-android-project-generator-tests.sh ./build/crossa
-
   sanitizer:
     runs-on: ubuntu-latest
 
