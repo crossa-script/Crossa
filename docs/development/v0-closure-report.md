@@ -2,15 +2,17 @@
 
 Date: 2026-09-09 (Asia/Amman)
 
-Source commit: `8c362e10fba65cbc2279f08c06eb5469e16a72e5`
+Final V0 release: `v0.0.13`
 
-The working tree contains the closure changes and is intentionally uncommitted. The CLI reports version `0.1.0`; the stable runtime ABI is `1`.
+Final V0 source commit: `38e31ae42426be76c34d14ca1ec229a323a979ad`
+
+The GitHub release/tag version is `v0.0.13`. The compiler/CLI reports internal version `0.1.0`, the CRA language version is V0, and the stable runtime ABI is `1`. These are separate version axes. The source state recorded here is the immutable release commit; it does not assert that the current local workspace is clean.
 
 ## Verdict
 
-**CROSSA V0: BLOCKED — ENVIRONMENT.**
+**CROSSA V0: CLOSED**
 
-Repository-controlled native, generator, artifact, consumer, mobile Release smoke, and website gates passed. The remaining unconditional release gate is host sanitizer execution: AppleClang ASAN and UBSAN processes hang during sanitizer runtime initialization before `main`, including a zero-line control program. CI presets and independent ASAN/UBSAN jobs are present, but this host cannot provide a valid sanitizer result.
+Repository-controlled native, generator, artifact, consumer, mobile Release smoke, website, and final native sanitizer gates passed. The earlier local macOS environment could not initialize AppleClang ASAN/UBSAN before `main`; the final V0 commit was subsequently validated by the authoritative GitHub CI sanitizer jobs. The local environment limitation therefore no longer blocks V0 closure.
 
 The security scan completed with zero reported findings but partial coverage: delegated workers were unavailable and discovery/validation did not execute. It must not be interpreted as a clean full security audit.
 
@@ -28,12 +30,16 @@ The security scan completed with zero reported findings but partial coverage: de
 | iOS Release runtime | PASS — warm smoke | iPhone 14 Pro Max simulator, iOS 17.5; Crossa and Alamofire each completed 8/8 warm samples |
 | Website | PASS | `pnpm typecheck`, `pnpm lint`, `pnpm build`; 34 SEO routes generated |
 | Website synchronization | PASS | `website/scripts/build-and-deploy.sh` synchronized `website/dist` into `crossa-script.github.io` |
-| ASAN / UBSAN | BLOCKED — ENVIRONMENT | AppleClang sanitizer initialization hangs before `main`; independent presets/jobs are configured for CI |
+| GitHub build-and-test | PASS | GitHub `Crossa CI #46`, run `34399392935`, commit `38e31ae42426be76c34d14ca1ec229a323a979ad`, job `build-and-test` — Success |
+| ASAN | PASS | GitHub `Crossa CI #46`, run `34399392935`, commit `38e31ae42426be76c34d14ca1ec229a323a979ad`, job `asan` — Success |
+| UBSAN | PASS | GitHub `Crossa CI #46`, run `34399392935`, commit `38e31ae42426be76c34d14ca1ec229a323a979ad`, job `ubsan` — Success |
 | Security scan | PARTIAL | Completed scan `94bda93f-15f4-4442-99b0-869e279f51ba`; zero reported findings, six surfaces deferred because worker capacity was unavailable |
 
-Mobile timings are simulator plus remote-network observations, not physical-device performance claims. Android warm/cold runs are current-artifact evidence; only the iOS warm run was repeated after the final decoder changes. No physical Android/iOS device was available, and remote SwiftPM publication was not performed because no hosting URL or publishing credentials were supplied.
+Mobile timings are simulator plus remote-network observations, not physical-device performance claims. Android warm/cold runs are retained pre-release artifact evidence; only the iOS warm run was repeated after the final decoder changes. No physical Android/iOS device was available, and remote SwiftPM publication was not performed because no hosting URL or publishing credentials were supplied.
 
-## Release artifacts
+## Retained pre-release artifact evidence
+
+The following hashes are retained from the earlier closure evidence and are not attributed to `v0.0.13`; their manifests identify source commit `8c362e10fba65cbc2279f08c06eb5469e16a72e5`.
 
 | Artifact | Path | SHA-256 / checksum |
 |---|---|---|
@@ -41,7 +47,7 @@ Mobile timings are simulator plus remote-network observations, not physical-devi
 | Android Release AAR | `android-example/app/libs/crossa-generated-release.aar` | `297b6e05f5dd5cba091a7a2b7c3d14510064ba474d9a5bc18c74027642cf716c` |
 | iOS Release XCFramework ZIP | `Crossa/build/crossa-ios-v0/release/Crossa.xcframework.zip` | `4651422f992c5250bc7612b18709728be3905f555845bca6cb97acaa8d53526a` |
 
-The Android and iOS artifact manifests record the same source commit, CLI digest, runtime ABI, and Release configuration. The Android warm/cold raw result files were refreshed against the current AAR; iOS simulator smoke results were validated against the current XCFramework, while older retained iOS result files are not used as current-artifact performance evidence.
+The Android and iOS artifact manifests record that earlier source commit, CLI digest, runtime ABI, and Release configuration. The Android warm/cold raw result files were refreshed against that AAR; iOS simulator smoke results were validated against that XCFramework. These retained artifacts and measurements are historical evidence, not final-release artifact attribution.
 
 ## Hardening completed
 
@@ -54,4 +60,4 @@ The Android and iOS artifact manifests record the same source commit, CLI digest
 
 ## Closure boundary
 
-V0 is not unconditionally closed until the unchanged ASAN and UBSAN runtime gates terminate cleanly in a functioning sanitizer environment. V1 work, streaming delivery, physical-device validation, and remote distribution remain outside this closure.
+V0 closure covers the released source and validated gates above. V1 work, streaming delivery, physical-device validation, and remote distribution remain outside this closure.

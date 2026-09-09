@@ -1,27 +1,27 @@
 {
   "schemaVersion": 1,
   "date": "2026-09-09",
-  "verdict": "blocked",
-  "blocker": "host_sanitizer_initialization",
+  "verdict": "closed",
+  "blocker": null,
+  "release": {
+    "tag": "v0.0.13"
+  },
   "source": {
     "repository": "Crossa",
-    "commit": "8c362e10fba65cbc2279f08c06eb5469e16a72e5",
-    "workingTreeDirty": true,
+    "commit": "38e31ae42426be76c34d14ca1ec229a323a979ad",
+    "state": "immutable_release_commit",
     "compilerVersion": "0.1.0",
+    "craLanguageVersion": "V0",
     "runtimeAbi": 1
   },
-  "artifacts": {
-    "cli": {
-      "path": "Crossa/build/crossa",
-      "sha256": "6dbd4978a41ec2ba1b11370ab6d97f7995f494d71e1b515fd656af5479e042b1"
-    },
-    "androidReleaseAar": {
-      "path": "android-example/app/libs/crossa-generated-release.aar",
-      "sha256": "297b6e05f5dd5cba091a7a2b7c3d14510064ba474d9a5bc18c74027642cf716c"
-    },
-    "iosReleaseZip": {
-      "path": "Crossa/build/crossa-ios-v0/release/Crossa.xcframework.zip",
-      "sha256": "4651422f992c5250bc7612b18709728be3905f555845bca6cb97acaa8d53526a"
+  "ci": {
+    "workflow": "Crossa CI",
+    "run": "https://github.com/crossa-script/Crossa/actions/runs/34399392935",
+    "commit": "38e31ae42426be76c34d14ca1ec229a323a979ad",
+    "jobs": {
+      "build-and-test": "passed",
+      "asan": "passed",
+      "ubsan": "passed"
     }
   },
   "validation": {
@@ -38,8 +38,8 @@
     "iosReleaseRuntimeCold": "not_run_current_artifact",
     "website": "passed",
     "websitePagesSynchronization": "passed",
-    "asan": "blocked_environment",
-    "ubsan": "blocked_environment",
+    "asan": "passed",
+    "ubsan": "passed",
     "securityScan": "partial_deferred_worker_capacity"
   },
   "security": {
@@ -48,9 +48,6 @@
     "coverage": "partial",
     "deferredReason": "Delegated workers were unavailable; discovery and validation did not execute."
   },
-  "externalBlockers": [
-    "AppleClang ASAN and UBSAN runtime initialization hangs before main on this host."
-  ],
   "notRun": [
     "Physical Android device validation",
     "Physical iOS device validation",
