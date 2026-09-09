@@ -20,13 +20,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes cmake ninja-build libcurl4-openssl-dev
 
-      - name: Build and run all tests
+      - name: Configure and build Debug
+        run: cmake --preset debug && cmake --build --preset debug
+
+      - name: Run CTest
+        run: ctest --preset debug --no-tests=error
+
+      - name: Run CLI integration fixtures
         run: ./test.sh
 
       - name: Validate Kotlin generator golden files
         run: bash scripts/run-kotlin-generator-tests.sh ./build/crossa
 
-  sanitizer:
+  asan:
     runs-on: ubuntu-latest
 
     steps:
@@ -40,6 +46,24 @@ jobs:
 
       - name: Build and test with AddressSanitizer
         run: |
-          cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCROSSA_ENABLE_ASAN=ON
-          cmake --build build/asan --parallel
-          ctest --test-dir build/asan --output-on-failure
+          cmake --preset asan
+          cmake --build --preset asan --parallel
+          ctest --preset asan --no-tests=error
+
+  ubsan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake ninja-build libcurl4-openssl-dev
+
+      - name: Build and test with UndefinedBehaviorSanitizer
+        run: |
+          cmake --preset ubsan
+          cmake --build --preset ubsan --parallel
+          ctest --preset ubsan --no-tests=error

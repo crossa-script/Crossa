@@ -8,17 +8,23 @@ option(
     OFF
 )
 
-option(CROSSA_ENABLE_ASAN "Enable AddressSanitizer and undefined behavior checks" OFF)
+option(CROSSA_ENABLE_ASAN "Enable AddressSanitizer checks" OFF)
+option(CROSSA_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer checks" OFF)
 option(CROSSA_ENABLE_TSAN "Enable ThreadSanitizer checks" OFF)
 
-if(CROSSA_ENABLE_ASAN AND CROSSA_ENABLE_TSAN)
-    message(FATAL_ERROR "CROSSA_ENABLE_ASAN and CROSSA_ENABLE_TSAN are mutually exclusive.")
+if((CROSSA_ENABLE_ASAN AND CROSSA_ENABLE_UBSAN) OR
+   (CROSSA_ENABLE_ASAN AND CROSSA_ENABLE_TSAN) OR
+   (CROSSA_ENABLE_UBSAN AND CROSSA_ENABLE_TSAN))
+    message(FATAL_ERROR "CROSSA_ENABLE_ASAN, CROSSA_ENABLE_UBSAN, and CROSSA_ENABLE_TSAN are mutually exclusive.")
 endif()
 
 function(crossa_apply_sanitizers target)
     if(CROSSA_ENABLE_ASAN)
-        target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
-        target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+        target_compile_options(${target} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(${target} PRIVATE -fsanitize=address)
+    elseif(CROSSA_ENABLE_UBSAN)
+        target_compile_options(${target} PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
+        target_link_options(${target} PRIVATE -fsanitize=undefined)
     elseif(CROSSA_ENABLE_TSAN)
         target_compile_options(${target} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=thread)

@@ -6,7 +6,10 @@
 
 `NativeModel` owns fields in deterministic schema order. `NativeList` owns elements in response order. Fields and elements are native `RuntimeValue` values and never reference the temporary response buffer.
 
-The current response decoder parses into one bounded temporary JSON DOM, recursively constructs native values from the IR schema, then releases the DOM. Only a function whose declared result is `Json` retains generic JSON storage.
+The response decoder parses typed scalars, models, and lists directly from the
+bounded response buffer against the IR schema. Unknown fields are skipped and
+native immutable storage is created without a generic object graph. Only a
+function whose declared result is `Json` retains generic JSON storage.
 
 ## Cancellation Ownership
 

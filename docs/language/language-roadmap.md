@@ -620,7 +620,7 @@ Native execution and target generators preserve identical interpolation semantic
 
 # Phase 9 — Models
 
-> **Implementation status:** Implemented. Models are first-class typed declarations in the semantic model and IR, with native `NativeModel` storage and generated Android/iOS representations. Nested Android model and list fields remain a platform-view gap; nested iOS views are generated.
+> **Implementation status:** Implemented. Models are first-class typed declarations in the semantic model and IR, with native `NativeModel` storage and generated Android/iOS representations. Nested model and list fields are available through the native-backed platform views.
 
 ## Goal
 
@@ -1051,7 +1051,7 @@ Path interpolation works through the same language semantics as ordinary strings
 
 # Phase 16 — Native Response Decoding
 
-> **Implementation status:** Foundation decoding is implemented for scalar, `Json`, native model, and native list results. Typed results release the temporary generic JSON DOM after construction. Generated direct schema decoders remain a production optimization.
+> **Implementation status:** Direct schema-aware decoding is implemented for scalar, native model, and native list results. Unknown fields are skipped while malformed JSON, duplicate fields, and type mismatches fail deterministically. Explicit `Json` results use the generic JSON representation.
 
 ## Goal
 
@@ -1315,7 +1315,7 @@ without rescanning source syntax during normal runtime execution.
 
 ## Milestone C — Model and List
 
-> **Implementation status:** Implemented. `List<T>` resolves as a typed collection. Android nested model/list *fields* are still a platform-view gap.
+> **Implementation status:** Implemented. `List<T>` resolves as a typed collection, and Android nested model/list fields are exposed through native-backed ABI value paths.
 
 ```cra
 model User(

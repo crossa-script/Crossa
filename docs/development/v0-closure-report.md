@@ -1,81 +1,57 @@
 # Crossa V0 Closure Report
 
-Date: 2026-09-07
+Date: 2026-09-09 (Asia/Amman)
 
-The closure validation used the current CLI build from Crossa commit
-`3e37fbbc774edf1bd69f457f489ceb2f72d7cfe7` plus the working-tree closure
-changes. The CLI reports version `0.1.0`.
+Source commit: `8c362e10fba65cbc2279f08c06eb5469e16a72e5`
 
-## Results
+The working tree contains the closure changes and is intentionally uncommitted. The CLI reports version `0.1.0`; the stable runtime ABI is `1`.
+
+## Verdict
+
+**CROSSA V0: BLOCKED — ENVIRONMENT.**
+
+Repository-controlled native, generator, artifact, consumer, mobile Release smoke, and website gates passed. The remaining unconditional release gate is host sanitizer execution: AppleClang ASAN and UBSAN processes hang during sanitizer runtime initialization before `main`, including a zero-line control program. CI presets and independent ASAN/UBSAN jobs are present, but this host cannot provide a valid sanitizer result.
+
+The security scan completed with zero reported findings but partial coverage: delegated workers were unavailable and discovery/validation did not execute. It must not be interpreted as a clean full security audit.
+
+## Validation
 
 | Area | Result | Evidence |
 |---|---|---|
-| CLI Release build | Passed | `build/v0-closure-cli/crossa`; `--version` = `0.1.0` |
-| Native tests | Passed | `./test.sh`; language/runtime and CLI fixtures completed |
-| Kotlin generator | Passed | `bash scripts/run-kotlin-generator-tests.sh ./build/v0-closure-cli/crossa` |
-| Android project generator | Passed | `bash scripts/run-android-project-generator-tests.sh ./build/v0-closure-cli/crossa` |
-| Android Release AAR | Passed | Fresh AAR built by generated Gradle project |
-| Android app Debug/Release | Passed | `:app:assembleDebug :app:assembleRelease` |
-| Android emulator warm benchmark | Passed | `Pixel_10_Pro`, Android 17, `arm64-v8a`, 8/8 per implementation |
-| Android emulator cold benchmark | Passed | Fresh clients per measured sample, 8/8 per implementation |
-| iOS Debug/Release XCFramework generation | Passed | Fresh CLI generation; device and simulator slices present |
-| iOS simulator app Release build | Passed | Xcode 26.2, iOS Simulator SDK, `ARCHS=arm64` |
-| iOS simulator warm benchmark | Passed | iPhone 17 on iOS 26.2, 8/8 per implementation |
-| iOS simulator cold benchmark | Passed | Fresh Crossa runtime and Alamofire Session per sample, 8/8 |
-| Doctor | Passed | All required rows passed with real tool paths |
-| AddressSanitizer build | Passed | `build/v0-asan` configured and linked successfully |
-| CI gates | Updated | Native, Kotlin generator, Android generator, and ASan jobs |
+| Native tests | PASS | `./test.sh`; language, runtime, decoder, and CLI fixture tests exit 0 |
+| Typed response decoding | PASS | Direct schema-aware scalar/model/list decoding, unknown-field skipping, nested explicit `Json`, malformed/duplicate/type-mismatch cases |
+| Kotlin and Android generators | PASS | Generator test suites and fresh Android Release generation |
+| Android Release consumer | PASS | `./gradlew verifyDemo :app:assembleRelease` |
+| Android Release runtime | PASS | `Pixel_10_Pro`, Android 17, ARM64; Crossa, Retrofit, and Ktor each completed 8/8 warm and 8/8 cold samples |
+| iOS Release generation | PASS | Fresh XCFramework with device and simulator ARM64 slices |
+| iOS Debug/Release consumer | PASS | `xcodebuild` Debug and Release builds |
+| iOS Release runtime | PASS — warm smoke | iPhone 14 Pro Max simulator, iOS 17.5; Crossa and Alamofire each completed 8/8 warm samples |
+| Website | PASS | `pnpm typecheck`, `pnpm lint`, `pnpm build`; 34 SEO routes generated |
+| Website synchronization | PASS | `website/scripts/build-and-deploy.sh` synchronized `website/dist` into `crossa-script.github.io` |
+| ASAN / UBSAN | BLOCKED — ENVIRONMENT | AppleClang sanitizer initialization hangs before `main`; independent presets/jobs are configured for CI |
+| Security scan | PARTIAL | Completed scan `94bda93f-15f4-4442-99b0-869e279f51ba`; zero reported findings, six surfaces deferred because worker capacity was unavailable |
 
-## Android artifact
+Mobile timings are simulator plus remote-network observations, not physical-device performance claims. Android warm/cold runs are current-artifact evidence; only the iOS warm run was repeated after the final decoder changes. No physical Android/iOS device was available, and remote SwiftPM publication was not performed because no hosting URL or publishing credentials were supplied.
 
-The checked-in example artifact is:
+## Release artifacts
 
-`android-example/app/libs/crossa-generated-release.aar`
+| Artifact | Path | SHA-256 / checksum |
+|---|---|---|
+| CLI | `Crossa/build/crossa` | `6dbd4978a41ec2ba1b11370ab6d97f7995f494d71e1b515fd656af5479e042b1` |
+| Android Release AAR | `android-example/app/libs/crossa-generated-release.aar` | `297b6e05f5dd5cba091a7a2b7c3d14510064ba474d9a5bc18c74027642cf716c` |
+| iOS Release XCFramework ZIP | `Crossa/build/crossa-ios-v0/release/Crossa.xcframework.zip` | `4651422f992c5250bc7612b18709728be3905f555845bca6cb97acaa8d53526a` |
 
-SHA-256:
+The Android and iOS artifact manifests record the same source commit, CLI digest, runtime ABI, and Release configuration. The Android warm/cold raw result files were refreshed against the current AAR; iOS simulator smoke results were validated against the current XCFramework, while older retained iOS result files are not used as current-artifact performance evidence.
 
-`8fee24fe6258eced68dd730daaafea8a48769c246648d789c2dea0778c56d5f0`
+## Hardening completed
 
-The AAR contains `jni/arm64-v8a/libcrossa_runtime.so`. Its defined dynamic
-symbol count is 6; the intentional JNI entry point is present and runtime
-internals are hidden with `--exclude-libs,ALL`.
+- Typed scalar/model/list responses now use a bounded direct schema-aware decoder; only explicit `Json` uses the generic JSON representation.
+- Direct decoding skips unknown fields, rejects duplicates and malformed/type-mismatched values, and enforces byte, cancellation, and nesting limits.
+- ASAN and UBSAN are independent mutually exclusive CMake configurations with dedicated CI jobs and presets.
+- Android Release generation has an explicit Gradle task dependency so the consumer cannot race artifact generation.
+- iOS example deployment targets and SwiftUI result rendering now match the APIs used by the example and compile in Release.
+- Source documentation and the generated website catalog describe V0 capabilities and post-V0 streaming scope consistently.
 
-## iOS artifact
+## Closure boundary
 
-The checked-in example framework is:
-
-`ios-example/CrossaBinary/Crossa.xcframework`
-
-It contains `ios-arm64` and `ios-arm64-simulator` slices. The generated Release
-SwiftPM ZIP checksum is:
-
-`f3f4ee584aec283ecf8a9a9f997f6687c3f0d981abc14255a83051f989e206b9`
-
-The generated package manifest, release template, checksum, ZIP, dSYM, and
-artifact manifest were verified in the fresh output directory
-`/private/tmp/crossa-v0-ios-release/release`.
-
-## Runtime evidence
-
-Both example apps now expose deterministic automation markers:
-
-`CROSSA_BENCHMARK_STARTED`
-
-`CROSSA_BENCHMARK_COMPLETED`
-
-They persist raw samples and metadata as `benchmark-result.json` in the app
-data container. Metadata includes endpoint, mode, warmups, measured iterations,
-device/OS/ABI, artifact identity, SHA-256/checksum, and Crossa source commit.
-
-Observed Android warm results were successful for Crossa, Retrofit, and Ktor;
-observed Android cold results were successful for all three. Observed iOS warm
-and cold results were successful for Crossa and Alamofire. These are simulator
-and remote-network observations, not production performance claims.
-
-## Remaining release boundary
-
-No physical Android or iOS device was available for this run, so physical-device
-performance and thermal evidence remain unverified. Remote SwiftPM publication
-was not performed because no artifact hosting URL or publishing credentials were
-provided; the local ZIP, checksum, release manifest template, and verification
-path are ready for the repository that owns the generated SDK.
+V0 is not unconditionally closed until the unchanged ASAN and UBSAN runtime gates terminate cleanly in a functioning sanitizer environment. V1 work, streaming delivery, physical-device validation, and remote distribution remain outside this closure.

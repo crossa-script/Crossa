@@ -98,7 +98,8 @@ private:
         runtime::RequestHandle requestHandle;
         runtime::RuntimeValue value = decoder.decode(
             "[{\"userId\":1,\"id\":9000000000,\"rating\":4.75,"
-            "\"title\":\"hello\",\"body\":\"world\"}]",
+            "\"title\":\"hello\",\"body\":\"world\","
+            "\"extra\":{\"nested\":[1,true]}}]",
             compiler::types::SemanticType::createList(
                 compiler::types::SemanticType::createModel("Post")
             ),
@@ -151,6 +152,13 @@ private:
         requireDecoderError(
             decoder,
             "[{\"userId\":1}]",
+            runtime::CrossaErrorCode::ResponseTypeMismatch,
+            requestHandle
+        );
+        requireDecoderError(
+            decoder,
+            "[{\"userId\":\"wrong\",\"id\":1,\"rating\":1.0,"
+            "\"title\":\"hello\",\"body\":\"world\"}]",
             runtime::CrossaErrorCode::ResponseTypeMismatch,
             requestHandle
         );

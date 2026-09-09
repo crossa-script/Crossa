@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-09",
+  "verdict": "blocked",
+  "blocker": "host_sanitizer_initialization",
+  "source": {
+    "repository": "Crossa",
+    "commit": "8c362e10fba65cbc2279f08c06eb5469e16a72e5",
+    "workingTreeDirty": true,
+    "compilerVersion": "0.1.0",
+    "runtimeAbi": 1
+  },
+  "artifacts": {
+    "cli": {
+      "path": "Crossa/build/crossa",
+      "sha256": "6dbd4978a41ec2ba1b11370ab6d97f7995f494d71e1b515fd656af5479e042b1"
+    },
+    "androidReleaseAar": {
+      "path": "android-example/app/libs/crossa-generated-release.aar",
+      "sha256": "297b6e05f5dd5cba091a7a2b7c3d14510064ba474d9a5bc18c74027642cf716c"
+    },
+    "iosReleaseZip": {
+      "path": "Crossa/build/crossa-ios-v0/release/Crossa.xcframework.zip",
+      "sha256": "4651422f992c5250bc7612b18709728be3905f555845bca6cb97acaa8d53526a"
+    }
+  },
+  "validation": {
+    "nativeTests": "passed",
+    "typedResponseDecoder": "passed",
+    "androidReleaseGeneration": "passed",
+    "androidReleaseConsumer": "passed",
+    "androidReleaseRuntimeWarm": "passed",
+    "androidReleaseRuntimeCold": "passed",
+    "iosReleaseGeneration": "passed",
+    "iosReleaseConsumerDebug": "passed",
+    "iosReleaseConsumerRelease": "passed",
+    "iosReleaseRuntimeWarm": "passed",
+    "iosReleaseRuntimeCold": "not_run_current_artifact",
+    "website": "passed",
+    "websitePagesSynchronization": "passed",
+    "asan": "blocked_environment",
+    "ubsan": "blocked_environment",
+    "securityScan": "partial_deferred_worker_capacity"
+  },
+  "security": {
+    "scanId": "94bda93f-15f4-4442-99b0-869e279f51ba",
+    "reportedFindings": 0,
+    "coverage": "partial",
+    "deferredReason": "Delegated workers were unavailable; discovery and validation did not execute."
+  },
+  "externalBlockers": [
+    "AppleClang ASAN and UBSAN runtime initialization hangs before main on this host."
+  ],
+  "notRun": [
+    "Physical Android device validation",
+    "Physical iOS device validation",
+    "Remote SwiftPM publication",
+    "V1 and post-V0 streaming work"
+  ]
+}

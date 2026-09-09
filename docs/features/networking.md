@@ -80,9 +80,11 @@ generated Android/iOS APIs remains a future stream ABI decision.
 
 The transport uses pooled reusable libcurl easy handles on the shared bounded
 scheduler. It does not create a thread per request. Generated Android and iOS
-APIs cancel through the native operation handle. Generated direct schema
-decoders remain a production optimization; the current decoder is schema-aware
-over a temporary JSON DOM.
+APIs cancel through the native operation handle. Typed scalars, models, and
+lists decode directly against the validated IR schema. Unknown fields are
+skipped without materializing a generic object; duplicate fields, malformed
+JSON, and type mismatches fail the operation. An explicit `Json` result retains
+the generic JSON representation by contract.
 
 ## Integration Verification
 

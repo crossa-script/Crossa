@@ -34,13 +34,16 @@ Host sanitizer builds are opt-in CMake configurations:
 cmake -S . -B build/asan -DCROSSA_ENABLE_ASAN=ON
 cmake --build build/asan --parallel
 ctest --test-dir build/asan --output-on-failure
+cmake -S . -B build/ubsan -DCROSSA_ENABLE_UBSAN=ON
+cmake --build build/ubsan --parallel
+ctest --test-dir build/ubsan --output-on-failure
 cmake -S . -B build/tsan -DCROSSA_ENABLE_TSAN=ON
 ```
 
-Address/undefined behavior and thread sanitizers are mutually exclusive.
+Address, undefined behavior, and thread sanitizers are mutually exclusive. The `asan` and `ubsan` configurations are independent so each gate reports its own failures.
 
 GitHub Actions runs the native suite, Kotlin generator validation, and an
-AddressSanitizer build on every push and pull request through:
+AddressSanitizer and UndefinedBehaviorSanitizer builds on every push and pull request through:
 
 ```text
 .github/workflows/ci.yml

@@ -4,7 +4,7 @@ Crossa is a compiler and native runtime that turns `.cra` sources into Android a
 
 Describe models, functions, and HTTP requests once. A single C++ frontend compiles them to typed IR. The same native runtime executes the work — networking, scheduling, decoding, and memory — and generated Kotlin and Swift APIs expose it as an AAR or XCFramework.
 
-> **Foundation phase.** The C++ frontend, typed IR, native HTTP/JSON runtime, Android AAR generation, iOS XCFramework generation, and CLI are available. Streaming delivery to platform APIs and generated direct decoders are still in progress.
+> **Foundation phase.** The C++ frontend, typed IR, native HTTP/JSON runtime, Android AAR generation, iOS XCFramework generation, project linking, and CLI are available. Typed scalar/model/list responses use direct schema-aware decoding; explicit `Json` results use the generic JSON representation. Native-backed Android/iOS model and list views are available. Incremental streaming delivery remains post-V0, and the current closure audit is blocked by host sanitizer initialization.
 
 ## Crossa in one minute
 
@@ -122,7 +122,9 @@ The CLI, Android, and iOS share this path. Kotlin and Swift do not parse `.cra` 
 | Generated `@AsyncAfter` Android and iOS APIs | Available |
 | Android Gradle project and AAR generation | Available for `arm64-v8a` |
 | iOS Debug/Release XCFramework generation | Available with Xcode and CMake |
-| Streaming delivery to platform APIs and generated direct decoders | In progress |
+| Android nested model/list result views | Available through native-backed ABI paths |
+| Direct schema-aware typed decoders | Available for scalars, models, and lists; explicit `Json` remains generic |
+| Streaming delivery to generated Android/iOS APIs | Post-V0; native transfer metrics are available while decoding remains buffered |
 
 ## Installation
 
@@ -203,6 +205,10 @@ flowchart LR
 | `crossa generate-build ios` | Xcode project and Debug/Release XCFrameworks |
 
 ## Project documentation
+
+**Current status**
+
+- [V0 Closure Audit](docs/audits/crossa-v0-current-state-audit.md) — current artifact, consumer, E2E, benchmark, and sanitizer-gate status.
 
 **Language and architecture**
 
